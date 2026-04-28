@@ -1,22 +1,32 @@
-"""
-Loguru setup for the price predictor app.
+"""Loguru setup for the price predictor app.
 
-Call setup_logging() ONCE at app startup (e.g., in cli.py main()).
+Call setup_logging() ONCE at app startup (e.g., in cli.main()).
 After that, import `logger` from loguru anywhere and use it.
+
+Three sinks:
+    * console (stderr) — colored, level from settings.log_level
+    * data/logs/predictor.log — DEBUG+, rotated 10 MB, gzipped, kept ~14 days
+    * data/logs/errors.log — ERROR+, with full backtrace + diagnose
+
+All file sinks use enqueue=True for thread/process safety (we'll have
+concurrent stock processing in iteration 5).
 """
 import sys
 
 from loguru import logger
 
-from config.settings import settings
+from config.settings import settings, setup_directories
 
 
 def setup_logging() -> None:
-    """Configure loguru with three handlers: console, full log, errors-only log."""
+    """Configure loguru. Idempotent — drops existing handlers first."""
+    # Make sure data/log dirs exist before adding file sinks
+    setup_directories()
+
     # Drop loguru's default handler
     logger.remove()
 
-    # Console handler — colored, level from settings
+    # ── Console handler ────────────────────────────────────────
     logger.add(
         sys.stderr,
         level=settings.log_level,
@@ -27,9 +37,10 @@ def setup_logging() -> None:
             "<level>{message}</level>"
         ),
         colorize=True,
+        enqueue=True,
     )
 
-    # Full log file — DEBUG+, rotates at 10 MB, keeps last 5
+    # ── Full log file ──────────────────────────────────────────
     logger.add(
         settings.logs_dir / "predictor.log",
         level="DEBUG",
@@ -41,11 +52,13 @@ def setup_logging() -> None:
             "{message}"
         ),
         rotation="10 MB",
-        retention=5,
+        retention="14 days",
+        compression="gz",
         encoding="utf-8",
+        enqueue=True,
     )
 
-    # Errors-only file — ERROR+, rotates at 10 MB, keeps last 10
+    # ── Errors-only file ───────────────────────────────────────
     logger.add(
         settings.logs_dir / "errors.log",
         level="ERROR",
@@ -57,10 +70,12 @@ def setup_logging() -> None:
             "{message}\n{exception}"
         ),
         rotation="10 MB",
-        retention=10,
+        retention="30 days",
+        compression="gz",
         encoding="utf-8",
         backtrace=True,
         diagnose=True,
+        enqueue=True,
     )
 
     logger.info(

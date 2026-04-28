@@ -10,13 +10,31 @@ wheels/
 .venv
 .github/instructions/wmt-copilot.instructions.md
 
+# Secrets / env
 .env
+
+# Data — never commit (PII, large files, regenerable)
+data/cache/
+data/kb/
+data/logs/*.log
+data/logs/*.log.gz
+data/outputs/*.json
 data/*.sqlite
 data/*.sqlite-journal
-data/outputs/*.json
-data/logs/*.log
-requirements.txt.bak
 
+# Coverage / test artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+
+# Tooling caches
+.ruff_cache/
+.mypy_cache/
+
+# Backups / OS / IDE
+requirements.txt.bak
 .DS_Store
 .idea/
 .vscode/
