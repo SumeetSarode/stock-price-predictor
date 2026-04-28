@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.github/instructions/wmt-copilot.instructions.md
+
+.env
+data/*.sqlite
+data/*.sqlite-journal
+data/outputs/*.json
+data/logs/*.log
+requirements.txt.bak
+
+.DS_Store
+.idea/
+.vscode/
+*.swp

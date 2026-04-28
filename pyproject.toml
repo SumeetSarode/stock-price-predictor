@@ -1,0 +1,111 @@
+[project]
+name = "price-predictor"
+version = "0.1.0"
+description = "Free, local, Nifty50 trading prediction system using Google ADK + LiteLLM."
+readme = "README.md"
+authors = [
+    { name = "Sumeet Sarode", email = "sumeet.s2597@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "google-adk>=1.31.1",
+    "httpx>=0.28.1",
+    "litellm>=1.83.0",
+    "loguru>=0.7.3",
+    "pandas>=2.3.3",
+    "pandas-ta>=0.4.71b0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.6.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.1.0",
+    "python-dotenv>=1.2.2",
+    "ruff>=0.15.12",
+    "typer>=0.23.1",
+    "yfinance>=1.3.0",
+]
+
+[project.scripts]
+price-predictor = "price_predictor:main"
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"
+
+# ─────────────────────────────────────────────────────────────
+# Package index configuration
+# ─────────────────────────────────────────────────────────────
+# Default: public PyPI (works everywhere, no VPN required).
+#
+# If you're on Walmart VPN and want the faster internal mirror,
+# set this environment variable BEFORE running uv:
+#
+#   export UV_INDEX_URL="https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple"
+#   export UV_INSECURE_HOST="pypi.ci.artifacts.walmart.com"
+#
+# Or add them to your shell rc file (.zshrc / .bashrc) for permanent use.
+# ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────
+# Pytest configuration
+# ─────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=price_predictor",
+    "--cov-report=term-missing",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests that hit real APIs",
+]
+
+# ─────────────────────────────────────────────────────────────
+# Ruff configuration (linter + formatter)
+# ─────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests", "scripts", "config"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import order)
+    "B",    # bugbear (common bugs)
+    "UP",   # pyupgrade (modern syntax)
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",  # line too long (formatter handles this)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "price_predictor"]
+
+# ─────────────────────────────────────────────────────────────
+# Walmart internal mirror (kept here as a reminder — see top of file
+# for env-var-based opt-in instructions). DO NOT uncomment, or the
+# project will only build on WMT VPN.
+# ─────────────────────────────────────────────────────────────
+# [[tool.uv.index]]
+# name = "walmart"
+# url = "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple"
+# default = true
+#
+# [tool.uv]
+# allow-insecure-host = ["pypi.ci.artifacts.walmart.com"]
