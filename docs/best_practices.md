@@ -150,11 +150,28 @@ of Gemini.
   {"status": "error", "error_message": "human-readable description"}
   ```
 - 🎯 Agent name format: lowercase_snake_case (`hello_agent`, `analyst_agent`)
-- 🎯 **Agent identity rule: file name = factory name (minus `make_`) = agent's `name` attribute**
-  - File: `agents/<name>_agent.py`
+- 🎯 **Agent identity rule: package name = factory name (minus `make_`) = agent's `name` attribute**
+  - Package: `agents/<name>_agent/` (a directory, NOT a single .py file — ADK CLI requires this)
+  - Implementation: `agents/<name>_agent/agent.py`
+  - Public API: `agents/<name>_agent/__init__.py` re-exports `root_agent`, `make_<name>_agent`, tools
   - Factory: `make_<name>_agent() -> LlmAgent`
   - Agent `name=`: `"<name>_agent"`
-  - Example: `agents/hello_agent.py` → `make_hello_agent()` → `name="hello_agent"`
+  - Example: `agents/hello_agent/agent.py` → `make_hello_agent()` → `name="hello_agent"`
+- 🎯 **ADK CLI entry point: every agent package MUST export `root_agent`**
+  - In `agent.py`: `root_agent = make_<name>_agent()` at module bottom
+  - In `__init__.py`: re-export it via `from .agent import root_agent`
+  - Required by `adk run`, `adk web`, `adk api_server`
+  - Tests / programmatic code use `make_<name>_agent()` for fresh instances;
+    `root_agent` is only for the CLI tools
+  - Lookup order ADK uses (when running `adk run <agents_dir>/<name>`):
+    1. `<agents_dir>/<name>/agent.py` with `root_agent` defined  ← our pattern
+    2. `<agents_dir>/<name>/__init__.py` with `root_agent` exported
+    3. `<agents_dir>/<name>.py` with `root_agent` defined (CLI rejects this — wants directory)
+    4. `<agents_dir>/<name>/root_agent.yaml`
+  - Run with: `uv run adk run src/price_predictor/agents/<name>` (no `.py`!)
+  - **Why a package, not a file?** ADK CLI's AGENT argument requires a directory
+    (`click.Path(dir_okay=True, file_okay=False)`). Single-file agents work for
+    programmatic use but break the CLI — always use the package layout.
 - 🎯 All agents go in `src/price_predictor/agents/`
 - 🎯 Reusable tool functions go in domain modules (`analysis/`, `data/`, etc.),
   imported by agent files
@@ -207,6 +224,23 @@ both directly (`from litellm import completion`) and via ADK's `LiteLlm` adapter
 ### Things to verify
 - [VERIFY] LiteLLM model names change occasionally — list available models with
   the provider's API if a model is suddenly 404'ing
+
+### Gotchas (learned the hard way)
+- ⚠️ **Llama 3.3 on Groq has flaky function calling.** It occasionally emits
+  Llama-style XML (`<function=name(...)>`) instead of OpenAI JSON `tool_calls`.
+  Groq's API rejects this with `tool_use_failed`. **Use Gemini for primary
+  model when reliable function calling matters.** Groq is fine as `secondary`.
+- ⚠️ **LiteLLM defaults to aiohttp transport**, which has inconsistent proxy
+  support across providers. On corporate networks behind a proxy, set
+  `DISABLE_AIOHTTP_TRANSPORT=True` to force httpx (which respects `HTTPS_PROXY`).
+  We do this automatically in `setup_network()` when a proxy is configured.
+- ⚠️ **Walmart network**: api.groq.com / generativelanguage.googleapis.com don't
+  resolve directly. Set `HTTPS_PROXY=http://proxy-intlho.wal-mart.com:8080`
+  (NOT `sysproxy.wal-mart.com` — that one needs NTLM/Negotiate auth).
+  See `.env.example` for full proxy block.
+- ⚠️ Bash gotcha: `VAR=value cmd1 | cmd2` applies VAR to **cmd1** only, not
+  the whole pipeline. Use `cmd1 | env VAR=value cmd2` if you need the env
+  var on the receiving side of a pipe.
 
 ### References
 - Docs: https://docs.litellm.ai/
@@ -578,7 +612,7 @@ price_predictor/
 - 🎯 Functions / variables: `lowercase_snake_case`
 - 🎯 Constants: `UPPER_SNAKE_CASE`
 - 🎯 Private: leading underscore (`_helper`)
-- 🎯 Agent files: filename matches agent name exactly (`hello_agent.py`, not `hello.py`), expose `make_<name>_agent()`
+- 🎯 Agent files: filename matches agent name exactly (`hello_agent.py`, not `hello.py`), expose `make_<name>_agent()` AND module-level `root_agent = make_<name>_agent()`
 
 ### Async vs sync
 - 🎯 Agent code: async (use `acompletion`, `runner.run_async`)
@@ -648,6 +682,26 @@ price_predictor/
   `SECONDARY_MODEL`), exposed via `settings.primary_model` /
   `settings.secondary_model`. Factory has no hardcoded model defaults —
   Twelve-Factor App principle (config in env, not code).
+- **2026-04-29** — Added **network/proxy auto-config** to `settings.py`:
+  - `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` are read from `.env` and pushed
+    to `os.environ` on import via `setup_network()`.
+  - `DISABLE_AIOHTTP_TRANSPORT=True` is set automatically when a proxy is
+    configured (forces LiteLLM to use httpx, which honors proxies consistently).
+  - On Walmart network, use `proxy-intlho.wal-mart.com:8080` (no auth), NOT
+    `sysproxy.wal-mart.com` (needs NTLM/Negotiate).
+- **2026-04-29** — Switched `PRIMARY_MODEL` default to `gemini/gemini-2.5-flash`.
+  Llama 3.3 on Groq has flaky function calling (returns Llama XML instead of
+  OpenAI JSON tool calls). Gemini handles tools more reliably.
+- **2026-04-29** — Restructured: agents are now **packages** (`<name>_agent/agent.py`),
+  not single files. Required by ADK CLI which only accepts directories.
+  Also moved `config/` inside `src/price_predictor/` so it's importable from
+  any context (CLI, tests, scripts) — was at project root which only worked for
+  pytest (because of `pythonpath = [".", "src"]`). All imports updated
+  `config.settings` → `price_predictor.config.settings`.
 - **2026-04-28** — Removed defaults for `primary_model` / `secondary_model` in
   `settings.py`. Required env vars now (matches API key pattern). Avoids
   dual sources of truth between code and env.
+- **2026-04-28** — Added **`root_agent` convention** for ADK CLI compatibility.
+  Every agent file must define `root_agent = make_<name>_agent()` at module
+  bottom so `adk run` / `adk web` / `adk api_server` can discover it.
+  Tests still use the factory directly.
