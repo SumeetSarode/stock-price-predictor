@@ -61,7 +61,8 @@ This section reflects the implementation path implied by the README and our disc
 |---|---|---|---|
 | 3.1.1 | Price fetcher (`data/prices.py`) | done | Iteration 2.1 — see above |
 | 3.1.2 | News fetcher (`data/news.py`) using GDELT | done | Async-first; `fetch_news` + `fetch_news_batch` (concurrency=5 default) for discovery; `fetch_article_body` for separate body extraction via trafilatura. `NewsArticle` (metadata) + `ArticleBody` (status-tagged result) schemas. 40 unit tests + 2 integration tests (GDELT skipped on Walmart corp network — DNS-blocked; works off-corp). New deps: `trafilatura`, `respx` (dev) |
-| 3.1.2.5 | Estimates fetcher (`data/estimates.py`) via yfinance | code-complete, **coverage spike pending off-VPN** | Async-first wrapper around yfinance analyst-data properties (earnings_estimate, revenue_estimate, recommendations, analyst_price_targets). `Estimates`/`QuarterlyEstimate`/`RecommendationDistribution`/`PriceTargets` schemas with `has_coverage` gating for stocks yfinance doesn't cover. 35 unit tests with mocked yfinance. **Verification: run `scripts/coverage_spike_estimates.py` from non-corp network** (Yahoo's analyst endpoint `query1.finance.yahoo.com` is DNS-blocked on Walmart). Spike writes markdown + JSON reports to `reports/` for puppy review. Decision criteria embedded in the report. |
+| 3.1.2.5 | Estimates fetcher (`data/estimates.py`) via yfinance | done | Async-first wrapper around yfinance analyst-data properties. **Coverage spike PASSED off-VPN: 20/20 (100%) across large/mid/small cap.** Schemas: `Estimates`/`QuarterlyEstimate`/`RecommendationDistribution`/`PriceTargets` with `has_coverage` gating. 35 unit tests with mocked yfinance. Spike script at `scripts/coverage_spike_estimates.py`. Known nuance: quarterly consensus thin for some Indian large-caps (1-2 analysts) but annual consensus robust (26-32 analysts) — downstream analyzer should weight by `num_analysts`. |
+| 3.1.3 | NSE corporate filings (`data/filings.py`) | done | Async fan-out across **4 NSE endpoints** (announcement / board_meeting / corporate_action / financial_result) in parallel. Cookie warmup via NSE homepage; browser-like headers. Unified `Filing` schema with separate `announced_at` (filing date) and `event_at` (when split/dividend/meeting actually happens) — enables both backward ("what was filed?") and forward ("what's coming in 60 days?") queries. Per-endpoint parsers handle quirky JSON shapes; endpoint-specific extras preserved in `metadata: dict`. Partial-failure tolerant (one bad endpoint doesn't kill the batch). 45 unit tests + 1 integration test (skips gracefully on Walmart corp net — NSE DNS-blocked). No new deps. |
 | 3.1.3 | Filings fetcher (`data/filings.py`) for NSE announcements | not started | 30-day corporate events window |
 | 3.1.4 | News / filings deduplication (`data/dedupe.py`) | not started | EventID + fuzzy-title fallback |
 | 3.1.5 | Cache layer (`data/cache.py`) | not started | Deferred until fetchers exist and caching is actually needed |
@@ -130,40 +131,41 @@ This section reflects the implementation path implied by the README and our disc
 ## 5) Immediate next step
 
 ### Current state
-**Iteration 3.1.2.5 (estimates) is code-complete but blocked on off-VPN spike.**
-Next concrete action: **YOU run the coverage spike from non-corp network**, bring back the report, and the puppy reviews to decide whether to proceed with 3.1.3 (filings) or pivot the estimates source.
+**Iteration 3.1.3 (NSE filings) DONE.** All four data-layer modules for v1 are
+shipped: prices, news, estimates, filings. Schema additions for v1 data are
+complete. 163 unit tests passing.
 
-### How to run the spike
-```
-# 1. Disconnect from Walmart VPN
-# 2. cd practice_project/price_predictor
-# 3. uv run python scripts/coverage_spike_estimates.py
-# 4. Reports land in reports/estimates_coverage_<UTC_TIMESTAMP>.{md,json}
-# 5. Reconnect to VPN
-# 6. Tell the puppy "review the latest spike report"
-```
+### Three reasonable next moves — user picks
 
-### What the report decides
-- **≥80% large + ≥50% mid covered** → ship estimates as-is, proceed to 3.1.3 (filings)
-- **≥60% large, <50% mid** → ship with `has_coverage` gating, proceed to 3.1.3
-- **<60% large covered** → yfinance insufficient, defer estimates to a separate iteration with alternate source (Trendlyne scrape / paid API)
+**Option A: Off-VPN integration verification of NSE filings**
+Same pattern as the estimates spike. Add a `scripts/coverage_spike_filings.py`
+that hits real NSE for ~10 stocks across the 4 endpoints, captures actual JSON
+shapes (vs our inferred shapes), writes a report. Confirms whether our parsers
+match reality OR surfaces shape mismatches we need to fix. ~15 min to write,
+user runs off-VPN and brings back report. RECOMMENDED before depending on
+filings in any analyzer.
 
-### After the spike: iteration 3.1.3 (NSE corporate filings)
-Design already locked (see prior session):
-1. Roll-our-own httpx + cookie warmup (decision A from D1)
-2. All 4 endpoints in default fan-out: announcement, board_meeting, corporate_action, financial_result (decision C from D2)
-3. Unified `Filing` schema with `metadata: dict` for endpoint-specific extras
-4. `event_at` field separate from `announced_at` (handles forward-looking events like splits)
-5. ~50 min of work, ~50 unit tests, integration test skips gracefully on corp net
+**Option B: Move to iteration 3.2 — first analyzer (`analyzers/news_impact`)**
+With all data fetchers in place, build the first ADK analyzer agent that
+consumes news + filings + estimates + prices and produces an impact score.
+This is the FUN part — actual agent / LLM work begins here.
 
-### What's done so far in iteration 2 + 3.1 (data layer foundation)
+**Option C: Quick polish iteration — ADK tool wraps for news/filings/estimates**
+We have `agents/price_agent` from iteration 2. Wrap the other 3 modules as
+ADK tools (`news_agent`, `filings_agent`, `estimates_agent`) so an LLM can
+call them directly via ADK. Mirrors price_agent pattern. Quick (~15 min each).
+Learning value: more reps with the ADK tool-wrap pattern.
+
+### What's done so far in iterations 2 + 3.1 (data layer foundation, COMPLETE)
 - `data/prices.py` — OHLCV fetcher (yfinance, sync)
 - `data/news.py` — GDELT discovery + trafilatura body extraction (async)
-- `data/estimates.py` — yfinance analyst-data wrapper (async, coverage-pending)
-- `data/schema.py` — `OHLCVBar`, `NewsArticle`, `ArticleBody`, `QuarterlyEstimate`, `RecommendationDistribution`, `PriceTargets`, `Estimates`
+- `data/estimates.py` — yfinance analyst-data wrapper (async, coverage 100%)
+- `data/filings.py` — NSE 4-endpoint fan-out (async, integration verification pending)
+- `data/schema.py` — OHLCVBar, NewsArticle, ArticleBody, QuarterlyEstimate,
+  RecommendationDistribution, PriceTargets, Estimates, FilingKind, Filing
 - `agents/price_agent/` — ADK tool wrap of price fetcher (learning artifact)
-- `scripts/coverage_spike_estimates.py` — off-VPN coverage verification tool
-- All test suites passing: 118 unit tests; integration tests pass off-corp
+- `scripts/coverage_spike_estimates.py` — off-VPN coverage runner
+- All test suites passing: **163 unit tests**; integration tests pass off-corp
 
 ---
 

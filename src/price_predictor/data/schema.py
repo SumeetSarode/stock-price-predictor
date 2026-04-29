@@ -23,7 +23,7 @@ DESIGN ASSUMPTION — REGULAR-SESSION ONLY (prices):
     `session: Literal["regular", "premarket", "afterhours"]` field.
 """
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
@@ -232,3 +232,63 @@ class Estimates(BaseModel):
             or self.recommendations
             or self.price_targets
         )
+
+
+# ─────────────────────────────────────────────────────────────
+# Corporate filings schemas (iteration 3.1.3)
+# ─────────────────────────────────────────────────────────────
+FilingKind = Literal[
+    "announcement",       # Regulatory disclosures (M&A, fundraising, lawsuits, etc.)
+    "board_meeting",      # Scheduled board meetings (forward-looking earnings windows)
+    "corporate_action",   # Splits, dividends, bonuses, rights (with ex-dates)
+    "financial_result",   # Quarterly/annual results filings (for surprise calc)
+]
+
+
+class Filing(BaseModel):
+    """One corporate filing event from NSE.
+
+    Unified shape across 4 NSE endpoints (announcement / board_meeting /
+    corporate_action / financial_result). Each endpoint maps its quirky
+    JSON shape into this common model, with endpoint-specific fields
+    captured in `metadata` to avoid bloating the top-level schema.
+
+    KEY DESIGN: TWO dates, not one
+    --------------------------------
+    - `announced_at`: when NSE received the filing (always past, always present)
+    - `event_at`: when the actual event happens (split date, ex-div, meeting)
+                  Often null; can be past, present, or future.
+
+    This separation enables BOTH backward-looking ("what was filed recently?")
+    AND forward-looking ("what known events are coming?") queries against the
+    same dataset. Critical for catching e.g. a stock split announced today but
+    effective in 60 days — a backward-only window misses it.
+    """
+
+    symbol: str = Field(..., min_length=1, description="NSE bare symbol (no .NS suffix)")
+    kind: FilingKind = Field(..., description="Which endpoint this came from")
+    announced_at: datetime = Field(
+        ...,
+        description="When the filing was made with NSE (tz-aware IST)",
+    )
+    event_at: datetime | None = Field(
+        default=None,
+        description="When the actual event occurs (split/ex-div/meeting date), tz-aware IST",
+    )
+    event_type: str | None = Field(
+        default=None,
+        description="NSE's free-text categorization (e.g. 'Dividend', 'Quarterly Results')",
+    )
+    subject: str = Field(..., min_length=1, description="Short headline / subject line")
+    description: str = Field(
+        default="",
+        description="Longer text if NSE provides it (often empty — full content in PDF)",
+    )
+    attachment_url: HttpUrl | None = Field(
+        default=None,
+        description="PDF attachment link (often the only place with full content)",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Endpoint-specific extras (split ratio, dividend amount, broadcast time, etc.)",
+    )
