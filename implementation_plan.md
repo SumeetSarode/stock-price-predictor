@@ -60,7 +60,7 @@ This section reflects the implementation path implied by the README and our disc
 | Step | Description | Status | Notes |
 |---|---|---|---|
 | 3.1.1 | Price fetcher (`data/prices.py`) | done | Iteration 2.1 — see above |
-| 3.1.2 | News fetcher (`data/news.py`) using GDELT | not started | Free source, 7-day news window |
+| 3.1.2 | News fetcher (`data/news.py`) using GDELT | done | Async-first; `fetch_news` + `fetch_news_batch` (concurrency=5 default) for discovery; `fetch_article_body` for separate body extraction via trafilatura. `NewsArticle` (metadata) + `ArticleBody` (status-tagged result) schemas. 40 unit tests + 2 integration tests (GDELT skipped on Walmart corp network — DNS-blocked; works off-corp). New deps: `trafilatura`, `respx` (dev) |
 | 3.1.3 | Filings fetcher (`data/filings.py`) for NSE announcements | not started | 30-day corporate events window |
 | 3.1.4 | News / filings deduplication (`data/dedupe.py`) | not started | EventID + fuzzy-title fallback |
 | 3.1.5 | Cache layer (`data/cache.py`) | not started | Deferred until fetchers exist and caching is actually needed |
@@ -129,24 +129,28 @@ This section reflects the implementation path implied by the README and our disc
 ## 5) Immediate next step
 
 ### Current recommendation
-**Build `src/price_predictor/data/news.py` (iteration 3.1.2) — GDELT-backed news fetcher.**
+**Build `src/price_predictor/data/filings.py` (iteration 3.1.3) — NSE corporate filings/announcements fetcher.**
 
-### Scope of the next slice
-1. Fetch news articles for a ticker (or company name) over a date range
-2. Normalize the returned shape (title, url, published_at, source)
+OR optionally first: wrap the news fetcher as an ADK tool (`news_agent`) —
+same pattern as `price_agent`. Quick follow-up if you want LLM access to news.
+
+### Scope of the next slice (3.1.3 filings)
+1. Fetch corporate announcements from NSE for a ticker over a date range
+2. Normalize the returned shape (date, category, headline, attachment_url)
 3. Add unit tests with mocked HTTP
-4. One integration test against real GDELT (free public API)
+4. One integration test against real NSE
 
 ### Exit criteria
-- `fetch_news(query, start, end)` returns a list of normalized article dicts/models
+- `fetch_filings(ticker, start, end)` returns a list of normalized filing dicts/models
 - Tests pass locally (mocked + integration)
 - This module can later feed the `news_impact` analysis agent without redesign
 
-### What's done so far in iteration 2 (data layer foundation)
-- `data/prices.py` — OHLCV fetcher (yfinance)
-- `data/schema.py` — `OHLCVBar` Pydantic model
-- `agents/price_agent/` — ADK tool wrap of the fetcher (learning artifact; not part of production topology)
-- All test suites passing: 43 unit tests + 1 integration test
+### What's done so far in iteration 2 + 3.1 (data layer foundation)
+- `data/prices.py` — OHLCV fetcher (yfinance, sync)
+- `data/news.py` — GDELT discovery + trafilatura body extraction (async, multi-stock-ready)
+- `data/schema.py` — `OHLCVBar`, `NewsArticle`, `ArticleBody` Pydantic models
+- `agents/price_agent/` — ADK tool wrap of the price fetcher (learning artifact)
+- All test suites passing: 83 unit tests; integration tests pass off-corp
 
 ---
 
