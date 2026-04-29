@@ -15,7 +15,7 @@ import sys
 
 from loguru import logger
 
-from config.settings import settings, setup_directories
+from price_predictor.config.settings import settings, setup_directories
 
 
 def setup_logging() -> None:

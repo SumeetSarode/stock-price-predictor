@@ -14,7 +14,7 @@ from collections.abc import Callable
 
 from google.adk.models.lite_llm import LiteLlm
 
-from config.settings import settings
+from price_predictor.config.settings import settings
 
 # ─────────────────────────────────────────────────────────────
 # Provider → API key getter (lazy: only unmasks SecretStr when called)

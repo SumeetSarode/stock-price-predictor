@@ -1,22 +1,19 @@
-"""Hello-world ADK agent demonstrating tool use.
+"""Hello-world ADK agent — implementation module.
 
 Provides a single tool (`get_current_time`) that returns the current time
 in a given IANA timezone. The agent decides when to call it based on user input.
 
-This file is the canonical template for how an agent module is structured:
-    1. Module docstring
-    2. stdlib imports
-    3. third-party imports
-    4. first-party imports
-    5. Tool functions
-    6. Agent factory (`make_<name>_agent`)
+Structure (ADK CLI convention):
+    hello_agent/
+        __init__.py    re-exports public names
+        agent.py       this file — defines tool, factory, and root_agent
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from google.adk.agents import LlmAgent
 
-from config.settings import settings
+from price_predictor.config.settings import settings
 from price_predictor.llm.factory import make_model
 
 
@@ -78,12 +75,32 @@ def make_hello_agent() -> LlmAgent:
         description="A friendly assistant that answers questions about the current time.",
         model=make_model(settings.primary_model),
         instruction=(
-            "You are a friendly assistant. When the user asks about the current "
-            "time, call the get_current_time tool. If the user does not specify "
-            "a timezone, pass timezone='Asia/Kolkata' (Indian Standard Time). "
-            "After receiving the tool result, check its 'status' field: if "
-            "'success', format the 'datetime' value naturally and conversationally; "
-            "if 'error', apologize and use the 'error_message' to help the user."
+            "You are a friendly assistant that answers questions about the "
+            "current time.\n\n"
+            "TOOL USE RULES (follow exactly):\n"
+            "- When the user asks about the current time, call the "
+            "get_current_time tool using the standard tool-call format. "
+            "Do NOT write tool calls as plain text or XML.\n"
+            "- The 'timezone' argument MUST be a valid IANA timezone name "
+            "like 'Asia/Tokyo', 'America/New_York', 'Europe/London', or 'UTC'. "
+            "Convert city / country names to their IANA equivalent before calling. "
+            "Examples: 'Tokyo' → 'Asia/Tokyo', 'New York' → 'America/New_York', "
+            "'London' → 'Europe/London', 'India' → 'Asia/Kolkata'.\n"
+            "- If the user does not specify a location, pass "
+            "timezone='Asia/Kolkata' (Indian Standard Time).\n\n"
+            "RESPONSE RULES:\n"
+            "- After the tool returns, check its 'status' field. If 'success', "
+            "format the 'datetime' value naturally and conversationally. "
+            "If 'error', apologize and use the 'error_message' to help the user."
         ),
         tools=[get_current_time],
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# ADK CLI entry point
+# Module-level instance required by `adk run` / `adk web` / `adk api_server`.
+# ADK looks for `root_agent` in <agent_dir>/agent.py or <agent_dir>/__init__.py.
+# Tests and other code should still use `make_hello_agent()` for fresh instances.
+# ─────────────────────────────────────────────────────────────
+root_agent = make_hello_agent()

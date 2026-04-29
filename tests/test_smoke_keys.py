@@ -6,7 +6,7 @@ Hits real APIs — marked as `integration` so they can be skipped:
 import pytest
 from litellm import completion
 
-from config.settings import settings
+from price_predictor.config.settings import settings
 
 
 @pytest.mark.integration
