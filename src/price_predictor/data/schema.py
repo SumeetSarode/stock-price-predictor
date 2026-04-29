@@ -127,15 +127,21 @@ class ArticleBody(BaseModel):
 # Analyst estimates schemas (iteration 3.1.2.5)
 # ─────────────────────────────────────────────────────────────
 class QuarterlyEstimate(BaseModel):
-    """Forward-looking analyst consensus for one upcoming quarter (EPS or revenue).
+    """Forward-looking analyst consensus for one upcoming period (EPS or revenue).
 
-    yfinance returns 4 rows per stock: current quarter (0q), next quarter (+1q),
-    and two further out. Each row = aggregated stats across N analysts.
+    yfinance returns 4 rows per stock with mixed period granularity:
+    - '0q'  = current quarter (often THIN — Indian large-caps frequently have only 1-2 analysts)
+    - '+1q' = next quarter (also typically thin)
+    - '0y'  = current fiscal year (annual consensus — usually 20-32 analysts, ROBUST)
+    - '+1y' = next fiscal year (annual consensus — also robust)
+
+    Each row = aggregated stats across N analysts. Downstream analyzers
+    SHOULD weight signals by num_analysts (≥5 = real consensus, 1-2 = weak).
     """
 
     period: str = Field(
         ...,
-        description="yfinance period label: '0q'=current quarter, '+1q'=next, etc.",
+        description="yfinance period label: '0q'/'+1q' (quarters) or '0y'/'+1y' (fiscal years)",
     )
     num_analysts: int | None = Field(
         default=None, ge=0,
