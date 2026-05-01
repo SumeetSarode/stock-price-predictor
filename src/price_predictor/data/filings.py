@@ -57,6 +57,8 @@ NSE_HOMEPAGE = f"{NSE_BASE}/"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 # NSE blocks plain Python User-Agents. Browser-like headers are mandatory.
+# Note: NO 'br' in Accept-Encoding -- httpx doesn't decode brotli without
+# the optional `brotli` package installed. gzip/deflate are auto-handled.
 _BROWSER_HEADERS: dict[str, str] = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -65,7 +67,7 @@ _BROWSER_HEADERS: dict[str, str] = {
     ),
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": "gzip, deflate",
     "Referer": NSE_BASE + "/",
     "Connection": "keep-alive",
 }
@@ -322,17 +324,27 @@ _ENDPOINTS: dict[FilingKind, tuple[Callable[[str, str, str], str], ParserFn]] = 
 async def _warm_session(client: httpx.AsyncClient) -> None:
     """Hit NSE homepage to populate session cookies.
 
-    NSE's /api/* endpoints return 401/403 without these cookies. Idempotent —
-    calling twice just refreshes the cookies.
+    NSE often blocks /api/* without cookies; visiting the homepage usually
+    sets them. Idempotent.
+
+    BEST-EFFORT: NSE's homepage occasionally 403s plain HTTP clients even
+    when the API endpoints themselves are accessible. We log a warning on
+    non-2xx but don't raise -- the response often still includes Set-Cookie
+    headers, and the API may work even without warmed cookies.
+
+    Only raises on a true network error (DNS, connection refused, timeout).
     """
     try:
         resp = await client.get(NSE_HOMEPAGE, headers=_BROWSER_HEADERS)
-        if resp.status_code >= 400:
-            raise FilingsFetchError(
-                f"NSE session warmup failed: HTTP {resp.status_code}"
-            )
     except (httpx.HTTPError, httpx.InvalidURL) as e:
         raise FilingsFetchError(f"NSE session warmup network error: {e}") from e
+
+    if resp.status_code >= 400:
+        logger.warning(
+            f"NSE homepage warmup returned HTTP {resp.status_code} "
+            f"(continuing -- cookies may still be set; API endpoints often "
+            f"work without warmed session)"
+        )
 
 
 # ─────────────────────────────────────────────────────────────

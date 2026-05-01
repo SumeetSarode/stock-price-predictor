@@ -393,10 +393,29 @@ class TestFetchFilings:
 
     @pytest.mark.asyncio
     @respx.mock
-    async def test_warmup_failure_raises(self):
+    async def test_warmup_403_logged_but_continues(self, announcement_payload):
+        """Warmup 4xx is logged but doesn't kill the fetch -- API often works
+        without warmed cookies (real-world NSE behavior, verified in spike)."""
         respx.mock.get(NSE_HOMEPAGE).mock(return_value=httpx.Response(403))
+        respx.mock.get(
+            url__startswith=f"{NSE_BASE}/api/corporate-announcements"
+        ).mock(return_value=httpx.Response(200, json=announcement_payload))
 
-        with pytest.raises(FilingsFetchError, match="warmup"):
+        # Should NOT raise -- warmup failure is best-effort
+        df = await fetch_filings(
+            "RELIANCE", "2026-04-01", "2026-04-30", kinds=["announcement"],
+        )
+        assert len(df) == 2
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_warmup_network_error_still_raises(self):
+        """True network errors during warmup (DNS, connection refused) DO raise --
+        nothing else will work either."""
+        respx.mock.get(NSE_HOMEPAGE).mock(
+            side_effect=httpx.ConnectError("DNS resolution failed")
+        )
+        with pytest.raises(FilingsFetchError, match="warmup network error"):
             await fetch_filings("RELIANCE", "2026-04-01", "2026-04-30")
 
     @pytest.mark.asyncio

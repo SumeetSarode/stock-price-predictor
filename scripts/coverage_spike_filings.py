@@ -104,6 +104,8 @@ async def _probe_endpoint(
         "kind": kind,
         "url": url,
         "http_status": None,
+        "content_encoding": None,  # debugging: catch brotli/gzip mismatches
+        "content_length": None,
         "raw_item_count": 0,
         "parsed_count": 0,
         "sample_raw_item": None,
@@ -116,6 +118,8 @@ async def _probe_endpoint(
     try:
         resp = await client.get(url, headers=_BROWSER_HEADERS)
         result["http_status"] = resp.status_code
+        result["content_encoding"] = resp.headers.get("content-encoding")
+        result["content_length"] = len(resp.content)
     except Exception as e:
         result["error"] = f"HTTP_ERROR: {type(e).__name__}: {str(e)[:200]}"
         return result
@@ -324,12 +328,14 @@ def _render_report(spike: dict) -> str:
     # ── Per-probe detail ────────────────────────────────────
     md.append("## Per-probe detail")
     md.append("")
-    md.append("| Symbol | Kind | HTTP | Raw items | Parsed | Error |")
-    md.append("|---|---|---|---|---|---|")
+    md.append("| Symbol | Kind | HTTP | Encoding | Bytes | Raw items | Parsed | Error |")
+    md.append("|---|---|---|---|---|---|---|---|")
     for p in probes:
         md.append(
             f"| {p['symbol']} | `{p['kind']}` | "
             f"{p['http_status'] or '-'} | "
+            f"{p.get('content_encoding') or '-'} | "
+            f"{p.get('content_length') or '-'} | "
             f"{p['raw_item_count']} | {p['parsed_count']} | "
             f"{(p['error'] or '')[:60]} |"
         )
