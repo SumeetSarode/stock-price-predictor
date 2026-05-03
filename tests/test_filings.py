@@ -21,6 +21,7 @@ from price_predictor.data.filings import (
     _parse_corporate_action,
     _parse_financial_result,
     _parse_nse_datetime,
+    _safe_url,
     _to_nse_date_param,
     _validate_inputs,
     fetch_filings,
@@ -70,6 +71,42 @@ class TestToNseDateParam:
     def test_invalid_iso_raises(self):
         with pytest.raises(ValueError):
             _to_nse_date_param("not-a-date")
+
+
+class TestSafeUrl:
+    """Spike-driven: NSE puts blanks/relatives/'-' in URL fields. Schema's
+    HttpUrl rejects them; _safe_url gracefully degrades to None instead
+    of killing the whole row."""
+
+    def test_valid_https(self):
+        assert _safe_url("https://nsearchives.nseindia.com/x.pdf") == \
+               "https://nsearchives.nseindia.com/x.pdf"
+
+    def test_valid_http(self):
+        assert _safe_url("http://example.com/file.pdf") == "http://example.com/file.pdf"
+
+    def test_strips_whitespace(self):
+        assert _safe_url("  https://x.com/y.pdf  ") == "https://x.com/y.pdf"
+
+    def test_empty_string_to_none(self):
+        assert _safe_url("") is None
+
+    def test_whitespace_only_to_none(self):
+        assert _safe_url("   ") is None
+
+    def test_relative_path_to_none(self):
+        assert _safe_url("corporate/file.pdf") is None
+
+    def test_dash_placeholder_to_none(self):
+        """NSE uses '-' as a placeholder for missing values."""
+        assert _safe_url("-") is None
+
+    def test_none_input(self):
+        assert _safe_url(None) is None
+
+    def test_non_string_input(self):
+        assert _safe_url(12345) is None  # type: ignore[arg-type]
+        assert _safe_url(["http://x"]) is None  # type: ignore[arg-type]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -138,6 +175,28 @@ class TestParseAnnouncement:
         f = _parse_announcement(item, "RELIANCE")
         assert f is not None
         assert f.metadata.get("extra_field") == "preserved"
+
+    def test_invalid_attachment_url_degrades_to_none(self):
+        """Spike-driven: real NSE returns blank/relative/dash for some attachments.
+        Row should still parse with attachment_url=None instead of dying."""
+        item = {
+            "an_dt": "26-Apr-2026 18:30:00",
+            "desc": "Test announcement",
+            "attchmntFile": "",  # blank -- the actual spike-observed failure case
+        }
+        f = _parse_announcement(item, "RELIANCE")
+        assert f is not None  # Row survives
+        assert f.attachment_url is None
+
+    def test_relative_attachment_url_degrades_to_none(self):
+        item = {
+            "an_dt": "26-Apr-2026 18:30:00",
+            "desc": "Test",
+            "attchmntFile": "corporate/relative.pdf",  # relative path
+        }
+        f = _parse_announcement(item, "RELIANCE")
+        assert f is not None
+        assert f.attachment_url is None
 
 
 class TestParseBoardMeeting:
@@ -314,10 +373,12 @@ def _mock_all_endpoints(
 class TestFetchFilings:
     @pytest.mark.asyncio
     @respx.mock
-    async def test_happy_all_endpoints(
+    async def test_happy_default_kinds(
         self, mock_warmup, announcement_payload, board_meeting_payload,
         corporate_action_payload, financial_result_payload,
     ):
+        """Default kinds = 3 endpoints (financial_result excluded post-spike).
+        Mock all 4 to verify financial_result is NOT called."""
         _mock_all_endpoints(
             respx.mock,
             announcement_payload, board_meeting_payload,
@@ -327,14 +388,32 @@ class TestFetchFilings:
         df = await fetch_filings("RELIANCE", "2026-04-01", "2026-09-30")
 
         assert isinstance(df, pd.DataFrame)
-        # 2 announcements + 1 board meeting + 2 corp actions + 1 financial = 6
-        assert len(df) == 6
-        # All 4 kinds represented
+        # 2 announcements + 1 board meeting + 2 corp actions = 5 (no financial)
+        assert len(df) == 5
+        # Only 3 kinds in defaults
         assert set(df["kind"].unique()) == {
-            "announcement", "board_meeting", "corporate_action", "financial_result",
+            "announcement", "board_meeting", "corporate_action",
         }
+        assert "financial_result" not in df["kind"].unique()
         # Sorted by announced_at descending
         assert df["announced_at"].is_monotonic_decreasing
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_financial_result_opt_in_works(
+        self, mock_warmup, financial_result_payload,
+    ):
+        """User can opt into financial_result by passing it explicitly."""
+        respx.mock.get(
+            url__startswith=f"{NSE_BASE}/api/corporates-financial-results"
+        ).mock(return_value=httpx.Response(200, json=financial_result_payload))
+
+        df = await fetch_filings(
+            "RELIANCE", "2026-04-01", "2026-09-30",
+            kinds=["financial_result"],
+        )
+        assert len(df) == 1
+        assert df.iloc[0]["kind"] == "financial_result"
 
     @pytest.mark.asyncio
     @respx.mock
@@ -355,9 +434,8 @@ class TestFetchFilings:
     @respx.mock
     async def test_one_endpoint_fails_others_succeed(
         self, mock_warmup, announcement_payload, board_meeting_payload,
-        financial_result_payload,
     ):
-        # Mock 3 endpoints OK, 1 fails with 500
+        # Mock 2 endpoints OK, 1 fails with 500 (default kinds = 3 now)
         respx.mock.get(
             url__startswith=f"{NSE_BASE}/api/corporate-announcements"
         ).mock(return_value=httpx.Response(200, json=announcement_payload))
@@ -367,14 +445,11 @@ class TestFetchFilings:
         respx.mock.get(
             url__startswith=f"{NSE_BASE}/api/corporates-corporateActions"
         ).mock(return_value=httpx.Response(500, text="Server error"))
-        respx.mock.get(
-            url__startswith=f"{NSE_BASE}/api/corporates-financial-results"
-        ).mock(return_value=httpx.Response(200, json=financial_result_payload))
 
-        # Should NOT raise — partial failure is tolerated
+        # Should NOT raise -- partial failure is tolerated
         df = await fetch_filings("RELIANCE", "2026-04-01", "2026-09-30")
-        # 2 ann + 1 bm + 1 fr = 4 (corp actions failed)
-        assert len(df) == 4
+        # 2 ann + 1 bm = 3 (corp actions failed)
+        assert len(df) == 3
         assert "corporate_action" not in df["kind"].unique()
 
     @pytest.mark.asyncio
@@ -382,13 +457,13 @@ class TestFetchFilings:
     async def test_all_endpoints_fail_raises(self, mock_warmup):
         for url in (
             "/api/corporate-announcements", "/api/corporate-board-meetings",
-            "/api/corporates-corporateActions", "/api/corporates-financial-results",
+            "/api/corporates-corporateActions",
         ):
             respx.mock.get(url__startswith=NSE_BASE + url).mock(
                 return_value=httpx.Response(500, text="Down")
             )
 
-        with pytest.raises(FilingsFetchError, match="All 4 filings endpoints failed"):
+        with pytest.raises(FilingsFetchError, match="All 3 filings endpoints failed"):
             await fetch_filings("RELIANCE", "2026-04-01", "2026-09-30")
 
     @pytest.mark.asyncio
@@ -423,7 +498,7 @@ class TestFetchFilings:
     async def test_empty_responses(self, mock_warmup):
         for url in (
             "/api/corporate-announcements", "/api/corporate-board-meetings",
-            "/api/corporates-corporateActions", "/api/corporates-financial-results",
+            "/api/corporates-corporateActions",
         ):
             respx.mock.get(url__startswith=NSE_BASE + url).mock(
                 return_value=httpx.Response(200, json=[])
@@ -473,10 +548,13 @@ class TestFetchFilings:
         with pytest.raises(ValueError, match="non-empty list"):
             await fetch_filings("RELIANCE", "2026-04-01", "2026-04-30", kinds=[])
 
-    def test_default_kinds_includes_all_four(self):
+    def test_default_kinds_excludes_financial_result(self):
+        """Spike-driven: financial_result endpoint returns empty body.
+        Excluded from defaults to avoid wasted calls. Caller can opt in."""
         assert set(DEFAULT_KINDS) == {
-            "announcement", "board_meeting", "corporate_action", "financial_result",
+            "announcement", "board_meeting", "corporate_action",
         }
+        assert "financial_result" not in DEFAULT_KINDS
 
     @pytest.mark.asyncio
     @respx.mock

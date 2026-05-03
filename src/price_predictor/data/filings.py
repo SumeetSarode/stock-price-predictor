@@ -108,6 +108,21 @@ def _to_nse_date_param(iso_date: str) -> str:
     return dt.strftime("%d-%m-%Y")
 
 
+def _safe_url(raw: Any) -> str | None:
+    """Return raw if it looks like an http(s) URL, else None.
+
+    NSE sometimes puts blank strings, relative paths, or '-' in URL fields.
+    Schema's HttpUrl rejects these and would kill the whole row -- we
+    gracefully degrade to None instead.
+    """
+    if not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    if not raw or not raw.lower().startswith(("http://", "https://")):
+        return None
+    return raw
+
+
 def _validate_inputs(symbol: str, start: str, end: str) -> None:
     """Validate before any network call. Raises ValueError on bad input."""
     if not isinstance(symbol, str) or not symbol.strip():
@@ -153,7 +168,7 @@ def _parse_announcement(item: dict[str, Any], symbol: str) -> Filing | None:
         event_type=item.get("smIndustry") or None,
         subject=subject[:500],  # Cap to a sane length
         description=(item.get("attchmntText") or "")[:5000],
-        attachment_url=item.get("attchmntFile") or None,
+        attachment_url=_safe_url(item.get("attchmntFile")),
         metadata={k: v for k, v in item.items() if k not in {
             "an_dt", "attchmntFile", "attchmntText", "desc", "smIndustry", "sort_date",
         }},
@@ -189,7 +204,7 @@ def _parse_board_meeting(item: dict[str, Any], symbol: str) -> Filing | None:
         event_type=purpose or None,
         subject=subject[:500],
         description=desc[:5000],
-        attachment_url=item.get("attachment") or None,
+        attachment_url=_safe_url(item.get("attachment")),
         metadata={k: v for k, v in item.items() if k not in {
             "bm_purpose", "bm_desc", "bm_date", "attachment", "bm_timestamp",
         }},
@@ -267,7 +282,7 @@ def _parse_financial_result(item: dict[str, Any], symbol: str) -> Filing | None:
         event_type=audited or "Financial Results",
         subject=subject[:500],
         description="",
-        attachment_url=item.get("xbrlAttachment") or None,
+        attachment_url=_safe_url(item.get("xbrlAttachment")),
         metadata={k: v for k, v in item.items() if k not in {
             "broadCastDate", "fromDate", "toDate", "audited", "consolidated", "xbrlAttachment",
         }},
@@ -430,7 +445,14 @@ DEFAULT_KINDS: list[FilingKind] = [
     "announcement",
     "board_meeting",
     "corporate_action",
-    "financial_result",
+    # 'financial_result' INTENTIONALLY EXCLUDED from defaults.
+    # Off-VPN spike (filings_coverage_20260502T142439Z) confirmed:
+    #   * URL responds HTTP 200 (path is valid)
+    #   * But response body is empty (2 bytes = `[]`) for all tested stocks
+    #   * Likely a param issue (period=Quarterly may be wrong) -- NSE undocumented
+    #   * Every quarterly result ALSO appears in 'announcement' as desc='Financial
+    #     Results', so we're not actually losing data
+    # Caller can opt in via kinds=['financial_result', ...] to debug.
 ]
 
 
