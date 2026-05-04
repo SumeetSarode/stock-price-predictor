@@ -55,7 +55,7 @@ def _make_yf_response(
 # ─────────────────────────────────────────────────────────────
 def test_fetch_ohlcv_happy_path():
     """Mocked fetch returns a clean, normalized DataFrame."""
-    with patch("price_predictor.data.prices.yf.download") as mock_dl:
+    with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
         mock_dl.return_value = _make_yf_response()
         result = fetch_ohlcv("RELIANCE.NS", date(2024, 1, 1), date(2024, 1, 5))
 
@@ -75,7 +75,7 @@ def test_fetch_ohlcv_happy_path():
 
 def test_fetch_ohlcv_empty_raises():
     """When yfinance returns an empty DataFrame, fetch_ohlcv raises PriceFetchError."""
-    with patch("price_predictor.data.prices.yf.download") as mock_dl:
+    with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
         mock_dl.return_value = pd.DataFrame()  # empty
         with pytest.raises(PriceFetchError) as exc_info:
             fetch_ohlcv("RELIANCE.NS", date(2024, 1, 1), date(2024, 1, 5))
@@ -109,7 +109,7 @@ def test_fetch_ohlcv_empty_ticker_raises(bad_ticker: str):
 
 def test_fetch_ohlcv_column_normalization():
     """Title-case + multi-level columns from yfinance get flattened to lowercase."""
-    with patch("price_predictor.data.prices.yf.download") as mock_dl:
+    with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
         mock_dl.return_value = _make_yf_response()
         result = fetch_ohlcv("RELIANCE.NS", date(2024, 1, 1), date(2024, 1, 5))
 

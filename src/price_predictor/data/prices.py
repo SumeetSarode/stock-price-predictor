@@ -1,23 +1,44 @@
-"""OHLCV price fetcher backed by yfinance.
+"""OHLCV price fetcher -- thin shim over the resilient provider chain.
 
-WHY TWO CLOSE COLUMNS:
-    yfinance is called with auto_adjust=False so we get BOTH:
-      - close     — unadjusted (what actually traded; what users see on their
-                    broker tomorrow; what target/SL math uses)
-      - adj_close — adjusted for splits/dividends (what indicators like SMA,
-                    RSI, MACD, ATR should consume to avoid jumps on splits)
+WHY THIS FILE STILL EXISTS
+==========================
+The `fetch_ohlcv` function and `PriceFetchError` exception are imported
+across the codebase (price_agent, news_impact, tests). Keeping the same
+public symbols here -- as a thin delegate to the provider layer -- means
+zero churn in callers when we add or swap providers.
 
-    Downstream code MUST pick the right one for its job.
+Internals: a module-level singleton `_default_fetcher` is built once with
+the v1 chain (just YFinanceProvider). Adding Stooq / NSE / Alpha Vantage
+later = extend the chain in this one place.
+
+WHY TWO CLOSE COLUMNS
+=====================
+yfinance is called with auto_adjust=False so we get BOTH:
+    - close     -- unadjusted (what actually traded; what users see on
+                   their broker tomorrow; what target/SL math uses)
+    - adj_close -- adjusted for splits/dividends (what indicators like
+                   SMA, RSI, MACD, ATR should consume to avoid jumps
+                   on splits)
+
+Downstream code MUST pick the right one for its job. This contract is
+documented on PriceProvider and enforced by every provider implementation.
 """
-from datetime import date, timedelta
+from __future__ import annotations
+
+from datetime import date
 
 import pandas as pd
-import yfinance as yf
-from loguru import logger
 
+from price_predictor.data.providers import (
+    PriceFetchError,
+    ResilientPriceFetcher,
+    YFinanceProvider,
+)
 
-class PriceFetchError(Exception):
-    """Raised when yfinance returns no data, errors out, or returns garbage."""
+# ── Default fetcher chain ────────────────────────────────────────
+# v1: yfinance only. When we add Stooq / NSE / etc., extend this list
+# and that's the only change required anywhere in the codebase.
+_default_fetcher = ResilientPriceFetcher(providers=[YFinanceProvider()])
 
 
 def fetch_ohlcv(
@@ -26,87 +47,27 @@ def fetch_ohlcv(
     end: date,
     interval: str = "1d",
 ) -> pd.DataFrame:
-    """Fetch OHLCV history for a ticker.
+    """Fetch OHLCV history for a ticker via the default resilient chain.
 
     Args:
-        ticker:   yfinance ticker symbol, e.g. "RELIANCE.NS" for NSE.
+        ticker:   Provider-native ticker symbol (yfinance: 'RELIANCE.NS').
         start:    First trading day to include (inclusive).
-        end:      Last trading day to include (inclusive — we shift +1 day
-                  internally to handle yfinance's exclusive-end quirk).
-        interval: yfinance interval string. "1d" (default), "1wk", "1mo", "1h".
+        end:      Last trading day to include (inclusive).
+        interval: yfinance interval string. '1d' (default), '1wk', '1mo', '1h'.
 
     Returns:
         DataFrame indexed by tz-aware datetime (Asia/Kolkata), columns:
             open, high, low, close, adj_close, volume
 
     Raises:
-        ValueError:      Empty/whitespace ticker, or start > end.
-        PriceFetchError: yfinance returned no rows, or upstream API error.
+        ValueError:                    Empty/whitespace ticker or start > end.
+        PriceFetchError:               All providers in the chain failed.
+        AllProvidersExhaustedError:    (subclass of PriceFetchError) -- the
+                                       chain was exhausted; check .last_error.
     """
-    # ── Input validation ─────────────────────────
-    if not ticker or not ticker.strip():
-        raise ValueError(f"ticker must be a non-empty string, got {ticker!r}")
-    if start > end:
-        raise ValueError(f"start ({start}) must be <= end ({end})")
+    return _default_fetcher.fetch_ohlcv(ticker, start, end, interval)
 
-    # ── Fetch from yfinance ──────────────────────
-    # `end` shifted +1 day so our wrapper is inclusive (yfinance is exclusive).
-    # auto_adjust=False preserves both `Close` (raw) and `Adj Close` (adjusted).
-    try:
-        df = yf.download(
-            tickers=ticker,
-            start=start,
-            end=end + timedelta(days=1),
-            interval=interval,
-            auto_adjust=False,
-            progress=False,
-        )
-    except Exception as e:
-        raise PriceFetchError(
-            f"yfinance failed for ticker={ticker!r} "
-            f"start={start} end={end}: {e}"
-        ) from e
 
-    # ── Empty-result check ─────────────────────────
-    if df is None or df.empty:
-        raise PriceFetchError(
-            f"No price data returned for ticker={ticker!r} "
-            f"in range {start}…{end} (interval={interval}). "
-            f"Possible causes: delisted ticker, wrong suffix "
-            f"(NSE needs '.NS'), weekend-only range, or upstream outage."
-        )
-
-    # ── Column normalization ───────────────────────
-    # yfinance >= 0.2 returns MultiIndex columns even for single tickers:
-    #   level 0 = field ("Open", "High", ...), level 1 = ticker.
-    # We flatten to single-level snake_case for downstream sanity.
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.droplevel(1)
-
-    df = df.rename(
-        columns={
-            "Open": "open",
-            "High": "high",
-            "Low": "low",
-            "Close": "close",
-            "Adj Close": "adj_close",
-            "Volume": "volume",
-        }
-    )
-    df = df[["open", "high", "low", "close", "adj_close", "volume"]]
-
-    # ── Timezone normalization ──────────────────────
-    # Daily data comes back tz-naive; intraday comes back tz-aware (UTC).
-    # Normalize everything to Asia/Kolkata for consistent as-of-date math.
-    if df.index.tz is None:
-        df.index = df.index.tz_localize("Asia/Kolkata")
-    else:
-        df.index = df.index.tz_convert("Asia/Kolkata")
-
-    # ── Debug log ───────────────────────────────────
-    logger.debug(
-        f"fetch_ohlcv: ticker={ticker} rows={len(df)} "
-        f"start={start} end={end} interval={interval}"
-    )
-
-    return df
+# Re-export so existing `from price_predictor.data.prices import PriceFetchError`
+# imports keep working without churn.
+__all__ = ["PriceFetchError", "fetch_ohlcv"]
