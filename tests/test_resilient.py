@@ -187,6 +187,52 @@ class TestStructuralRaises:
         assert b.call_count == 0, "fallback must NOT happen on structural errors"
         assert m.cooldowns == {}, "structural errors must not set cooldowns"
 
+    @pytest.mark.asyncio
+    async def test_unrelated_value_error_still_raises(self):
+        """We catch ValueError ONLY for the Groq tool_use_failed bug.
+        Any other ValueError must propagate -- it's a real coding bug,
+        not something to silently retry."""
+        a = _make_fake("a", error=ValueError("something completely unrelated"))
+        b = _make_fake("b")
+        m = ResilientModel(inner_models=[a, b])
+
+        with pytest.raises(ValueError, match="completely unrelated"):
+            async for _ in m.generate_content_async(_make_request()):
+                pass
+
+        assert b.call_count == 0, "unrelated ValueError must NOT trigger fallback"
+
+
+# ──────────────────────────────────────────────────────────────
+# Groq tool_use_failed -- LiteLLM construction-time bug.
+# When Llama-on-Groq emits malformed tool calls, Groq returns
+# code='tool_use_failed' which crashes litellm/exceptions.py:958
+# while it tries to build a MidStreamFallbackError. We catch the
+# resulting bare ValueError and fall back to the next model.
+# ──────────────────────────────────────────────────────────────
+class TestGroqToolUseFailed:
+    @pytest.mark.asyncio
+    async def test_groq_tool_use_failed_falls_back(self):
+        """Live regression: agent crashed mid-stream with
+        ValueError("invalid literal for int() with base 10: 'tool_use_failed'")
+        because litellm's MidStreamFallbackError ctor blindly does
+        int(status_code). Our resilient layer must recognize this exact
+        shape and fall back to Gemini (which handles the schema better)."""
+        groq_bug = ValueError(
+            "invalid literal for int() with base 10: 'tool_use_failed'"
+        )
+        a = _make_fake("groq/llama", error=groq_bug)
+        b = _make_fake("gemini/gemini-2.5-flash")  # should succeed on fallback
+        m = ResilientModel(inner_models=[a, b])
+
+        events = [ev async for ev in m.generate_content_async(_make_request())]
+
+        assert a.call_count == 1
+        assert b.call_count == 1, "must fall back to Gemini after Groq bug"
+        assert events, "Gemini fallback should have produced events"
+        # Cooldown applied so we don't immediately retry the broken model
+        assert "groq/llama" in m.cooldowns
+
 
 # ──────────────────────────────────────────────────────────────
 # Model incompatibility — BadRequest with model-specific quirk patterns

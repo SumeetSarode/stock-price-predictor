@@ -116,6 +116,31 @@ def _is_model_incompatibility(error: BadRequestError) -> bool:
     return any(p in msg for p in MODEL_INCOMPATIBILITY_PATTERNS)
 
 
+def _is_groq_tool_validation_failure(error: Exception) -> bool:
+    """True if this is the LiteLLM-MidStreamFallbackError construction bug.
+
+    Failure shape:
+        Llama-on-Groq emits a tool call with malformed args -> Groq returns
+        `code: "tool_use_failed"` mid-stream -> LiteLLM tries to wrap it as
+        a MidStreamFallbackError -> the constructor blindly does
+        `int("tool_use_failed")` -> ValueError propagates raw.
+
+    See litellm/exceptions.py:958 (no isdigit() guard around int(status_code)).
+
+    Why we pattern-match a bare ValueError instead of catching the proper
+    exception class: the proper class never finishes constructing. The
+    ValueError IS the failure -- there's no MidStreamFallbackError to catch.
+
+    Recovery is identical to TRANSIENT: fall back to next model. Gemini
+    handles complex tool schemas more reliably than Llama-on-Groq, so the
+    fallback typically succeeds where the original call could not.
+    """
+    if not isinstance(error, ValueError):
+        return False
+    msg = str(error)
+    return "invalid literal for int()" in msg and "tool_use_failed" in msg
+
+
 def _classify_cooldown(error: Exception) -> timedelta | datetime:
     """Decide cooldown duration for a fallback-triggering error.
 
@@ -300,6 +325,21 @@ class ResilientModel(BaseLlm):
                     logger.warning(
                         "[resilient] transient failure model=%s err=%s -- falling back",
                         model.model, type(e).__name__,
+                    )
+                    continue
+                except ValueError as e:
+                    # Surgical catch for the LiteLLM MidStreamFallbackError
+                    # construction bug (see _is_groq_tool_validation_failure
+                    # docstring). Re-raise any OTHER ValueError -- those are
+                    # real coding bugs we want to surface, not silently swallow.
+                    if not _is_groq_tool_validation_failure(e):
+                        raise
+                    last_error = e
+                    self._set_cooldown(model.model, e)
+                    logger.warning(
+                        "[resilient] groq tool_use_failed (litellm bug) "
+                        "model=%s -- falling back",
+                        model.model,
                     )
                     continue
 
