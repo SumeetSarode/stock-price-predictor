@@ -35,20 +35,74 @@ class Settings(BaseSettings):
             raise ValueError("Placeholder API key detected — set a real key in .env")
         return value
 
-    # ── Model selection (LiteLLM 'provider/model' format) ─────────────
-    primary_model: str = Field(validation_alias="PRIMARY_MODEL")
-    secondary_model: str = Field(validation_alias="SECONDARY_MODEL")
+    # ── Model selection: profile-based fallback chains ─────────────────
+    #
+    # Each PROFILE is a comma-separated, ordered fallback chain of LiteLLM
+    # 'provider/model' identifiers. Agents declare which profile they need
+    # (via make_resilient_model(profile="agentic")) and the resilient layer
+    # tries each model in order, skipping any that are rate-limited.
+    #
+    # When USE_PAID=true, the profile's PAID_<NAME> single-model override
+    # is used instead of the chain (no fallback needed when paying).
+    #
+    # CONVENTION: add a new profile by adding CHAIN_<NAME> + PAID_<NAME> here
+    # AND extending the PROFILES set below. Don't hardcode chains in agents.
+    chain_agentic: str = Field(validation_alias="CHAIN_AGENTIC")
+    paid_agentic: str = Field(validation_alias="PAID_AGENTIC")
+    use_paid: bool = Field(default=False, validation_alias="USE_PAID")
 
-    @field_validator("primary_model", "secondary_model")
+    @field_validator("chain_agentic")
     @classmethod
-    def validate_model_format(cls, value: str) -> str:
-        """Catch obvious typos like 'llama-3.3' (missing 'groq/' prefix)."""
+    def validate_chain_format(cls, value: str) -> str:
+        """Each model in the chain must be in 'provider/model' format."""
+        if not value.strip():
+            raise ValueError("Model chain cannot be empty.")
+        models = [m.strip() for m in value.split(",") if m.strip()]
+        for m in models:
+            if "/" not in m:
+                raise ValueError(
+                    f"Model {m!r} in chain must be in LiteLLM 'provider/model' "
+                    f"format (e.g. 'groq/openai/gpt-oss-120b')."
+                )
+        return value
+
+    @field_validator("paid_agentic")
+    @classmethod
+    def validate_paid_format(cls, value: str) -> str:
+        """Paid model must be in 'provider/model' format."""
         if "/" not in value:
             raise ValueError(
-                f"Model {value!r} must be in LiteLLM 'provider/model' format "
-                f"(e.g. 'groq/llama-3.3-70b-versatile')."
+                f"Paid model {value!r} must be in LiteLLM 'provider/model' format."
             )
         return value
+
+    # ── Profile resolution ────────────────────────────────────
+    # Add new profiles by appending here. The factory consults this map
+    # to translate profile names → ordered chains / paid overrides.
+    @property
+    def _profile_map(self) -> dict[str, tuple[str, str]]:
+        """profile_name → (chain_csv, paid_model). Add new profiles here."""
+        return {
+            "agentic": (self.chain_agentic, self.paid_agentic),
+            # "fast": (self.chain_fast, self.paid_fast),       # iter B
+            # "deep": (self.chain_deep, self.paid_deep),       # future
+        }
+
+    def effective_chain(self, profile: str) -> list[str]:
+        """Return the ordered model chain for `profile`.
+
+        When use_paid=True, returns a single-element list with the profile's
+        paid model override (no fallback needed when paying). Otherwise
+        returns the full free-tier fallback chain.
+        """
+        if profile not in self._profile_map:
+            raise ValueError(
+                f"Unknown profile {profile!r}. Available: {sorted(self._profile_map)}."
+            )
+        chain_csv, paid_model = self._profile_map[profile]
+        if self.use_paid:
+            return [paid_model]
+        return [m.strip() for m in chain_csv.split(",") if m.strip()]
 
     # ── Runtime config ─────────────────────────────
     log_level: str = Field(default="INFO", validation_alias="PREDICTOR_LOG_LEVEL")

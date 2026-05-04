@@ -13,8 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from google.adk.agents import LlmAgent
 
-from price_predictor.config.settings import settings
-from price_predictor.llm.factory import make_model
+from price_predictor.llm.factory import make_resilient_model
 
 
 # ─────────────────────────────────────────────────────────────
@@ -73,7 +72,7 @@ def make_hello_agent() -> LlmAgent:
     return LlmAgent(
         name="hello_agent",
         description="A friendly assistant that answers questions about the current time.",
-        model=make_model(settings.primary_model),
+        model=make_resilient_model(profile="agentic"),
         instruction=(
             "You are a friendly assistant that answers questions about the "
             "current time.\n\n"

@@ -14,7 +14,7 @@ LLM-driven analyzer with 4 tools + structured output:
   MUST return valid JSON matching the schema. ADK + LiteLLM enforce this
   via the underlying provider's structured-output mode.
 
-- Default model: settings.primary_model (Groq llama-3.3 currently).
+- Default model: profile="agentic" → fallback chain via make_resilient_model().
 
 WHY THIS DESIGN
 ===============
@@ -45,14 +45,13 @@ from google.adk.agents import LlmAgent
 from pydantic import BaseModel, Field
 
 from price_predictor.agents.price_agent.agent import fetch_prices_tool
-from price_predictor.config.settings import settings
 from price_predictor.data.estimates import (
     EstimatesFetchError,
     fetch_estimates,
 )
 from price_predictor.data.filings import FilingsFetchError, fetch_filings
 from price_predictor.data.news import NewsFetchError, fetch_news
-from price_predictor.llm.factory import make_model
+from price_predictor.llm.factory import make_resilient_model
 
 # India Standard Time -- all date math anchored here so 'today' matches NSE
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -458,7 +457,7 @@ def make_news_impact_agent() -> LlmAgent:
             "Analyzes news, filings, analyst estimates, and price action "
             "to produce a structured impact assessment for an Indian stock."
         ),
-        model=make_model(settings.primary_model),
+        model=make_resilient_model(profile="agentic"),
         instruction=_SYSTEM_INSTRUCTION,
         tools=[
             fetch_recent_news_tool,

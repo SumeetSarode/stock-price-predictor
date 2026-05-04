@@ -12,9 +12,8 @@ from datetime import datetime
 
 from google.adk.agents import LlmAgent
 
-from price_predictor.config.settings import settings
 from price_predictor.data.prices import PriceFetchError, fetch_ohlcv
-from price_predictor.llm.factory import make_model
+from price_predictor.llm.factory import make_resilient_model
 
 
 # ─────────────────────────────────────────────────────────────
@@ -131,7 +130,7 @@ def make_price_agent() -> LlmAgent:
     return LlmAgent(
         name="price_agent",
         description="An assistant that fetches and analyzes Indian stock prices.",
-        model=make_model(settings.primary_model),
+        model=make_resilient_model(profile="agentic"),
         instruction=(
             "You are a helpful assistant that answers questions about Indian "
             "stock prices using the fetch_prices_tool.\n\n"
