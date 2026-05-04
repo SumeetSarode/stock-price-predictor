@@ -19,7 +19,11 @@ certs/ca-bundle.pem
 
 # Data — never commit (PII, large files, regenerable)
 data/cache/
-data/kb/
+data/kb/*
+# ...except the canonical stock registry, which we DO commit so a fresh
+# clone has working data without re-running the bootstrap script.
+!data/kb/stocks.json
+!data/kb/indices.json
 data/logs/*.log
 data/logs/*.log.gz
 data/outputs/*.json

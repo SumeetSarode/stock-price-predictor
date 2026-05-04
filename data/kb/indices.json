@@ -1,0 +1,8 @@
+{
+  "NIFTY50": {
+    "display_name": "Nifty 50",
+    "source_url": "https://en.wikipedia.org/wiki/NIFTY_50",
+    "constituent_count": 50,
+    "last_updated": "2026-05-04T02:35:47+00:00"
+  }
+}

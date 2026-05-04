@@ -426,13 +426,9 @@ WORKFLOW
    - NSE filings symbol: bare ticker (e.g., 'RELIANCE')
    - yfinance ticker: bare + '.NS' suffix (e.g., 'RELIANCE.NS')
 
-   KNOWN TICKER GOTCHAS (don't get tripped up):
-   - 'HDFC' -> use HDFCBANK.NS. HDFC Ltd merged into HDFC Bank on
-     2023-07-01; HDFC.NS is delisted. Same applies for the company name.
-   - 'L&T' / 'Larsen & Toubro' -> LT.NS
-   - 'M&M' / 'Mahindra' -> M&M.NS
-   - 'Infosys' -> INFY.NS (not INFOSYS.NS)
-   - 'Maruti' / 'Maruti Suzuki' -> MARUTI.NS
+   Don't worry about ticker aliases or post-merger renames -- the price
+   tool resolves these automatically and returns a 'suggested_ticker'
+   field on miss. Just trust your tools.
 
 2. Decide which tools to call based on the question. RULES OF THUMB:
    - 'Is X bullish?' / 'How is X doing?' -> news (7d) + prices (30d) minimum.

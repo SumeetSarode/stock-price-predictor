@@ -12,8 +12,8 @@ from datetime import datetime
 
 from google.adk.agents import LlmAgent
 
-from price_predictor.data.nse_tickers import suggest_alternative
 from price_predictor.data.prices import PriceFetchError, fetch_ohlcv
+from price_predictor.kb.stocks import lookup as resolve_stock
 from price_predictor.llm.factory import make_resilient_model
 
 
@@ -81,16 +81,20 @@ def fetch_prices_tool(
     try:
         df = fetch_ohlcv(ticker=ticker, start=start, end=end)
     except (ValueError, PriceFetchError) as e:
-        # If the failed ticker has a known alias (e.g. HDFC -> HDFCBANK
-        # post-merger), surface it to the agent so it can self-recover
-        # without needing the user to know NSE history.
-        suggestion = suggest_alternative(ticker)
+        # If the failed ticker resolves (via fuzzy match) to a DIFFERENT
+        # canonical stock (e.g. HDFC -> HDFCBANK post-merger), surface it
+        # so the agent can self-recover without user intervention.
+        # We DON'T suggest the same ticker the user already typed -- that
+        # would just look broken ("did you mean RELIANCE?" when the user
+        # typed RELIANCE).
+        resolved = resolve_stock(ticker)
+        typed_bare = ticker.replace(".NS", "").replace(".BO", "").upper().strip()
         err_response: dict = {"status": "error", "error_message": str(e)}
-        if suggestion:
-            err_response["suggested_ticker"] = f"{suggestion}.NS"
+        if resolved and resolved.ticker.upper() != typed_bare:
+            err_response["suggested_ticker"] = resolved.yfinance_symbol
             err_response["suggestion_reason"] = (
-                f"{ticker!r} is delisted or has a known alias. "
-                f"Try {suggestion}.NS instead."
+                f"{ticker!r} not found. Did you mean "
+                f"{resolved.yfinance_symbol} ({resolved.company_name})?"
             )
         return err_response
 

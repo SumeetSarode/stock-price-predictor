@@ -541,17 +541,6 @@ class TestAgentFactory:
         assert root_agent is not None
         assert root_agent.name == "news_impact"
 
-    def test_prompt_has_known_ticker_gotchas(self):
-        """Regression: live UI failure where agent didn't know HDFC Ltd merged
-        into HDFC Bank in 2023. Prompt must teach the agent these domain
-        facts so it self-resolves common ticker confusion."""
-        agent = make_news_impact_agent()
-        prompt = agent.instruction
-        # The bug that motivated this fix
-        assert "HDFC" in prompt and "HDFCBANK" in prompt
-        # Section header so future devs know to add to this list
-        assert "KNOWN TICKER GOTCHAS" in prompt
-
     def test_prompt_has_tool_error_recovery_rule(self):
         """The price tool returns 'suggested_ticker' on alias errors.
         The prompt must instruct the agent to USE that field instead of

@@ -1,0 +1,455 @@
+{
+  "count": 50,
+  "stocks": [
+    {
+      "ticker": "ADANIENT",
+      "company_name": "Adani Enterprises",
+      "sector": "Metals & Mining",
+      "date_added": "30 September 2022",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ADANIPORTS",
+      "company_name": "Adani Ports & SEZ",
+      "sector": "Services",
+      "date_added": "28 September 2015",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "APOLLOHOSP",
+      "company_name": "Apollo Hospitals",
+      "sector": "Healthcare",
+      "date_added": "31 March 2022",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ASIANPAINT",
+      "company_name": "Asian Paints",
+      "sector": "Consumer Durables",
+      "date_added": "27 April 2012",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "AXISBANK",
+      "company_name": "Axis Bank",
+      "sector": "Financial Services",
+      "date_added": "27 March 2009",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "BAJAJ-AUTO",
+      "company_name": "Bajaj Auto",
+      "sector": "Automobile and Auto Components",
+      "date_added": "1 October 2010",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "BAJAJFINSV",
+      "company_name": "Bajaj Finserv",
+      "sector": "Financial Services",
+      "date_added": "2 April 2018",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "BAJFINANCE",
+      "company_name": "Bajaj Finance",
+      "sector": "Financial Services",
+      "date_added": "29 September 2017",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "BEL",
+      "company_name": "Bharat Electronics",
+      "sector": "Capital Goods",
+      "date_added": "30 September 2024",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "BHARTIARTL",
+      "company_name": "Bharti Airtel",
+      "sector": "Telecommunication",
+      "date_added": "1 March 2004",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "CIPLA",
+      "company_name": "Cipla",
+      "sector": "Healthcare",
+      "date_added": "7 October 1998",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "COALINDIA",
+      "company_name": "Coal India",
+      "sector": "Oil, Gas & Consumable Fuels",
+      "date_added": "10 October 2011",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "DRREDDY",
+      "company_name": "Dr. Reddy's Laboratories",
+      "sector": "Healthcare",
+      "date_added": "1 October 2010",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "EICHERMOT",
+      "company_name": "Eicher Motors",
+      "sector": "Automobile and Auto Components",
+      "date_added": "1 April 2016",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ETERNAL",
+      "company_name": "Eternal",
+      "sector": "Consumer Services",
+      "date_added": "28 March 2025",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "GRASIM",
+      "company_name": "Grasim Industries",
+      "sector": "Construction Materials",
+      "date_added": "2 April 2018",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "HCLTECH",
+      "company_name": "HCLTech",
+      "sector": "Information Technology",
+      "date_added": "28 October 2002",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "HDFCBANK",
+      "company_name": "HDFC Bank",
+      "sector": "Financial Services",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "HDFCLIFE",
+      "company_name": "HDFC Life",
+      "sector": "Financial Services",
+      "date_added": "31 July 2020",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "HINDALCO",
+      "company_name": "Hindalco Industries",
+      "sector": "Metals & Mining",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "HINDUNILVR",
+      "company_name": "Hindustan Unilever",
+      "sector": "Fast Moving Consumer Goods",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ICICIBANK",
+      "company_name": "ICICI Bank",
+      "sector": "Financial Services",
+      "date_added": "25 January 2002",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "INDIGO",
+      "company_name": "IndiGo",
+      "sector": "Services",
+      "date_added": "30 September 2025",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "INFY",
+      "company_name": "Infosys",
+      "sector": "Information Technology",
+      "date_added": "7 October 1998",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ITC",
+      "company_name": "ITC",
+      "sector": "Fast Moving Consumer Goods",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "JIOFIN",
+      "company_name": "Jio Financial Services",
+      "sector": "Financial Services",
+      "date_added": "28 March 2025",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "JSWSTEEL",
+      "company_name": "JSW Steel",
+      "sector": "Metals & Mining",
+      "date_added": "28 September 2018",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "KOTAKBANK",
+      "company_name": "Kotak Mahindra Bank",
+      "sector": "Financial Services",
+      "date_added": "8 April 2010",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "LT",
+      "company_name": "Larsen & Toubro",
+      "sector": "Construction",
+      "date_added": "10 December 2004",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "M&M",
+      "company_name": "Mahindra & Mahindra",
+      "sector": "Automobile and Auto Components",
+      "date_added": "18 September 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "MARUTI",
+      "company_name": "Maruti Suzuki",
+      "sector": "Automobile and Auto Components",
+      "date_added": "1 March 2004",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "MAXHEALTH",
+      "company_name": "Max Healthcare",
+      "sector": "Healthcare",
+      "date_added": "30 September 2025",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "NESTLEIND",
+      "company_name": "Nestlé India",
+      "sector": "Fast Moving Consumer Goods",
+      "date_added": "27 September 2019",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "NTPC",
+      "company_name": "NTPC",
+      "sector": "Power",
+      "date_added": "24 September 2007",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ONGC",
+      "company_name": "Oil and Natural Gas Corporation",
+      "sector": "Oil, Gas & Consumable Fuels",
+      "date_added": "12 April 2004",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "POWERGRID",
+      "company_name": "Power Grid",
+      "sector": "Power",
+      "date_added": "14 March 2008",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "RELIANCE",
+      "company_name": "Reliance Industries",
+      "sector": "Oil, Gas & Consumable Fuels",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "SBILIFE",
+      "company_name": "SBI Life Insurance Company",
+      "sector": "Financial Services",
+      "date_added": "25 September 2020",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "SBIN",
+      "company_name": "State Bank of India",
+      "sector": "Financial Services",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "SHRIRAMFIN",
+      "company_name": "Shriram Finance",
+      "sector": "Financial Services",
+      "date_added": "28 March 2024",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "SUNPHARMA",
+      "company_name": "Sun Pharma",
+      "sector": "Healthcare",
+      "date_added": "17 January 2002",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TATACONSUM",
+      "company_name": "Tata Consumer Products",
+      "sector": "Fast Moving Consumer Goods",
+      "date_added": "31 March 2021",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TATASTEEL",
+      "company_name": "Tata Steel",
+      "sector": "Metals & Mining",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TCS",
+      "company_name": "Tata Consultancy Services",
+      "sector": "Information Technology",
+      "date_added": "25 February 2005",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TECHM",
+      "company_name": "Tech Mahindra",
+      "sector": "Information Technology",
+      "date_added": "28 March 2014",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TITAN",
+      "company_name": "Titan Company",
+      "sector": "Consumer Durables",
+      "date_added": "2 April 2018",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TMPV",
+      "company_name": "Tata Motors Passenger Vehicles",
+      "sector": "Automobile and Auto Components",
+      "date_added": "22 April 1996",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "TRENT",
+      "company_name": "Trent",
+      "sector": "Consumer Services",
+      "date_added": "30 September 2024",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "ULTRACEMCO",
+      "company_name": "UltraTech Cement",
+      "sector": "Construction Materials",
+      "date_added": "28 September 2012",
+      "indices": [
+        "NIFTY50"
+      ]
+    },
+    {
+      "ticker": "WIPRO",
+      "company_name": "Wipro",
+      "sector": "Information Technology",
+      "date_added": "27 September 2013",
+      "indices": [
+        "NIFTY50"
+      ]
+    }
+  ]
+}
