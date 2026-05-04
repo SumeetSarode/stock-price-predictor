@@ -77,9 +77,14 @@ class Catalyst(BaseModel):
         ...,
         description="Which data source surfaced this catalyst",
     )
-    impact: Literal["positive", "negative", "mixed"] = Field(
+    impact: Literal["positive", "negative", "neutral", "mixed"] = Field(
         ...,
-        description="Direction of expected price impact",
+        description=(
+            "Direction of expected price impact: "
+            "'positive' (clearly bullish), 'negative' (clearly bearish), "
+            "'neutral' (no expected price impact), "
+            "'mixed' (multiple competing effects in different directions)"
+        ),
     )
 
 

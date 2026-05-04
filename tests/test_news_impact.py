@@ -423,6 +423,21 @@ class TestCatalystSchema:
                 impact="meh",  # not allowed
             )
 
+    @pytest.mark.parametrize("impact", ["positive", "negative", "neutral", "mixed"])
+    def test_all_four_impact_values_accepted(self, impact):
+        """Regression: 'neutral' was missing, causing real Gemini calls to
+        fail mid-stream when the model assessed a catalyst as neutral
+        (perfectly reasonable -- e.g. a CEO interview with no new info).
+        Schema must include all four; the *prompt* tells the LLM when to
+        use each. See agent.py docstring on Catalyst.impact.
+        """
+        c = Catalyst(
+            description="A perfectly valid description here",
+            source="news",
+            impact=impact,
+        )
+        assert c.impact == impact
+
 
 class TestImpactAssessmentSchema:
     def _valid_kwargs(self) -> dict:
