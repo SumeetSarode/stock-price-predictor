@@ -19,7 +19,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Project-wide settings sourced from env vars + .env."""
 
-    model_config = SettingsConfigDict(env_file=".env")
+    # extra="ignore": .env may contain infra vars (SSL_CERT_FILE, HTTPS_PROXY,
+    # REQUESTS_CA_BUNDLE) consumed by other libs (Python ssl, requests). We
+    # don't want to model those here just to keep pydantic quiet.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # ── Secrets ────────────────────────────────────────────────
     groq_api_key: SecretStr = Field(validation_alias="GROQ_API_KEY")
