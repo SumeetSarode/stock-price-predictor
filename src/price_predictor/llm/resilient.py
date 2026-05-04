@@ -38,10 +38,24 @@ from pydantic import ConfigDict, Field
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 # Error taxonomy: which exceptions trigger fallback?
-# ─────────────────────────────────────────────────────────────
-# TRANSIENT = capacity / availability issues. Try the next model.
+# ──────────────────────────────────────────────────────────────
+# Three buckets, in handling order:
+#
+# 1. MODEL_INCOMPATIBLE  — BadRequest where the *model* is at fault, not the
+#    request. e.g. gpt-oss-120b emits reasoning_content that Groq's input
+#    validator then rejects on the next turn; llama-3.3 emits XML-style tool
+#    calls that fail Groq's tool_use validator. Other models in the chain
+#    will likely succeed. Fall back + cooldown long (this model just doesn't
+#    work for this conversation shape).
+#
+# 2. TRANSIENT  — capacity / availability issues. Try the next model with
+#    a short or daily cooldown depending on whether it's per-minute vs daily.
+#
+# 3. STRUCTURAL  — our bug or config issue. Don't fall back — raise
+#    immediately. Falling back would mask the real problem AND fail again
+#    on the next model with the same broken request.
 TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
     RateLimitError,            # 429: per-minute or daily quota
     ServiceUnavailableError,   # 503: provider down
@@ -49,16 +63,27 @@ TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
     Timeout,                   # took too long
 )
 
-# STRUCTURAL = our bug or config issue. Don't fallback — raise immediately.
-# Falling back would mask the real problem AND fail again on the next model.
 STRUCTURAL_ERRORS: tuple[type[Exception], ...] = (
-    BadRequestError,           # 400: malformed request
     AuthenticationError,       # 401/403: bad/missing API key
-    ContextWindowExceededError,  # input too big — won't get smaller for next model
+    ContextWindowExceededError,  # input too big — won't shrink for next model
+)
+
+# Substrings that indicate "this specific model can't handle this conversation
+# shape" rather than "your request is malformed". All come back wrapped in
+# litellm.BadRequestError, so we have to string-sniff.
+#
+# CONVENTION: only add patterns we've actually seen and confirmed. False
+# positives here mask real bugs in our request construction.
+MODEL_INCOMPATIBILITY_PATTERNS: tuple[str, ...] = (
+    "reasoning_content",   # gpt-oss-120b leaks reasoning into history; Groq rejects
+    "tool_use_failed",     # llama-3.3 emits XML tool calls; Groq rejects
+    "is unsupported",      # generic Groq "feature not supported on this model"
+    "does not support",    # generic OpenAI/Gemini "this model lacks feature X"
 )
 
 # Cooldown durations
-SHORT_COOLDOWN = timedelta(seconds=60)   # per-minute rate limit
+SHORT_COOLDOWN = timedelta(seconds=60)    # per-minute rate limit
+INCOMPAT_COOLDOWN = timedelta(hours=1)    # model can't handle this conversation
 
 
 def _next_midnight_utc() -> datetime:
@@ -68,13 +93,24 @@ def _next_midnight_utc() -> datetime:
     return datetime.combine(tomorrow, time.min, tzinfo=UTC)
 
 
+def _is_model_incompatibility(error: BadRequestError) -> bool:
+    """True if this BadRequest is a model-specific quirk (worth falling back).
+
+    See MODEL_INCOMPATIBILITY_PATTERNS for the substring list and rationale.
+    """
+    msg = str(error).lower()
+    return any(p in msg for p in MODEL_INCOMPATIBILITY_PATTERNS)
+
+
 def _classify_cooldown(error: Exception) -> timedelta | datetime:
-    """Decide cooldown duration for a transient error.
+    """Decide cooldown duration for a fallback-triggering error.
 
     Returns either:
-        - timedelta: short cooldown from now (per-minute rate limit)
-        - datetime: absolute expiry (daily quota exhausted, reset at midnight UTC)
+        - timedelta: short / 1h cooldown from now
+        - datetime: absolute expiry (daily quota → midnight UTC)
     """
+    if isinstance(error, BadRequestError) and _is_model_incompatibility(error):
+        return INCOMPAT_COOLDOWN  # 1h: this model fundamentally can't help
     msg = str(error).lower()
     # LiteLLM surfaces quota-exhausted with phrases like 'daily limit',
     # 'quota exceeded', 'tokens per day'. Per-minute uses 'rate_limit', 'tpm'.
@@ -205,9 +241,30 @@ class ResilientModel(BaseLlm):
                         yield response
                     logger.info("[resilient] success model=%s", model.model)
                     return
+                except BadRequestError as e:
+                    # Sub-classify: model-specific quirk → fall back; otherwise
+                    # genuine bug → raise. (BadRequestError is NOT in
+                    # STRUCTURAL_ERRORS for this reason — it needs sub-handling.)
+                    if _is_model_incompatibility(e):
+                        last_error = e
+                        self._set_cooldown(model.model, e)
+                        logger.warning(
+                            "[resilient] model incompatibility model=%s -- "
+                            "this model can't handle this conversation shape, falling back",
+                            model.model,
+                        )
+                        continue
+                    logger.error(
+                        "[resilient] genuine bad request model=%s -- not falling back",
+                        model.model,
+                    )
+                    raise
                 except STRUCTURAL_ERRORS:
-                    # Bug / config issue -- fail loud, don't try more models
-                    logger.error("[resilient] structural error model=%s -- not falling back", model.model)
+                    # Auth / context-window: bug or config issue, fail loud
+                    logger.error(
+                        "[resilient] structural error model=%s -- not falling back",
+                        model.model,
+                    )
                     raise
                 except TRANSIENT_ERRORS as e:
                     last_error = e

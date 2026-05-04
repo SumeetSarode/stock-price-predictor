@@ -29,10 +29,12 @@ from litellm.exceptions import (
 from pydantic import ConfigDict
 
 from price_predictor.llm.resilient import (
+    INCOMPAT_COOLDOWN,
     SHORT_COOLDOWN,
     AllModelsExhaustedError,
     ResilientModel,
     _classify_cooldown,
+    _is_model_incompatibility,
     _next_midnight_utc,
 )
 
@@ -151,9 +153,9 @@ class TestTransientFallback:
         assert "c" not in m.cooldowns
 
 
-# ─────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 # Structural errors NEVER trigger fallback (would mask bugs)
-# ─────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 class TestStructuralRaises:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -175,6 +177,115 @@ class TestStructuralRaises:
         assert a.call_count == 1
         assert b.call_count == 0, "fallback must NOT happen on structural errors"
         assert m.cooldowns == {}, "structural errors must not set cooldowns"
+
+
+# ──────────────────────────────────────────────────────────────
+# Model incompatibility — BadRequest with model-specific quirk patterns
+# falls back instead of raising (the bug we just fixed for gpt-oss-120b)
+# ──────────────────────────────────────────────────────────────
+class TestModelIncompatibility:
+    """Some 400s aren't bugs in OUR code — they're model-specific quirks.
+
+    Examples (substring → cause):
+        - 'reasoning_content' : gpt-oss-120b leaks reasoning into history,
+                                Groq rejects on next turn.
+        - 'tool_use_failed'   : llama-3.3 emits XML tool calls, not JSON.
+        - 'is unsupported'    : feature-not-supported on this Groq model.
+        - 'does not support'  : feature-not-supported elsewhere.
+
+    These should fall back (next model may handle it) with a LONG cooldown
+    (this model fundamentally can't help, no point retrying soon).
+    """
+
+    def test_detects_known_incompatibility_substrings(self):
+        for substring in [
+            "property 'reasoning_content' is unsupported",
+            "tool_use_failed: model emitted invalid xml",
+            "feature is unsupported on this model",
+            "this model does not support tool calling",
+        ]:
+            err = BadRequestError(substring, model="x", llm_provider="groq")
+            assert _is_model_incompatibility(err), f"should detect: {substring!r}"
+
+    def test_does_not_detect_genuine_bad_requests(self):
+        for substring in [
+            "messages array is empty",
+            "invalid json in tools parameter",
+            "max_tokens must be positive",
+        ]:
+            err = BadRequestError(substring, model="x", llm_provider="groq")
+            assert not _is_model_incompatibility(err), f"false positive: {substring!r}"
+
+    @pytest.mark.asyncio
+    async def test_incompatibility_falls_back_to_next_model(self):
+        """The exact bug from the news_impact agent log."""
+        err = BadRequestError(
+            "GroqException - 'messages.2': property 'reasoning_content' is unsupported",
+            model="groq/openai/gpt-oss-120b",
+            llm_provider="groq",
+        )
+        a = _make_fake("groq/openai/gpt-oss-120b", error=err)
+        b = _make_fake("gemini/gemini-2.5-flash")  # should be tried
+        m = ResilientModel(inner_models=[a, b])
+
+        responses = [r async for r in m.generate_content_async(_make_request())]
+
+        assert len(responses) == 1
+        assert a.call_count == 1
+        assert b.call_count == 1, "incompatibility must trigger fallback"
+        assert "groq/openai/gpt-oss-120b" in m.cooldowns
+
+    @pytest.mark.asyncio
+    async def test_incompatibility_sets_long_cooldown(self):
+        """1h cooldown, not 60s -- this model can't help anytime soon."""
+        err = BadRequestError(
+            "reasoning_content is unsupported",
+            model="x", llm_provider="groq",
+        )
+        a = _make_fake("a", error=err)
+        b = _make_fake("b")
+        m = ResilientModel(inner_models=[a, b])
+
+        before = datetime.now(UTC)
+        async for _ in m.generate_content_async(_make_request()):
+            pass
+        after = datetime.now(UTC)
+
+        cooldown_expiry = m.cooldowns["a"]
+        # Should be roughly now + INCOMPAT_COOLDOWN (1h), not now + 60s
+        expected_min = before + INCOMPAT_COOLDOWN - timedelta(seconds=1)
+        expected_max = after + INCOMPAT_COOLDOWN + timedelta(seconds=1)
+        assert expected_min <= cooldown_expiry <= expected_max, (
+            f"Expected ~1h cooldown, got expiry={cooldown_expiry}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_genuine_bad_request_still_raises(self):
+        """Don't mask actual bugs in our request construction."""
+        err = BadRequestError(
+            "messages array cannot be empty",  # NOT a known incompat pattern
+            model="x", llm_provider="groq",
+        )
+        a = _make_fake("a", error=err)
+        b = _make_fake("b")  # must NOT be tried
+        m = ResilientModel(inner_models=[a, b])
+
+        with pytest.raises(BadRequestError, match="messages array"):
+            async for _ in m.generate_content_async(_make_request()):
+                pass
+
+        assert a.call_count == 1
+        assert b.call_count == 0
+        assert m.cooldowns == {}, "genuine bad requests must not set cooldowns"
+
+    def test_classify_cooldown_for_incompatibility_returns_long(self):
+        err = BadRequestError(
+            "reasoning_content not supported",
+            model="x", llm_provider="groq",
+        )
+        result = _classify_cooldown(err)
+        assert result == INCOMPAT_COOLDOWN
+        assert result > SHORT_COOLDOWN, "incompat cooldown must outlast rate-limit"
 
 
 # ─────────────────────────────────────────────────────────────
