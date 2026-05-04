@@ -29,6 +29,7 @@ from litellm.exceptions import (
     AuthenticationError,
     BadRequestError,
     ContextWindowExceededError,
+    InternalServerError,
     NotFoundError,
     RateLimitError,
     ServiceUnavailableError,
@@ -66,6 +67,10 @@ TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
     ServiceUnavailableError,   # 503: provider down
     APIConnectionError,        # network blip / DNS / TLS
     Timeout,                   # took too long
+    InternalServerError,       # 500: provider hiccup OR LiteLLM's catch-all
+                               # for httpx/proxy ConnectError (e.g. DNS
+                               # resolution failure for the proxy host).
+                               # Same recovery path: try the next model.
 )
 
 MODEL_UNAVAILABLE_ERRORS: tuple[type[Exception], ...] = (

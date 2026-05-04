@@ -22,6 +22,7 @@ from litellm.exceptions import (
     APIConnectionError,
     AuthenticationError,
     BadRequestError,
+    InternalServerError,
     NotFoundError,
     RateLimitError,
     ServiceUnavailableError,
@@ -121,6 +122,13 @@ class TestTransientFallback:
             ServiceUnavailableError("503", llm_provider="groq", model="x"),
             APIConnectionError(message="conn dropped", llm_provider="groq", model="x"),
             Timeout(message="timed out", llm_provider="groq", model="x"),
+            # Regression: live bug -- httpx ConnectError (DNS failure through
+            # corp proxy) gets wrapped by LiteLLM as InternalServerError.
+            # Used to bubble up uncaught -> 500 in UI -> never tried Gemini.
+            InternalServerError(
+                "GroqException - [Errno 8] nodename nor servname provided",
+                llm_provider="groq", model="x",
+            ),
         ],
     )
     async def test_falls_back_to_next_on_each_transient_error(self, transient_error):
