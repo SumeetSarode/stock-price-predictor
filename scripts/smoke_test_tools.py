@@ -1,23 +1,24 @@
-"""End-to-end smoke test for all C.1-C.3 tools.
+"""End-to-end smoke test for all C.1-C.4 tools.
 
 Stuffs a synthetic OHLCV df into the SHARED cache singleton (via a fake
-fetcher) and invokes get_trend, get_momentum, get_volatility back-to-back.
+fetcher) and invokes get_trend, get_momentum, get_volatility, get_levels
+back-to-back.
 
 Verifies:
-  1. All 3 tools work with the same cache instance
-  2. The shared singleton means the data is fetched ONCE despite 3 tool calls
+  1. All 4 tools work with the same cache instance
+  2. The shared singleton means the data is fetched ONCE despite 4 tool calls
   3. Response shapes are uniform
   4. No import-time errors / no circular deps
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 
 import numpy as np
 import pandas as pd
 
+from price_predictor.agents.technical_agent.tools.get_levels import get_levels
 from price_predictor.agents.technical_agent.tools.get_momentum import get_momentum
 from price_predictor.agents.technical_agent.tools.get_trend import get_trend
 from price_predictor.agents.technical_agent.tools.get_volatility import get_volatility
@@ -60,7 +61,7 @@ def _build_realistic_df(n: int = 400, seed: int = 42) -> pd.DataFrame:
 
 async def main() -> int:
     print("=" * 70)
-    print("SMOKE TEST: get_trend + get_momentum + get_volatility (C.1-C.3)")
+    print("SMOKE TEST: get_trend + get_momentum + get_volatility + get_levels (C.1-C.4)")
     print("=" * 70)
 
     df = _build_realistic_df()
@@ -92,25 +93,36 @@ async def main() -> int:
     if vol.get("status") != "success":
         failed.append(f"get_volatility: {vol}")
 
-    print(f"\n--- Cache stats: {cache.call_count} fetch(es) for 3 tool calls ---")
+    print("\n--- Calling get_levels('TCS.NS') ---")
+    lev = await get_levels("TCS.NS", sensitivity="standard")
+    print(f"  signal:        {lev.get('signal')}/{lev.get('strength')}")
+    print(f"  breakout:      {lev['derived']['breakout_state']}")
+    print(f"  near_level:    {lev['derived']['near_level']}")
+    print(f"  patterns:      {lev['derived']['pattern_count']} detected")
+    if lev.get("status") != "success":
+        failed.append(f"get_levels: {lev}")
+
+    print(f"\n--- Cache stats: {cache.call_count} fetch(es) for 4 tool calls ---")
 
     print("\n--- Response shape uniformity ---")
     expected_keys = {"status", "ticker", "as_of", "preset", "signal",
                      "strength", "indicators", "derived", "rationale", "warnings"}
-    for name, resp in [("trend", trend), ("momentum", mom), ("volatility", vol)]:
+    for name, resp in [("trend", trend), ("momentum", mom),
+                       ("volatility", vol), ("levels", lev)]:
         missing = expected_keys - set(resp.keys())
         if missing:
             failed.append(f"{name} missing keys: {missing}")
         else:
             print(f"  {name}: OK (all {len(expected_keys)} uniform keys present)")
 
-    print("\n--- Async sample: 3 tool calls in parallel for the SAME ticker ---")
+    print("\n--- Async sample: 4 tool calls in parallel for the SAME ticker ---")
     cache2 = CountingCache(df)
     _shared_cache.set_cache(cache2)
     results = await asyncio.gather(
         get_trend("INFY.NS"),
         get_momentum("INFY.NS"),
         get_volatility("INFY.NS"),
+        get_levels("INFY.NS"),
     )
     print(f"  parallel cache fetches: {cache2.call_count} (expected: 1 for shared key)")
     if cache2.call_count > 1:
