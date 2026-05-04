@@ -13,7 +13,11 @@ import os
 from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 
 class Settings(BaseSettings):
@@ -23,6 +27,30 @@ class Settings(BaseSettings):
     # REQUESTS_CA_BUNDLE) consumed by other libs (Python ssl, requests). We
     # don't want to model those here just to keep pydantic quiet.
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Override default source priority: prefer .env over OS env.
+
+        WHY: Tooling in the developer's shell (Code Puppy, gcloud, etc.)
+        sometimes sets vars like GEMINI_API_KEY to its own internal JWT.
+        That pollutes os.environ and would shadow our project's .env values.
+        For *this* project, .env is the canonical source -- shell pollution
+        must not silently break us.
+
+        Default order (highest precedence first):
+            init_kwargs > env > dotenv > secrets_file
+        Our order:
+            init_kwargs > dotenv > env > secrets_file
+        """
+        return (init_settings, dotenv_settings, env_settings, file_secret_settings)
 
     # ── Secrets ────────────────────────────────────────────────
     groq_api_key: SecretStr = Field(validation_alias="GROQ_API_KEY")

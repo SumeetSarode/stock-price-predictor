@@ -126,3 +126,33 @@ class TestFormatValidation:
     def test_placeholder_api_key_rejected(self, monkeypatch):
         with pytest.raises(ValidationError, match="Placeholder"):
             _build_settings(monkeypatch, GROQ_API_KEY="your_groq_key_here")
+
+
+# ──────────────────────────────────────────────────────────────
+# Source priority — .env must beat shell pollution
+# ──────────────────────────────────────────────────────────────
+class TestSourcePriority:
+    """Real-world bug: Code Puppy sets GEMINI_API_KEY=<JWT> in the dev shell.
+    ADK inherits + reapplies it over .env, breaking Gemini calls. Our project's
+    .env must always win for project-scoped values.
+    """
+
+    def test_dotenv_overrides_polluted_os_environ(self, tmp_path, monkeypatch):
+        # Write a project .env with the REAL key
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "GROQ_API_KEY=gsk_real_value_from_dotenv\n"
+            "GEMINI_API_KEY=AIza_real_value_from_dotenv\n"
+            "CHAIN_AGENTIC=groq/x/y\n"
+            "PAID_AGENTIC=groq/x/y\n"
+        )
+        # Pollute os.environ with a Code-Puppy-style JWT (mimics the actual bug)
+        monkeypatch.setenv("GEMINI_API_KEY", "eyJhbGc.fake.JWT")
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_should_be_ignored")
+
+        s = Settings(_env_file=str(env_file))  # type: ignore[call-arg]
+
+        assert s.gemini_api_key.get_secret_value() == "AIza_real_value_from_dotenv", (
+            ".env value MUST override polluted os.environ (the JWT shell pollution bug)"
+        )
+        assert s.groq_api_key.get_secret_value() == "gsk_real_value_from_dotenv"

@@ -250,8 +250,9 @@ class ResilientModel(BaseLlm):
                         self._set_cooldown(model.model, e)
                         logger.warning(
                             "[resilient] model incompatibility model=%s -- "
-                            "this model can't handle this conversation shape, falling back",
-                            model.model,
+                            "this model can't handle this conversation shape, "
+                            "falling back. underlying error: %s",
+                            model.model, str(e)[:300],
                         )
                         continue
                     logger.error(
