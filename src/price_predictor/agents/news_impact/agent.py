@@ -115,9 +115,13 @@ class ImpactAssessment(BaseModel):
     )
     reasoning: str = Field(
         ...,
-        min_length=100,
+        # Floor of 20 chars: rejects empty/garbage but allows honest short
+        # answers like "All tools rate-limited; no evidence to assess."
+        # Quality (length, depth, citations) is steered by the prompt, not
+        # the schema -- schemas encode invariants, not preferences.
+        min_length=20,
         max_length=2000,
-        description="2-3 paragraph synthesis citing specific evidence from tools",
+        description="Synthesis citing tool evidence (2-3 paragraphs ideal)",
     )
     catalysts: list[Catalyst] = Field(
         default_factory=list,

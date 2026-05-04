@@ -485,9 +485,23 @@ class TestImpactAssessmentSchema:
 
     def test_reasoning_too_short(self):
         kwargs = self._valid_kwargs()
-        kwargs["reasoning"] = "too short"
+        kwargs["reasoning"] = "too short"  # 9 chars, below floor of 20
         with pytest.raises(ValidationError):
             ImpactAssessment(**kwargs)
+
+    def test_reasoning_accepts_honest_short_no_data_answer(self):
+        """Regression: when all tools rate-limit/fail, the agent's honest
+        short reasoning ('All tools rate-limited; no evidence to assess.')
+        was being rejected by min_length=100 -> 500 to the user. Schemas
+        encode invariants, not preferences. Length quality is steered by
+        the prompt; the floor only rejects garbage.
+        """
+        kwargs = self._valid_kwargs()
+        kwargs["reasoning"] = "All tools rate-limited; no evidence to assess."
+        kwargs["catalysts"] = []  # honest: no data, no catalysts
+        a = ImpactAssessment(**kwargs)
+        assert len(a.reasoning) < 100, "This is the case the old schema rejected"
+        assert len(a.reasoning) >= 20, "...but still above the new garbage floor"
 
     def test_too_many_catalysts(self):
         kwargs = self._valid_kwargs()
