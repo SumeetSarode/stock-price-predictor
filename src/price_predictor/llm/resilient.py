@@ -29,6 +29,7 @@ from litellm.exceptions import (
     AuthenticationError,
     BadRequestError,
     ContextWindowExceededError,
+    NotFoundError,
     RateLimitError,
     ServiceUnavailableError,
     Timeout,
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 # Error taxonomy: which exceptions trigger fallback?
 # ──────────────────────────────────────────────────────────────
-# Three buckets, in handling order:
+# Four buckets, in handling order:
 #
 # 1. MODEL_INCOMPATIBLE  — BadRequest where the *model* is at fault, not the
 #    request. e.g. gpt-oss-120b emits reasoning_content that Groq's input
@@ -50,10 +51,14 @@ logger = logging.getLogger(__name__)
 #    will likely succeed. Fall back + cooldown long (this model just doesn't
 #    work for this conversation shape).
 #
-# 2. TRANSIENT  — capacity / availability issues. Try the next model with
+# 2. MODEL_UNAVAILABLE  — provider returned 404: model doesn't exist on this
+#    account/tier (e.g. moonshotai/kimi-k2-instruct on a free Groq account).
+#    Fall back + LONG cooldown (this won't fix itself this session).
+#
+# 3. TRANSIENT  — capacity / availability issues. Try the next model with
 #    a short or daily cooldown depending on whether it's per-minute vs daily.
 #
-# 3. STRUCTURAL  — our bug or config issue. Don't fall back — raise
+# 4. STRUCTURAL  — our bug or config issue. Don't fall back — raise
 #    immediately. Falling back would mask the real problem AND fail again
 #    on the next model with the same broken request.
 TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
@@ -61,6 +66,10 @@ TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
     ServiceUnavailableError,   # 503: provider down
     APIConnectionError,        # network blip / DNS / TLS
     Timeout,                   # took too long
+)
+
+MODEL_UNAVAILABLE_ERRORS: tuple[type[Exception], ...] = (
+    NotFoundError,             # 404: model not on this account/provider
 )
 
 STRUCTURAL_ERRORS: tuple[type[Exception], ...] = (
@@ -111,6 +120,8 @@ def _classify_cooldown(error: Exception) -> timedelta | datetime:
     """
     if isinstance(error, BadRequestError) and _is_model_incompatibility(error):
         return INCOMPAT_COOLDOWN  # 1h: this model fundamentally can't help
+    if isinstance(error, MODEL_UNAVAILABLE_ERRORS):
+        return INCOMPAT_COOLDOWN  # 1h: model not on this account, won't appear
     msg = str(error).lower()
     # LiteLLM surfaces quota-exhausted with phrases like 'daily limit',
     # 'quota exceeded', 'tokens per day'. Per-minute uses 'rate_limit', 'tpm'.
@@ -267,6 +278,17 @@ class ResilientModel(BaseLlm):
                         model.model,
                     )
                     raise
+                except MODEL_UNAVAILABLE_ERRORS as e:
+                    # 404: model not on this account/tier (e.g. wrong model id
+                    # in chain). Fall back + 1h cooldown.
+                    last_error = e
+                    self._set_cooldown(model.model, e)
+                    logger.warning(
+                        "[resilient] model unavailable model=%s -- "
+                        "not on this account, falling back. underlying error: %s",
+                        model.model, str(e)[:300],
+                    )
+                    continue
                 except TRANSIENT_ERRORS as e:
                     last_error = e
                     self._set_cooldown(model.model, e)

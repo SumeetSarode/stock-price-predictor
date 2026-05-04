@@ -22,6 +22,7 @@ from litellm.exceptions import (
     APIConnectionError,
     AuthenticationError,
     BadRequestError,
+    NotFoundError,
     RateLimitError,
     ServiceUnavailableError,
     Timeout,
@@ -286,6 +287,64 @@ class TestModelIncompatibility:
         result = _classify_cooldown(err)
         assert result == INCOMPAT_COOLDOWN
         assert result > SHORT_COOLDOWN, "incompat cooldown must outlast rate-limit"
+
+
+# ──────────────────────────────────────────────────────────────
+# Model unavailable — NotFoundError (404: model not on this account/tier)
+# falls back instead of bubbling up uncaught (the bug we just fixed for
+# moonshotai/kimi-k2-instruct on a free Groq account).
+# ──────────────────────────────────────────────────────────────
+class TestModelUnavailable:
+    """Provider returned 404 'model not found / no access on this account'.
+
+    Different from incompatibility (which is a 400 about conversation shape).
+    Same handling though: fall back + LONG cooldown (this won't fix itself).
+    """
+
+    @pytest.mark.asyncio
+    async def test_not_found_falls_back_to_next_model(self):
+        """The exact bug: Kimi-K2 returns 404 on free Groq tier."""
+        err = NotFoundError(
+            "The model `moonshotai/kimi-k2-instruct` does not exist or you do not have access to it.",
+            model="groq/moonshotai/kimi-k2-instruct",
+            llm_provider="groq",
+        )
+        a = _make_fake("groq/moonshotai/kimi-k2-instruct", error=err)
+        b = _make_fake("gemini/gemini-2.5-flash")  # should be tried
+        m = ResilientModel(inner_models=[a, b])
+
+        responses = [r async for r in m.generate_content_async(_make_request())]
+
+        assert len(responses) == 1
+        assert a.call_count == 1
+        assert b.call_count == 1, "NotFoundError must trigger fallback, not raise"
+        assert "groq/moonshotai/kimi-k2-instruct" in m.cooldowns
+
+    @pytest.mark.asyncio
+    async def test_not_found_sets_long_cooldown(self):
+        """1h cooldown -- model won't appear on the account this session."""
+        err = NotFoundError("model_not_found", model="x", llm_provider="groq")
+        a = _make_fake("a", error=err)
+        b = _make_fake("b")
+        m = ResilientModel(inner_models=[a, b])
+
+        before = datetime.now(UTC)
+        async for _ in m.generate_content_async(_make_request()):
+            pass
+        after = datetime.now(UTC)
+
+        cooldown_expiry = m.cooldowns["a"]
+        expected_min = before + INCOMPAT_COOLDOWN - timedelta(seconds=1)
+        expected_max = after + INCOMPAT_COOLDOWN + timedelta(seconds=1)
+        assert expected_min <= cooldown_expiry <= expected_max, (
+            f"Expected ~1h cooldown for NotFoundError, got expiry={cooldown_expiry}"
+        )
+
+    def test_classify_cooldown_for_not_found_returns_long(self):
+        err = NotFoundError("model_not_found", model="x", llm_provider="groq")
+        result = _classify_cooldown(err)
+        assert result == INCOMPAT_COOLDOWN
+        assert result > SHORT_COOLDOWN
 
 
 # ─────────────────────────────────────────────────────────────
