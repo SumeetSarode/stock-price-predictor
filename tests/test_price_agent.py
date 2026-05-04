@@ -167,6 +167,32 @@ def test_fetch_prices_tool_propagates_price_fetch_error():
 
     assert result["status"] == "error"
     assert "rate-limited" in result["error_message"]
+    # Canonical ticker -- no alias to suggest.
+    assert "suggested_ticker" not in result
+
+
+def test_fetch_prices_tool_includes_alias_suggestion_on_error():
+    """Regression for live UI bug: user asked about HDFC, got delisted error,
+    agent had no way to know to retry HDFCBANK.NS. Tool now surfaces the
+    suggestion so the agent can self-recover without user intervention."""
+    with patch("price_predictor.agents.price_agent.agent.fetch_ohlcv") as mock_fetch:
+        mock_fetch.side_effect = PriceFetchError("No price data: delisted")
+        result = fetch_prices_tool("HDFC.NS", "2024-01-01", "2024-01-05")
+
+    assert result["status"] == "error"
+    assert result["suggested_ticker"] == "HDFCBANK.NS"
+    assert "HDFCBANK" in result["suggestion_reason"]
+
+
+def test_fetch_prices_tool_no_suggestion_for_unknown_ticker():
+    """Don't invent suggestions when there's no known alias.
+    Returning a bogus ticker would send the agent on a wild goose chase."""
+    with patch("price_predictor.agents.price_agent.agent.fetch_ohlcv") as mock_fetch:
+        mock_fetch.side_effect = PriceFetchError("Unknown ticker")
+        result = fetch_prices_tool("ZZZZZ.NS", "2024-01-01", "2024-01-05")
+
+    assert result["status"] == "error"
+    assert "suggested_ticker" not in result
 
 
 # ─────────────────────────────────────────────────────────────

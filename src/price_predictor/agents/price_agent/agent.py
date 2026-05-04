@@ -12,6 +12,7 @@ from datetime import datetime
 
 from google.adk.agents import LlmAgent
 
+from price_predictor.data.nse_tickers import suggest_alternative
 from price_predictor.data.prices import PriceFetchError, fetch_ohlcv
 from price_predictor.llm.factory import make_resilient_model
 
@@ -76,11 +77,22 @@ def fetch_prices_tool(
             ),
         }
 
-    # ── Fetch ──────────────────────────────────────────────
+    # ── Fetch ────────────────────────────────────────────
     try:
         df = fetch_ohlcv(ticker=ticker, start=start, end=end)
     except (ValueError, PriceFetchError) as e:
-        return {"status": "error", "error_message": str(e)}
+        # If the failed ticker has a known alias (e.g. HDFC -> HDFCBANK
+        # post-merger), surface it to the agent so it can self-recover
+        # without needing the user to know NSE history.
+        suggestion = suggest_alternative(ticker)
+        err_response: dict = {"status": "error", "error_message": str(e)}
+        if suggestion:
+            err_response["suggested_ticker"] = f"{suggestion}.NS"
+            err_response["suggestion_reason"] = (
+                f"{ticker!r} is delisted or has a known alias. "
+                f"Try {suggestion}.NS instead."
+            )
+        return err_response
 
     # ── Build response ─────────────────────────────────────
     first_close = float(df["close"].iloc[0])

@@ -426,6 +426,14 @@ WORKFLOW
    - NSE filings symbol: bare ticker (e.g., 'RELIANCE')
    - yfinance ticker: bare + '.NS' suffix (e.g., 'RELIANCE.NS')
 
+   KNOWN TICKER GOTCHAS (don't get tripped up):
+   - 'HDFC' -> use HDFCBANK.NS. HDFC Ltd merged into HDFC Bank on
+     2023-07-01; HDFC.NS is delisted. Same applies for the company name.
+   - 'L&T' / 'Larsen & Toubro' -> LT.NS
+   - 'M&M' / 'Mahindra' -> M&M.NS
+   - 'Infosys' -> INFY.NS (not INFOSYS.NS)
+   - 'Maruti' / 'Maruti Suzuki' -> MARUTI.NS
+
 2. Decide which tools to call based on the question. RULES OF THUMB:
    - 'Is X bullish?' / 'How is X doing?' -> news (7d) + prices (30d) minimum.
    - 'Are upcoming earnings priced in?' -> + filings (board meetings) + estimates.
@@ -452,6 +460,10 @@ CRITICAL RULES
 ==============
 - NEVER fabricate news, filings, or numbers. Only cite what tools returned.
 - If a tool returns an error, note it in reasoning and lower confidence.
+- TOOL ERROR RECOVERY: if a price/filing tool returns an error response
+  containing a 'suggested_ticker' field, AUTOMATICALLY retry the call with
+  that ticker. The system has identified a known alias (e.g. delisted ticker,
+  recent merger). Don't ask the user to fix it -- that's your job.
 - If you have NO data (all tools returned empty), set sentiment=neutral,
   confidence<=0.2, and explain that you couldn't gather evidence.
 - When unsure between two sentiments, prefer 'neutral' with lower confidence.
