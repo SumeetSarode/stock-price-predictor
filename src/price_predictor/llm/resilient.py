@@ -184,31 +184,41 @@ class ResilientModel(BaseLlm):
         if not available:
             raise AllModelsExhaustedError(chain, last_error=None)
 
+        # ADK's basic.py upstream sets llm_request.model = self.model
+        # (= 'resilient[N]'). Inner LiteLlm prefers llm_request.model over
+        # its own self.model, which would route the call with our synthetic
+        # name into litellm and explode (no provider prefix). Save + restore
+        # the original so we don't leak our patched value back to ADK.
+        original_request_model = llm_request.model
         last_error: Exception | None = None
-        for model in available:
-            try:
-                logger.info("[resilient] trying model=%s", model.model)
-                # Drive the inner generator. We yield as we go — this means
-                # if a model fails MID-STREAM (after first yield) the error
-                # propagates to the caller (we can't un-yield). Pre-first-yield
-                # failures fall through to the next model. This matches user
-                # intent: 'transparent fallback when possible.'
-                async for response in model.generate_content_async(llm_request, stream):
-                    yield response
-                logger.info("[resilient] success model=%s", model.model)
-                return
-            except STRUCTURAL_ERRORS:
-                # Bug / config issue — fail loud, don't try more models
-                logger.error("[resilient] structural error model=%s — not falling back", model.model)
-                raise
-            except TRANSIENT_ERRORS as e:
-                last_error = e
-                self._set_cooldown(model.model, e)
-                logger.warning(
-                    "[resilient] transient failure model=%s err=%s — falling back",
-                    model.model, type(e).__name__,
-                )
-                continue
+        try:
+            for model in available:
+                try:
+                    logger.info("[resilient] trying model=%s", model.model)
+                    # Point the request at the REAL inner model name
+                    llm_request.model = model.model
+                    # Drive the inner generator. We yield as we go -- this means
+                    # if a model fails MID-STREAM (after first yield) the error
+                    # propagates to the caller (we can't un-yield). Pre-first-yield
+                    # failures fall through to the next model. Matches user intent.
+                    async for response in model.generate_content_async(llm_request, stream):
+                        yield response
+                    logger.info("[resilient] success model=%s", model.model)
+                    return
+                except STRUCTURAL_ERRORS:
+                    # Bug / config issue -- fail loud, don't try more models
+                    logger.error("[resilient] structural error model=%s -- not falling back", model.model)
+                    raise
+                except TRANSIENT_ERRORS as e:
+                    last_error = e
+                    self._set_cooldown(model.model, e)
+                    logger.warning(
+                        "[resilient] transient failure model=%s err=%s -- falling back",
+                        model.model, type(e).__name__,
+                    )
+                    continue
 
-        # If we exhausted the loop, every available model failed transiently
-        raise AllModelsExhaustedError(chain, last_error)
+            # Exhausted all available models transiently
+            raise AllModelsExhaustedError(chain, last_error)
+        finally:
+            llm_request.model = original_request_model

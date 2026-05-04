@@ -272,9 +272,9 @@ class TestCooldownStateMachine:
         assert result.hour == 0 and result.minute == 0 and result.second == 0
 
 
-# ─────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 # Order preservation — chain must be tried in the declared order
-# ─────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 class TestChainOrder:
     @pytest.mark.asyncio
     async def test_chain_tried_in_order(self):
@@ -300,3 +300,111 @@ class TestChainOrder:
             pass
 
         assert call_log == ["first", "second", "third"]
+
+
+# ──────────────────────────────────────────────────────────────
+# llm_request.model patching — critical for ADK + LiteLlm interop
+# ──────────────────────────────────────────────────────────────
+class TestLlmRequestModelPatching:
+    """ADK upstream sets llm_request.model = our wrapper's synthetic name.
+
+    LiteLlm reads llm_request.model first, falling back to self.model only if
+    empty -- so without patching, our 'resilient[N]' name leaks into litellm
+    and explodes ('LLM Provider NOT provided').
+
+    The wrapper MUST overwrite llm_request.model with the real inner-model
+    name before each delegated call, AND restore it on exit so we don't
+    leak our patched value back to ADK.
+    """
+
+    @pytest.mark.asyncio
+    async def test_inner_model_sees_its_own_name_in_request(self):
+        """On delegation, llm_request.model must equal the inner model's name."""
+        seen_models: list[str] = []
+
+        class Inspector(FakeLlm):
+            async def generate_content_async(
+                self, llm_request: LlmRequest, stream: bool = False,
+            ) -> AsyncGenerator[LlmResponse]:
+                seen_models.append(llm_request.model)
+                yield LlmResponse()
+
+        m = ResilientModel(inner_models=[Inspector(model="groq/x/y")])
+        req = _make_request()
+        req.model = "resilient[1]"  # mimic ADK's upstream patching
+
+        async for _ in m.generate_content_async(req):
+            pass
+
+        assert seen_models == ["groq/x/y"], (
+            "Inner model must see its OWN name in llm_request.model, not 'resilient[N]'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_each_fallback_sees_its_own_name(self):
+        """On fallback, the next inner sees ITS name (not the failed one's)."""
+        seen_models: list[str] = []
+        err = RateLimitError("rl", llm_provider="groq", model="x")
+
+        class Inspector(FakeLlm):
+            async def generate_content_async(
+                self, llm_request: LlmRequest, stream: bool = False,
+            ) -> AsyncGenerator[LlmResponse]:
+                seen_models.append(llm_request.model)
+                if self.error is not None:
+                    raise self.error
+                yield LlmResponse()
+
+        m = ResilientModel(inner_models=[
+            Inspector(model="groq/a", error=err),
+            Inspector(model="gemini/b"),
+        ])
+        req = _make_request()
+        req.model = "resilient[2]"
+
+        async for _ in m.generate_content_async(req):
+            pass
+
+        assert seen_models == ["groq/a", "gemini/b"]
+
+    @pytest.mark.asyncio
+    async def test_request_model_restored_after_success(self):
+        m = ResilientModel(inner_models=[_make_fake("groq/x")])
+        req = _make_request()
+        req.model = "resilient[1]"
+
+        async for _ in m.generate_content_async(req):
+            pass
+
+        assert req.model == "resilient[1]", (
+            "Wrapper must restore original llm_request.model after success"
+        )
+
+    @pytest.mark.asyncio
+    async def test_request_model_restored_after_structural_error(self):
+        err = BadRequestError("bad", model="x", llm_provider="groq")
+        m = ResilientModel(inner_models=[_make_fake("groq/x", error=err)])
+        req = _make_request()
+        req.model = "resilient[1]"
+
+        with pytest.raises(BadRequestError):
+            async for _ in m.generate_content_async(req):
+                pass
+
+        assert req.model == "resilient[1]"
+
+    @pytest.mark.asyncio
+    async def test_request_model_restored_after_exhaustion(self):
+        err = RateLimitError("rl", llm_provider="groq", model="x")
+        m = ResilientModel(inner_models=[
+            _make_fake("groq/a", error=err),
+            _make_fake("groq/b", error=err),
+        ])
+        req = _make_request()
+        req.model = "resilient[2]"
+
+        with pytest.raises(AllModelsExhaustedError):
+            async for _ in m.generate_content_async(req):
+                pass
+
+        assert req.model == "resilient[2]"
