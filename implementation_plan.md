@@ -79,13 +79,17 @@ This section reflects the implementation path implied by the README and our disc
 
 ### 3.3 Analysis layer
 
+> **Re-scoped during Step C** (see `implementation_flow.md`): the analysis
+> primitives live under `agents/technical_agent/tools/` rather than a
+> separate `analysis/` package. Same scope, cleaner agent boundary.
+
 | Step | Description | Status | Notes |
 |---|---|---|---|
-| 3.3.1 | Technical indicators (`analysis/technical.py`) | not started | pandas / pandas-ta based |
-| 3.3.2 | Levels analysis (`analysis/levels.py`) | not started | Support / resistance / pivots / swings |
-| 3.3.3 | Pattern detection (`analysis/patterns.py`) | not started | Candlestick / chart patterns |
-| 3.3.4 | News impact analysis (`analysis/news_impact.py`) | not started | LLM-assisted article scoring |
-| 3.3.5 | Grounded reasoning (`analysis/reasoning.py`) | not started | Combine evidence into prediction-ready context |
+| 3.3.1 | Technical indicators (now in `tools/_trend_signal.py`, `_momentum_signal.py`, `_volatility_signal.py`) | ✅ done | Built across C.1–C.3 |
+| 3.3.2 | Levels analysis (now in `tools/_levels_signal.py`) | ✅ done | Built in C.4 |
+| 3.3.3 | Pattern detection (chart patterns inside `_levels_signal.py`; candlesticks in `_candlestick_gating.py`) | ✅ done | Candlestick gating in C.2; chart patterns in C.4 |
+| 3.3.4 | News impact analysis (`agents/news_impact/`) | ✅ done | LLM-assisted article scoring |
+| 3.3.5 | Grounded reasoning (now lives in `technical_agent`'s instruction prompt) | ✅ done | Synthesis is the LlmAgent's job (C.5) |
 | 3.3.6 | Pluggable analyzers (`analysis/pluggable.py`) | not started | Nice extension hook, but lower priority than core v1 |
 
 ### 3.4 Prediction pipeline

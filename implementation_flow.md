@@ -168,7 +168,7 @@ handle, flags, pennants, wedges (too noisy for v1).
 
 ---
 
-## 🟡 Step C — Tools + Agent (IN PROGRESS — 1 of 6 done)
+## ✅ Step C — Tools + Agent (COMPLETE — 6 of 6 done)
 
 **Goal**: Wrap the Step B primitives as 4 thematic ADK tools, then wire
 them into a `technical_agent` LlmAgent that an `adk web` user can talk to.
@@ -178,11 +178,15 @@ them into a `technical_agent` LlmAgent that an `adk web` user can talk to.
 | # | Sub-step | Status | Test delta |
 |---|---|---|---|
 | C.1 | `get_trend` tool + signal classifier + shared cache singleton | ✅ DONE | 398 → 425 (+27) |
-| C.2 | `get_momentum` tool (+ candlestick context-gating) | ⏸️ NEXT | — |
-| C.3 | `get_volatility` tool | ⏸️ NOT STARTED | — |
-| C.4 | `get_levels` tool (+ chart pattern integration) | ⏸️ NOT STARTED | — |
-| C.5 | `technical_agent` wiring (4 tools → `LlmAgent` + prompt) | ⏸️ NOT STARTED | — |
-| C.6 | Manual smoke test in `adk web` | ⏸️ NOT STARTED | — |
+| C.2 | `get_momentum` tool (+ candlestick context-gating) | ✅ DONE | 425 → 474 (+49) |
+| C.3 | `get_volatility` tool (+ position-sizing helpers) | ✅ DONE | 474 → 509 (+35) |
+| C.4 | `get_levels` tool (+ chart pattern integration) | ✅ DONE | 509 → 538 (+29) |
+| C.5 | `technical_agent` wiring (4 tools → `LlmAgent` + prompt) | ✅ DONE | 538 → 554 (+16) |
+| C.6 | Manual smoke test in `adk web` (+ LLM-chain bug fix) | ✅ DONE | 554 → 554 (env-only) |
+
+**Final test count: 554** (vs. 515 originally projected — +39 over plan,
+driven by tighter coverage on cluster signal classifiers and chart-pattern
+edge cases).
 
 > **Test count gap (394 → 398, +4)**: incidental drift between B.4 and C.1
 > commits — likely fixture/import additions during C.1 wiring. Not material.

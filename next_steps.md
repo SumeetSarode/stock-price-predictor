@@ -169,89 +169,98 @@ beyond the basic pattern from C.1).
 
 ---
 
-## 📍 Step C.5 — `technical_agent` wiring
+## ✅ Step C.5 — `technical_agent` wiring (DONE)
 
-### Goal
+Delivered the LlmAgent that ties the 4 cluster tools together.
 
-Combine the 4 cluster tools into a single `LlmAgent` that an `adk web` user
-can talk to.
-
-### Shape (mirrors `news_impact` / `price_agent`)
+### What landed
 
 ```
 src/price_predictor/agents/technical_agent/
-├── __init__.py        # exports root_agent
-├── agent.py           # LlmAgent factory + prompt + tools list
-├── prompt.md          # system prompt (separate file for readability)
-└── tools/             # already exists from C.1–C.4
+├── __init__.py        # re-exports root_agent + factory + INSTRUCTION constant
+├── agent.py           # LlmAgent factory + ~150-line instruction prompt + root_agent
+└── tools/             # already from C.1–C.4
     ├── get_trend.py
     ├── get_momentum.py
     ├── get_volatility.py
     └── get_levels.py
 ```
 
-### Open design questions for C.5
+### Design decisions taken
 
-1. **Output schema** — does `technical_agent` return raw cluster outputs
-   verbatim, or a synthesized "technical view" object?
-   - **Lean: synthesized**. Mirror `news_impact`'s `NewsImpactReport`
-     pattern — a structured Pydantic model (`TechnicalView`) with overall
-     direction, confidence, and supporting indicator highlights.
+1. **No separate `prompt.md`** — instruction kept in `agent.py` as a
+   module-level constant (`TECHNICAL_AGENT_INSTRUCTION`) so it can be
+   pinned by tests directly without file IO.
 
-2. **Should it always call all 4 tools, or let the LLM pick?**
-   - **Lean: let the LLM pick.** That's the whole point of the thematic
-     cluster design. Prompt nudges: "for a comprehensive view use all 4;
-     for a focused question, use the relevant ones."
+2. **No `TechnicalView` Pydantic schema for v1** — the agent returns a
+   conversational narrative (the way `price_agent` and `news_impact`
+   already do). Structured `TechnicalView` will live in **Step 3.4.1
+   (output schema)** so that all agents speak a common contract — not
+   redundantly per-agent.
 
-3. **Sensitivity preset selection** — does the agent always use `standard`,
-   or pick based on the question?
-   - **Lean: prompt instructs default to `standard` unless the user says
-     "swing" / "intraday" → `sensitive`, or "long-term" / "position" →
-     `smooth`.**
+3. **LLM picks tools** (lean confirmed) — prompt teaches:
+   - General "how does X look?" → ALL FOUR tools in parallel
+   - Specific question → just the relevant cluster
+   - "Should I buy?" → ALL FOUR + explicit no-advice disclaimer
 
-### Tentative `TechnicalView` output schema
+4. **Sensitivity defaults to `'standard'`** with explicit "NEVER guess"
+   fallback (lean confirmed).
 
-```python
-class TechnicalView(BaseModel):
-    ticker: str
-    as_of: date
-    overall_signal: Literal["bullish", "neutral", "bearish"]
-    confidence: float                         # 0-1
-    cluster_signals: dict[str, str]           # {"trend": "bullish", ...}
-    key_observations: list[str]               # synthesized from rationales
-    warnings: list[str]
-    raw_tool_outputs: dict                    # for downstream Step D
-```
+5. **No ticker-format rules in the prompt** — each tool already
+   normalizes via `_normalize_ticker`. Adding rules to the prompt too
+   would duplicate the truth in two places (DRY).
 
-### Acceptance criteria
+### Tests added (+16, total 538 → 554)
 
-- [ ] `agent.py` with `make_technical_agent()` factory
-- [ ] `prompt.md` covering preset selection + tool selection guidance
-- [ ] `TechnicalView` Pydantic schema
-- [ ] Tests: agent factory structure, prompt covers key behaviors,
-      mocked tool-call flow validates output schema
-- [ ] `root_agent` module-level instance for ADK CLI
+- Factory smoke: name, description, 4 tools wired, ResilientModel used,
+  fresh-instance-per-call
+- root_agent module-level discovery (ADK CLI contract)
+- Pinned 8 behavior-critical prompt substrings (no buy/sell, all 4 tools
+  documented, DEFAULT rule, sensitivity ‘standard’, warnings surfaced,
+  self-recovery on `suggested_ticker`, no fabrication, `Rs` format)
 
 ---
 
-## 📍 Step C.6 — Manual smoke test
+## ✅ Step C.6 — Manual smoke test (DONE)
 
-Run `adk web`, point at `technical_agent`, ask sample questions:
+Launched `adk web src/price_predictor/agents`, ran the 6-prompt checklist
+in `docs/c6_smoke_test_results.md`.
 
-- "Analyze the technical setup for TCS"
-- "Is HDFCBANK overbought?"
-- "What are the key levels for INFY this week?"
-- "Show me momentum and trend on RELIANCE"
-- "Analyze ZOMATO" — newer listing, less history (graceful-degradation case)
+### Bug found and fixed
 
-**Verify**: tools picked correctly, output sensible, no crashes, graceful
-degradation, `as_of` matches latest available bar (no fake recency claims).
+**Symptom**: every chat turn produced noisy `[resilient] model
+incompatibility` warnings; conversations took 5 events instead of 3.
+
+**Root cause**: `.env` had `groq/llama-3.3-70b-versatile` as primary in
+`CHAIN_AGENTIC`. Groq's API rejects the assistant message shape ADK
+builds for multi-turn tool conversations (assistant turn containing
+`thought` part + `function_call` part). Resilient layer fell back to
+Gemini — functionally fine, but every turn wasted a roundtrip and spammed
+logs. `groq/openai/gpt-oss-120b` was tested as alternative — same issue
+on follow-up turns.
+
+**Fix**: reordered `.env` and `.env.example` `CHAIN_AGENTIC` so Gemini
+is primary (it's what ADK was designed against; function calling JUST
+WORKS), Groq retained as last-resort fallback.
+
+```
+OLD: groq/llama-3.3-70b-versatile, gemini/gemini-2.5-flash, gemini/gemini-2.5-flash-lite
+NEW: gemini/gemini-2.5-flash, gemini/gemini-2.5-flash-lite, groq/openai/gpt-oss-120b
+```
+
+### Known caveat (deferred, not v1-critical for the agent layer)
+
+yfinance is rate-limiting aggressively. Tools return clean errors and
+the agent apologizes correctly without fabricating numbers — i.e. the
+error-path is verified. Real fix is on the data layer: add a 2nd
+price provider (e.g. Stooq) to `data/providers/`. Captured in
+`docs/c6_smoke_test_results.md`.
 
 ---
 
 ## ⏸️ Step D — Prediction Agent (PREVIEW ONLY)
 
-To be designed in detail after Step C is complete. Preview of open questions:
+To be designed in detail. Preview of open questions:
 
 ### What goes in?
 
@@ -316,15 +325,19 @@ driven coordination.
 
 ---
 
-## 📊 Estimated remaining work for Step C
+## 📊 Step C scoreboard — actuals vs estimates
 
-| Sub-step | Est. commits | Est. test delta |
-|---|---|---|
-| C.2 `get_momentum` (+ candlestick gating) | 2 | +25 |
-| C.3 `get_volatility` (+ position-sizing) | 2 | +20 |
-| C.4 `get_levels` (+ chart patterns) | 2 | +30 |
-| C.5 `technical_agent` wiring | 2 | +15 |
-| C.6 Manual smoke test | 0 | 0 |
-| **Total Step C remaining** | **~8 commits** | **+~90 tests** |
+| Sub-step | Est. commits | Actual commits | Est. test delta | Actual test delta |
+|---|---|---|---|---|
+| C.2 `get_momentum` (+ candlestick gating) | 2 | 2 | +25 | **+49** |
+| C.3 `get_volatility` (+ position-sizing) | 2 | 2 | +20 | **+35** |
+| C.4 `get_levels` (+ chart patterns) | 2 | 2 | +30 | **+29** |
+| C.5 `technical_agent` wiring | 2 | 1 | +15 | **+16** |
+| C.6 Manual smoke test (+ LLM-chain bug fix) | 0 | 1 | 0 | **0** |
+| **Total Step C** | **~8** | **8** | **+~90** | **+129** |
 
-Projected test count at Step C complete: **~515**.
+Final test count at Step C complete: **554** (vs ~515 projected; +39 over plan).
+The overage is concentrated in C.2 (cross-cluster pattern gating turned
+out to need more edge-case coverage than expected) and C.3 (position-
+sizing math has more boundary conditions than first scoped). Both are
+worth-the-coverage areas.
