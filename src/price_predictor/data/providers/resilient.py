@@ -49,17 +49,26 @@ class AllProvidersExhaustedError(PriceFetchError):
     """Raised when every provider in the chain has failed.
 
     Wraps the last failure for debugging; the chain itself is preserved
-    in the message so logs explain what was tried.
+    in the message so logs explain what was tried. Ticker is included so
+    users can scan logs and immediately see which symbol triggered the
+    cascade.
     """
 
-    def __init__(self, chain: list[str], last_error: Exception | None) -> None:
+    def __init__(
+        self,
+        chain: list[str],
+        last_error: Exception | None,
+        ticker: str | None = None,
+    ) -> None:
+        ticker_part = f" for ticker={ticker!r}" if ticker else ""
         msg = (
-            f"All price providers failed (tried in order: {chain}). "
-            f"Last error: {last_error}"
+            f"All price providers failed{ticker_part} "
+            f"(tried in order: {chain}). Last error: {last_error}"
         )
         super().__init__(msg)
         self.chain = chain
         self.last_error = last_error
+        self.ticker = ticker
 
 
 class ResilientPriceFetcher:
@@ -169,4 +178,4 @@ class ResilientPriceFetcher:
                 )
                 continue
 
-        raise AllProvidersExhaustedError(self.chain, last_error)
+        raise AllProvidersExhaustedError(self.chain, last_error, ticker=ticker)

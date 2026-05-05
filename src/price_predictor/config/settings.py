@@ -56,6 +56,22 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr = Field(validation_alias="GROQ_API_KEY")
     gemini_api_key: SecretStr = Field(validation_alias="GEMINI_API_KEY")
 
+    # Optional -- only required if 'alpha_vantage' appears in PRICE_CHAIN
+    # or PRICE_PAID. We default to empty SecretStr so users who don't use AV
+    # don't need to set anything. The AlphaVantageProvider validates at
+    # init time if it's actually being used in the active chain.
+    alpha_vantage_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="ALPHA_VANTAGE_API_KEY"
+    )
+
+    # Optional -- required if 'stooq' is in PRICE_CHAIN. Stooq added an
+    # apikey requirement to their CSV endpoint in 2024; the key itself is
+    # free to obtain via a one-time captcha (no signup, no email).
+    # See data/providers/stooq_provider.py module docstring for the URL.
+    stooq_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="STOOQ_API_KEY"
+    )
+
     # ── Validators ────────────────────────────────────────────
     @field_validator("groq_api_key", "gemini_api_key")
     @classmethod
@@ -64,6 +80,24 @@ class Settings(BaseSettings):
         raw = value.get_secret_value()
         if not raw or raw.startswith("your_"):
             raise ValueError("Placeholder API key detected — set a real key in .env")
+        return value
+
+    @field_validator("alpha_vantage_api_key", "stooq_api_key")
+    @classmethod
+    def reject_placeholder_provider_keys(cls, value: SecretStr) -> SecretStr:
+        """Allow EMPTY (provider not used) but reject obvious placeholders.
+
+        Why empty is OK: a user who never uses a given provider shouldn't
+        have to set its key. The provider class itself raises a clear
+        PriceFetchError at fetch time if it's invoked without a key.
+        """
+        raw = value.get_secret_value()
+        if raw and raw.startswith("your_"):
+            raise ValueError(
+                "Placeholder provider API key detected. Either set a real key, "
+                "remove the provider from PRICE_CHAIN / PRICE_PAID, or leave "
+                "the var unset."
+            )
         return value
 
     # ── Model selection: profile-based fallback chains ─────────────────
@@ -135,6 +169,69 @@ class Settings(BaseSettings):
             return [paid_model]
         return [m.strip() for m in chain_csv.split(",") if m.strip()]
 
+    # ── Price-provider chain (parallels the LLM chain pattern above) ─────
+    #
+    # PRICE_CHAIN is the ordered free-tier fallback chain. Each entry is a
+    # short provider name registered in data/providers/__init__.py's
+    # PROVIDER_REGISTRY (currently: 'yfinance', 'stooq', 'alpha_vantage').
+    #
+    # PRICE_PAID is the single paid override used when USE_PAID_PRICES=true.
+    # Same logic as LLM's USE_PAID: paying = no rate limits worth handling,
+    # so chain collapses to a single best provider.
+    #
+    # Adding a new provider = register it in PROVIDER_REGISTRY and add its
+    # short name here. No changes to settings.py needed.
+    price_chain: str = Field(
+        default="yfinance", validation_alias="PRICE_CHAIN"
+    )
+    price_paid: str = Field(
+        default="alpha_vantage", validation_alias="PRICE_PAID"
+    )
+    use_paid_prices: bool = Field(
+        default=False, validation_alias="USE_PAID_PRICES"
+    )
+
+    @field_validator("price_chain")
+    @classmethod
+    def validate_price_chain_format(cls, value: str) -> str:
+        """Comma-separated, non-empty list of short provider names.
+
+        We don't validate against the actual registry here -- pydantic-settings
+        loads BEFORE the providers package is imported, so a registry check
+        would create a circular import. The factory in data/prices.py does
+        the registry lookup and surfaces 'unknown provider X' errors there.
+        """
+        if not value.strip():
+            raise ValueError("PRICE_CHAIN cannot be empty.")
+        names = [n.strip() for n in value.split(",") if n.strip()]
+        if not names:
+            raise ValueError("PRICE_CHAIN must list at least one provider name.")
+        return value
+
+    @field_validator("price_paid")
+    @classmethod
+    def validate_price_paid_format(cls, value: str) -> str:
+        """Single non-empty provider name."""
+        if not value.strip():
+            raise ValueError("PRICE_PAID cannot be empty.")
+        if "," in value:
+            raise ValueError(
+                f"PRICE_PAID must be a single provider name, got {value!r}. "
+                "For multiple providers use PRICE_CHAIN instead."
+            )
+        return value.strip()
+
+    def effective_price_chain(self) -> list[str]:
+        """Return the ordered list of provider short-names actually in use.
+
+        When USE_PAID_PRICES=true, returns just [PRICE_PAID] (no fallback;
+        paying = solve the rate limit, not retry around it). Otherwise
+        returns the full free-tier PRICE_CHAIN.
+        """
+        if self.use_paid_prices:
+            return [self.price_paid]
+        return [n.strip() for n in self.price_chain.split(",") if n.strip()]
+
     # ── Runtime config ─────────────────────────────
     log_level: str = Field(default="INFO", validation_alias="PREDICTOR_LOG_LEVEL")
     data_dir: Path = Field(default=Path("./data"), validation_alias="PREDICTOR_DATA_DIR")
@@ -152,6 +249,16 @@ class Settings(BaseSettings):
     https_proxy: str = Field(default="", validation_alias="HTTPS_PROXY")
     http_proxy: str = Field(default="", validation_alias="HTTP_PROXY")
     no_proxy: str = Field(default="", validation_alias="NO_PROXY")
+
+    # ── SSL trust store (optional — only when behind a TLS-MITM corp proxy) ──
+    # Walmart's sysproxy (and Zscaler etc.) re-sign HTTPS traffic with a corp
+    # root CA. Without these pointing at a combined certifi+corp bundle, EVERY
+    # https request from Python fails with CERTIFICATE_VERIFY_FAILED.
+    # Both names exist for compatibility:
+    #   SSL_CERT_FILE      — Python stdlib + httpx (via our _http helper)
+    #   REQUESTS_CA_BUNDLE — the requests library convention (yfinance uses requests)
+    ssl_cert_file: str = Field(default="", validation_alias="SSL_CERT_FILE")
+    requests_ca_bundle: str = Field(default="", validation_alias="REQUESTS_CA_BUNDLE")
 
     # ── Derived paths ─────────────────────────────────────────
     @property
@@ -176,9 +283,9 @@ settings = Settings()
 
 
 def setup_network() -> None:
-    """Push proxy settings into os.environ so HTTP clients see them.
+    """Push proxy + TLS settings into os.environ so HTTP clients see them.
 
-    Why: LiteLLM uses aiohttp internally. aiohttp + httpx both read proxy
+    Why: LiteLLM / httpx / aiohttp / requests all read proxy and CA-bundle
     config from os.environ at client construction time. Pydantic-settings
     loads `.env` into the Settings object, NOT into os.environ — so we
     copy them across explicitly.
@@ -195,6 +302,15 @@ def setup_network() -> None:
         os.environ.setdefault("HTTP_PROXY", settings.http_proxy)
     if settings.no_proxy:
         os.environ.setdefault("NO_PROXY", settings.no_proxy)
+
+    # CA bundle: needed for httpx-based providers (Stooq, AlphaVantage) on
+    # any TLS-MITM corp network. yfinance uses requests, which reads
+    # REQUESTS_CA_BUNDLE; httpx reads SSL_CERT_FILE (via our _http helper).
+    # Set BOTH from whichever the user provided, so both code paths work.
+    bundle = settings.ssl_cert_file or settings.requests_ca_bundle
+    if bundle:
+        os.environ.setdefault("SSL_CERT_FILE", bundle)
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", bundle)
 
     # Force LiteLLM to use httpx (which honors HTTPS_PROXY) instead of
     # aiohttp's transport, which has inconsistent proxy support.

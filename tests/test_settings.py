@@ -156,3 +156,94 @@ class TestSourcePriority:
             ".env value MUST override polluted os.environ (the JWT shell pollution bug)"
         )
         assert s.groq_api_key.get_secret_value() == "gsk_real_value_from_dotenv"
+
+
+# ──────────────────────────────────────────────────────────────
+# Price-provider chain (mirrors LLM chain pattern; same test shape)
+# ──────────────────────────────────────────────────────────────
+class TestPriceChain:
+    """PRICE_CHAIN parses like CHAIN_AGENTIC; USE_PAID_PRICES toggles to
+    PRICE_PAID just like USE_PAID toggles to PAID_AGENTIC."""
+
+    def test_default_chain_is_yfinance_only(self, monkeypatch):
+        """No-config baseline: works with just yfinance (the v1 default).
+
+        WHY EXPLICIT delenv: LiteLLM auto-loads .env into os.environ at
+        import time (a quirk of that library). Other tests in the suite
+        import LiteLLM, which leaks PRICE_CHAIN from our project's .env
+        into os.environ. Without delenv, this test is order-dependent.
+        """
+        monkeypatch.delenv("PRICE_CHAIN", raising=False)
+        monkeypatch.delenv("USE_PAID_PRICES", raising=False)
+        s = _build_settings(monkeypatch)  # no PRICE_CHAIN override
+        assert s.effective_price_chain() == ["yfinance"]
+
+    def test_full_chain_parses_in_order(self, monkeypatch):
+        s = _build_settings(
+            monkeypatch,
+            PRICE_CHAIN="yfinance,stooq,alpha_vantage",
+            ALPHA_VANTAGE_API_KEY="real_key_xyz",
+        )
+        # Order MUST be preserved -- it determines fallback priority
+        assert s.effective_price_chain() == ["yfinance", "stooq", "alpha_vantage"]
+
+    def test_chain_strips_whitespace_and_skips_empty(self, monkeypatch):
+        """Same lenient parsing as the LLM chain (people add spaces / trailing
+        commas)."""
+        s = _build_settings(
+            monkeypatch,
+            PRICE_CHAIN="  yfinance , stooq , , alpha_vantage  ",
+            ALPHA_VANTAGE_API_KEY="real_key_xyz",
+        )
+        assert s.effective_price_chain() == ["yfinance", "stooq", "alpha_vantage"]
+
+    def test_use_paid_prices_collapses_to_single_provider(self, monkeypatch):
+        """USE_PAID_PRICES=true bypasses the chain and uses PRICE_PAID alone.
+        Mirrors USE_PAID's behavior for LLMs."""
+        s = _build_settings(
+            monkeypatch,
+            PRICE_CHAIN="yfinance,stooq,alpha_vantage",
+            PRICE_PAID="alpha_vantage",
+            USE_PAID_PRICES="true",
+            ALPHA_VANTAGE_API_KEY="real_key_xyz",
+        )
+        assert s.effective_price_chain() == ["alpha_vantage"]
+
+    def test_empty_chain_rejected(self, monkeypatch):
+        with pytest.raises(ValidationError, match="PRICE_CHAIN"):
+            _build_settings(monkeypatch, PRICE_CHAIN="")
+
+    def test_paid_must_be_single_provider(self, monkeypatch):
+        """PRICE_PAID is a single name -- comma in it is a copy-paste mistake."""
+        with pytest.raises(ValidationError, match="single provider name"):
+            _build_settings(monkeypatch, PRICE_PAID="alpha_vantage,stooq")
+
+    def test_use_paid_prices_defaults_false(self, monkeypatch):
+        """If user doesn't set USE_PAID_PRICES, free chain is used.
+
+        delenv USE_PAID_PRICES because LiteLLM-loaded .env may have set it.
+        """
+        monkeypatch.delenv("USE_PAID_PRICES", raising=False)
+        s = _build_settings(monkeypatch, PRICE_CHAIN="yfinance,stooq",
+                            STOOQ_API_KEY="real_key_xyz")
+        assert s.use_paid_prices is False
+        assert s.effective_price_chain() == ["yfinance", "stooq"]
+
+
+class TestAlphaVantageKey:
+    """Validator allows EMPTY (provider opt-out) but rejects placeholders."""
+
+    def test_empty_key_allowed(self, monkeypatch):
+        """A user who doesn't use AlphaVantage should NOT have to set anything."""
+        s = _build_settings(monkeypatch)  # no ALPHA_VANTAGE_API_KEY
+        assert s.alpha_vantage_api_key.get_secret_value() == ""
+
+    def test_real_key_accepted(self, monkeypatch):
+        s = _build_settings(monkeypatch, ALPHA_VANTAGE_API_KEY="real_key_value_xyz")
+        assert s.alpha_vantage_api_key.get_secret_value() == "real_key_value_xyz"
+
+    def test_placeholder_rejected(self, monkeypatch):
+        """The string 'your_alpha_vantage_key_here' from .env.example is a
+        red flag -- catch it at startup, not at first AlphaVantage call."""
+        with pytest.raises(ValidationError, match="Placeholder"):
+            _build_settings(monkeypatch, ALPHA_VANTAGE_API_KEY="your_alpha_vantage_key")
