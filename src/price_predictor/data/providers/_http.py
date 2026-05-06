@@ -12,11 +12,24 @@ to read them explicitly and pass them via verify=... as an SSL context.
 
 NOTE: settings.setup_network() is responsible for copying these vars
 from `.env` into os.environ. We only read os.environ here.
+
+DEFENSIVE BEHAVIOR
+==================
+If the configured CA bundle file is missing or unreadable (e.g. someone
+cloned the repo with a stale .env pointing at a path that doesn't exist
+on their machine), we LOG and fall back to certifi rather than crashing.
+WHY: a missing custom-CA bundle isn't a security risk — falling back to
+certifi just means we trust the same public CAs every browser does. The
+only case it'd break is on a corp network where the proxy MITMs HTTPS;
+there the user gets a clear TLS error and knows to fix their .env.
 """
 from __future__ import annotations
 
 import os
 import ssl
+from pathlib import Path
+
+from loguru import logger
 
 
 def get_verify_setting() -> ssl.SSLContext | bool:
@@ -24,8 +37,10 @@ def get_verify_setting() -> ssl.SSLContext | bool:
 
     Returns:
         - SSLContext built from the configured CA bundle if SSL_CERT_FILE
-          or REQUESTS_CA_BUNDLE is set in the environment (corp proxy case).
-        - True (use httpx's bundled certifi) otherwise.
+          or REQUESTS_CA_BUNDLE points to an existing readable file (corp
+          proxy case).
+        - True (use httpx's bundled certifi) if no CA bundle is configured
+          OR the configured path doesn't exist (defensive fallback).
 
     Why two env vars: SSL_CERT_FILE is the Python-stdlib name; REQUESTS_CA_BUNDLE
     is the requests-library convention. Both are commonly set in dev shells.
@@ -39,6 +54,18 @@ def get_verify_setting() -> ssl.SSLContext | bool:
         os.environ.get("SSL_CERT_FILE")
         or os.environ.get("REQUESTS_CA_BUNDLE")
     )
-    if ca_bundle:
-        return ssl.create_default_context(cafile=ca_bundle)
-    return True
+    if not ca_bundle:
+        return True
+
+    # Defensive: a stale .env path on a fresh clone shouldn't blow up
+    # everything. Fall back to certifi with a one-line warning.
+    if not Path(ca_bundle).is_file():
+        logger.warning(
+            f"[providers._http] Configured CA bundle does not exist: "
+            f"{ca_bundle!r}. Falling back to certifi (system default). "
+            "This is fine off-corporate-network; on a TLS-MITM corp "
+            "network you'll need to point SSL_CERT_FILE at a real bundle."
+        )
+        return True
+
+    return ssl.create_default_context(cafile=ca_bundle)

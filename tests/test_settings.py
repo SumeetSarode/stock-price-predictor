@@ -234,7 +234,12 @@ class TestAlphaVantageKey:
     """Validator allows EMPTY (provider opt-out) but rejects placeholders."""
 
     def test_empty_key_allowed(self, monkeypatch):
-        """A user who doesn't use AlphaVantage should NOT have to set anything."""
+        """A user who doesn't use AlphaVantage should NOT have to set anything.
+
+        delenv ALPHA_VANTAGE_API_KEY because LiteLLM-loaded .env may have
+        set it (see test_default_chain_is_yfinance_only for the same quirk).
+        """
+        monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
         s = _build_settings(monkeypatch)  # no ALPHA_VANTAGE_API_KEY
         assert s.alpha_vantage_api_key.get_secret_value() == ""
 
