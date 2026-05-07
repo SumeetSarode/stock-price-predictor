@@ -1,8 +1,17 @@
-"""Prediction layer — output contract + (later) per-stock predictor.
+"""Prediction layer — output contract + per-stock predictor.
 
-Currently exposes the schema (Step 3.4.1). The predictor (Step 3.4.2)
-and batch pipeline (Step 3.4.3) will land here too.
+Currently exposes:
+- The output schema (Step 3.4.1)
+- TechnicalView + compose_technical_view (Step 3.4.2 commit 1)
+
+Predictor orchestrator and synthesizer agent land in subsequent commits.
 """
+from price_predictor.prediction.inputs import (
+    ClusterView,
+    TechnicalView,
+    TechnicalViewError,
+    compose_technical_view,
+)
 from price_predictor.prediction.schema import (
     AnalysisBasis,
     Prediction,
@@ -12,9 +21,15 @@ from price_predictor.prediction.schema import (
 )
 
 __all__ = [
+    # schema (3.4.1)
     "AnalysisBasis",
     "Prediction",
     "PredictionDirection",
     "PredictionHorizon",
     "PriceLevel",
+    # inputs (3.4.2 commit 1)
+    "ClusterView",
+    "TechnicalView",
+    "TechnicalViewError",
+    "compose_technical_view",
 ]
