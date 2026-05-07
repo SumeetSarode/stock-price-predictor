@@ -37,6 +37,10 @@ from price_predictor.prediction.predictor import (
     run_synthesizer_agent,
     synthesize_with_guardrails,
 )
+from price_predictor.prediction.store import (
+    PredictionStore,
+    PredictionStoreError,
+)
 from price_predictor.prediction.schema import (
     AnalysisBasis,
     Prediction,
@@ -73,4 +77,7 @@ __all__ = [
     "BatchError",
     "BatchResult",
     "predict_many",
+    # store (3.4.3 commit 2)
+    "PredictionStore",
+    "PredictionStoreError",
 ]
