@@ -256,6 +256,16 @@ async def _fetch_close_and_bar_count(
             f"No price data available for {ticker}",
             cluster_errors={"_fetch": "empty dataframe"},
         )
+    # Drop NaN-close bars before picking 'latest'. yfinance occasionally
+    # returns a partially-filled mid-session bar with NaN OHLC; using
+    # that would crash TechnicalView's positive-close validator. Walk
+    # back to the most recent COMPLETE bar instead.
+    df = df[df["close"].notna()]
+    if df.empty:
+        raise TechnicalViewError(
+            f"All price bars for {ticker} have NaN close (data quality issue).",
+            cluster_errors={"_fetch": "all-NaN closes"},
+        )
     latest = df.iloc[-1]
     close_price = float(latest["close"])
     bars_used = len(df)

@@ -97,6 +97,33 @@ _synthesizer_agent: LlmAgent = make_synthesizer_agent()
 # resilient chain after invocation.
 _NEWS_MODEL_TAG = "news_impact:agentic"
 _SYNTH_MODEL_TAG = "synthesizer:agentic"
+# Marker appended to model_chain when news fell back to the degraded
+# 'neutral' assessment. Lets downstream consumers tell at a glance.
+_NEWS_DEGRADED_TAG = "news_impact:degraded"
+
+
+# ──────────────────────────────────────────────────────────────
+# News degradation
+# ──────────────────────────────────────────────────────────────
+def _degraded_impact(ticker: str, error_msg: str) -> ImpactAssessment:
+    """Build a degenerate but valid 'no news' ImpactAssessment.
+
+    Used when run_news_impact_agent raises. The synthesizer sees this
+    as a confidence-0, neutral-sentiment, no-catalysts assessment and
+    naturally weights technicals more heavily (the prompt teaches
+    'tie-break to technical for short horizons; trust news for medium/
+    long' — confidence=0 means news contributes nothing either way).
+
+    Truncates the error message to keep the reasoning field readable.
+    """
+    return ImpactAssessment(
+        ticker=ticker,
+        sentiment="neutral",
+        confidence=0.0,
+        estimated_pct_move=0.0,
+        reasoning=f"News unavailable (degraded): {error_msg[:200]}",
+        catalysts=[],
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -309,23 +336,36 @@ async def predict(
         f"sensitivity={sensitivity}"
     )
 
-    # ── PHASE 1: GATHER (parallel) ──────────────────────────
+    # ── PHASE 1: GATHER (parallel, with news degradation) ───
+    # return_exceptions=True so we can degrade news without losing
+    # technicals. Each result is checked individually below.
     technical_task = compose_technical_view(canonical, sensitivity=sensitivity)
     news_task = run_news_impact_agent(canonical)
+    technical_result, news_result = await asyncio.gather(
+        technical_task, news_task, return_exceptions=True,
+    )
 
-    try:
-        technical_view, impact_assessment = await asyncio.gather(
-            technical_task, news_task,
+    # Technicals are CORE - failure aborts the prediction.
+    if isinstance(technical_result, BaseException):
+        if isinstance(technical_result, TechnicalViewError):
+            raise PredictionError(
+                f"Technical analysis failed for {canonical}: {technical_result}"
+            ) from technical_result
+        # Unexpected exception - propagate as-is so we don't swallow bugs.
+        raise technical_result
+    technical_view = technical_result
+
+    # News is OPTIONAL - failure degrades to a neutral assessment.
+    news_degraded = False
+    if isinstance(news_result, BaseException):
+        logger.warning(
+            f"news_impact failed for {canonical}; degrading to neutral. "
+            f"Cause: {type(news_result).__name__}: {news_result}"
         )
-    except TechnicalViewError as e:
-        # Technicals are core. No degradation in commit 4 (commit 5
-        # revisits news degradation; technicals stay fail-loud).
-        raise PredictionError(
-            f"Technical analysis failed for {canonical}: {e}"
-        ) from e
-    except PredictionError:
-        # News-side failure - re-raise as-is (already wrapped).
-        raise
+        impact_assessment = _degraded_impact(canonical, str(news_result))
+        news_degraded = True
+    else:
+        impact_assessment = news_result
 
     logger.info(
         f"gather done: technical_view bars={technical_view.bars_used} "
@@ -337,18 +377,21 @@ async def predict(
         f"confidence={impact_assessment.confidence:.2f}"
     )
 
-    # ── Bundle ─────────────────────────────────────────────
+    # ── Bundle ─────────────────────────────────
+    # Audit trail: append degraded marker if news fell back, so
+    # consumers reading model_chain can see at a glance.
+    initial_chain: tuple[str, ...] = (
+        (_NEWS_DEGRADED_TAG,) if news_degraded else (_NEWS_MODEL_TAG,)
+    )
     synthesis_input = SynthesisInput(
         ticker=canonical,
         horizon=horizon,
         as_of=as_of,
         technical_view=technical_view,
         impact_assessment=impact_assessment,
-        # Audit trail: news_impact ran first, synthesizer appends itself
-        # logically. We pass the news tag here; the synthesizer's tag is
-        # added below after Prediction comes back (see model_chain note
-        # in Prediction schema).
-        model_chain=(_NEWS_MODEL_TAG,),
+        # Synthesizer's prompt copies this verbatim; we append synth
+        # tag after the Prediction comes back.
+        model_chain=initial_chain,
     )
 
     # ── PHASE 2: SYNTHESIZE (with hallucination guardrails) ──
@@ -361,6 +404,22 @@ async def predict(
     final = prediction.model_copy(
         update={"model_chain": (*prediction.model_chain, _SYNTH_MODEL_TAG)}
     )
+
+    # When news was degraded, force analysis_basis to reflect that:
+    # consumers of the Prediction should see news_articles_considered=0
+    # and news_sentiment_score=None regardless of what the LLM put there.
+    if news_degraded:
+        final = final.model_copy(
+            update={
+                "analysis_basis": final.analysis_basis.model_copy(
+                    update={
+                        "news_sentiment_score": None,
+                        "news_articles_considered": 0,
+                        "filings_considered": 0,
+                    }
+                )
+            }
+        )
 
     logger.info(
         f"predict() done: ticker={canonical} direction={final.direction.value} "

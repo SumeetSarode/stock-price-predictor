@@ -256,13 +256,65 @@ class TestPredictFailures:
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
-    def test_news_failure_propagates(self, mock_news, mock_synth, fake_cache):
-        """News-side PredictionError bubbles up (commit 5 will degrade this)."""
+    def test_news_failure_degrades_to_neutral(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """News failure should degrade gracefully (commit 6 contract).
+
+        The synthesizer must still get called (with a degraded
+        ImpactAssessment), and predict() must return a Prediction.
+        """
         mock_news.side_effect = PredictionError("news_impact failed")
         mock_synth.return_value = _sample_prediction()
 
-        with pytest.raises(PredictionError, match="news_impact failed"):
-            asyncio.run(predict("RELIANCE.NS"))
+        result = asyncio.run(predict("RELIANCE.NS"))
+        assert isinstance(result, Prediction)
+
+        # Synthesizer was called - confirm with degraded assessment.
+        mock_synth.assert_awaited_once()
+        si = mock_synth.call_args.args[0]
+        assert si.impact_assessment.sentiment == "neutral"
+        assert si.impact_assessment.confidence == 0.0
+        assert si.impact_assessment.catalysts == []
+        assert "News unavailable" in si.impact_assessment.reasoning
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_news_failure_marks_model_chain(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Degraded path tags model_chain so consumers can spot it."""
+        mock_news.side_effect = RuntimeError("GDELT timeout")
+        mock_synth.return_value = _sample_prediction()
+
+        result = asyncio.run(predict("RELIANCE.NS"))
+        # Synthesizer's input had degraded marker; final still has
+        # synthesizer tag appended after.
+        assert "news_impact:degraded" in " ".join(
+            mock_synth.call_args.args[0].model_chain
+        )
+        assert result.model_chain[-1] == "synthesizer:agentic"
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_news_failure_zeros_analysis_basis(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Final Prediction's analysis_basis must reflect 'no news' even
+        if the LLM put non-zero values there."""
+        mock_news.side_effect = ValueError("network blip")
+        # Sample prediction has news_articles_considered=1 - we expect
+        # this to be FORCED to 0 by the degradation override.
+        mock_synth.return_value = _sample_prediction()
+
+        result = asyncio.run(predict("RELIANCE.NS"))
+        assert result.analysis_basis.news_articles_considered == 0
+        assert result.analysis_basis.filings_considered == 0
+        assert result.analysis_basis.news_sentiment_score is None
 
     @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
