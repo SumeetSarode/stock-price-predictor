@@ -11,6 +11,11 @@ The `runner` module (Runner/SessionService singletons) is intentionally
 NOT re-exported here - it's predictor-internal plumbing. Tests that
 need to mock it should import from prediction.runner directly.
 """
+from price_predictor.prediction.batch import (
+    BatchError,
+    BatchResult,
+    predict_many,
+)
 from price_predictor.prediction.inputs import (
     ClusterView,
     SynthesisInput,
@@ -64,4 +69,8 @@ __all__ = [
     "validate_citations",
     "validate_consistency",
     "validate_grounding",
+    # batch (3.4.3 commit 1)
+    "BatchError",
+    "BatchResult",
+    "predict_many",
 ]
