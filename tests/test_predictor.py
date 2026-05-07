@@ -3,7 +3,7 @@
 SCOPE
 =====
 Tests the orchestration logic by MOCKING the two agent helpers
-(run_news_impact_agent, run_synthesizer_agent). No real LLM is invoked,
+(run_news_impact_agent, synthesize_with_guardrails). No real LLM is invoked,
 no Runner machinery exercised. End-to-end behavior with real LLMs is
 deferred to commit 6 (marker-gated).
 
@@ -13,7 +13,7 @@ WHY MOCK THE HELPERS, NOT THE RUNNER
 ====================================
 The Runner is ADK's contract; if we mock IT, we couple our tests to
 ADK internals. Mocking our own helpers (run_news_impact_agent,
-run_synthesizer_agent) keeps tests at the "predictor business logic"
+synthesize_with_guardrails) keeps tests at the "predictor business logic"
 boundary — exactly the level we own.
 """
 from __future__ import annotations
@@ -169,7 +169,7 @@ class TestRunnerSingletons:
 # 2. predict() happy path
 # ─────────────────────────────────────────────────────────────
 class TestPredictHappyPath:
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
@@ -182,7 +182,7 @@ class TestPredictHappyPath:
         assert result.ticker == "RELIANCE.NS"
         assert result.direction == PredictionDirection.BULLISH
 
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
@@ -199,7 +199,7 @@ class TestPredictHappyPath:
         assert si.ticker == "RELIANCE.NS"
         assert si.impact_assessment.sentiment == "bullish"
 
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
@@ -213,7 +213,7 @@ class TestPredictHappyPath:
         assert "synthesizer:agentic" in result.model_chain
         assert result.model_chain[-1] == "synthesizer:agentic"
 
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
@@ -233,7 +233,7 @@ class TestPredictHappyPath:
 # 3. predict() failure modes
 # ─────────────────────────────────────────────────────────────
 class TestPredictFailures:
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
@@ -252,7 +252,7 @@ class TestPredictFailures:
         with pytest.raises(PredictionError, match="Technical analysis failed"):
             asyncio.run(predict("RELIANCE.NS"))
 
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
@@ -264,7 +264,7 @@ class TestPredictFailures:
         with pytest.raises(PredictionError, match="news_impact failed"):
             asyncio.run(predict("RELIANCE.NS"))
 
-    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)

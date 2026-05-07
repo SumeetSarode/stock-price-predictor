@@ -18,11 +18,19 @@ from price_predictor.prediction.inputs import (
     TechnicalViewError,
     compose_technical_view,
 )
+from price_predictor.prediction.guardrails import (
+    HallucinationError,
+    validate_all,
+    validate_citations,
+    validate_consistency,
+    validate_grounding,
+)
 from price_predictor.prediction.predictor import (
     PredictionError,
     predict,
     run_news_impact_agent,
     run_synthesizer_agent,
+    synthesize_with_guardrails,
 )
 from price_predictor.prediction.schema import (
     AnalysisBasis,
@@ -45,9 +53,15 @@ __all__ = [
     "TechnicalView",
     "TechnicalViewError",
     "compose_technical_view",
-    # orchestrator (3.4.2 commit 4)
+    # orchestrator + guardrails (3.4.2 commits 4-5)
     "PredictionError",
+    "HallucinationError",
     "predict",
     "run_news_impact_agent",
     "run_synthesizer_agent",
+    "synthesize_with_guardrails",
+    "validate_all",
+    "validate_citations",
+    "validate_consistency",
+    "validate_grounding",
 ]

@@ -68,6 +68,10 @@ from price_predictor.prediction.inputs import (
     compose_technical_view,
     _resolve_ticker,
 )
+from price_predictor.prediction.guardrails import (
+    HallucinationError,
+    validate_all,
+)
 from price_predictor.prediction.runner import USER_ID, get_runner, get_session_service
 from price_predictor.prediction.schema import Prediction
 
@@ -190,12 +194,17 @@ async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
         ) from e
 
 
-async def run_synthesizer_agent(si: SynthesisInput) -> Prediction:
+async def run_synthesizer_agent(
+    si: SynthesisInput, *, feedback: str | None = None,
+) -> Prediction:
     """Invoke the synthesizer agent and return the parsed Prediction.
 
     Args:
         si: Bundled gather-phase output. The synthesizer reads it as
             JSON and emits a Prediction.
+        feedback: Optional error message from a prior failed attempt.
+            Appended to the prompt so the LLM sees what went wrong.
+            Used by the retry loop in synthesize_with_guardrails().
 
     Returns:
         Validated Prediction.
@@ -204,6 +213,16 @@ async def run_synthesizer_agent(si: SynthesisInput) -> Prediction:
         PredictionError: agent failed or returned unparseable output.
     """
     prompt = build_synth_prompt(si)
+    if feedback:
+        # Surface the prior failure inline. The LLM tends to over-correct
+        # if we shout - keep it factual + actionable.
+        prompt = (
+            f"{prompt}\n\n"
+            f"NOTE: Your previous attempt FAILED guardrail validation:\n"
+            f"{feedback}\n"
+            f"Re-read the input carefully and produce a Prediction that "
+            f"avoids this issue."
+        )
     raw = await _run_agent_for_text(_synthesizer_agent, prompt)
     try:
         return Prediction.model_validate_json(raw)
@@ -211,6 +230,49 @@ async def run_synthesizer_agent(si: SynthesisInput) -> Prediction:
         raise PredictionError(
             f"synthesizer agent returned invalid Prediction JSON: {e}"
         ) from e
+
+
+async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
+    """Run the synthesizer + guardrails with one retry on hallucination.
+
+    Flow:
+      1. Call synthesizer.
+      2. validate_all(prediction, si).
+      3. If HallucinationError, call synthesizer ONCE more with the
+         error fed back into the prompt, then re-validate.
+      4. If second attempt also fails, raise PredictionError wrapping
+         the second HallucinationError.
+
+    Why one-shot: two failures in a row almost always means the input
+    is genuinely ambiguous. More retries waste tokens without improving
+    outcomes.
+
+    Raises:
+        PredictionError: synth failed twice (with last guardrail msg as
+            cause), OR synth raised PredictionError directly.
+    """
+    prediction = await run_synthesizer_agent(si)
+    try:
+        validate_all(prediction, si)
+        return prediction
+    except HallucinationError as e:
+        # Capture for retry feedback - except-as is scoped to the
+        # except block in Py3, so we re-bind explicitly.
+        first_error = e
+        logger.warning(
+            f"guardrail tripped on first synth attempt: {e}. Retrying once."
+        )
+
+    # Retry with feedback. If THIS one fails grounding too, give up.
+    prediction = await run_synthesizer_agent(si, feedback=str(first_error))
+    try:
+        validate_all(prediction, si)
+        logger.info("retry succeeded after guardrail feedback")
+        return prediction
+    except HallucinationError as e2:
+        raise PredictionError(
+            f"Synthesizer failed guardrails twice. Last error: {e2}"
+        ) from e2
 
 
 # ─────────────────────────────────────────────────────────────
@@ -289,8 +351,8 @@ async def predict(
         model_chain=(_NEWS_MODEL_TAG,),
     )
 
-    # ── PHASE 2: SYNTHESIZE ────────────────────────────────
-    prediction = await run_synthesizer_agent(synthesis_input)
+    # ── PHASE 2: SYNTHESIZE (with hallucination guardrails) ──
+    prediction = await synthesize_with_guardrails(synthesis_input)
 
     # The synthesizer's prompt instructs it to copy model_chain verbatim
     # from the input. We append the synthesizer tag AFTER the call by
