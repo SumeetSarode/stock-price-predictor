@@ -4,7 +4,8 @@
 > (Steps A, B, C, D). Complements `implementation_plan.md` (high-level
 > roadmap) and `next_steps.md` (what's coming next).
 >
-> **Last updated**: 2026-04-28 — after Step C.1 (`get_trend` tool).
+> **Last updated**: 2026-04-28 — after post-C Provider Expansion
+> (Stooq + AlphaVantage + `USE_PAID_PRICES` toggle).
 
 ---
 
@@ -258,6 +259,92 @@ gracefully). Includes `suggested_ticker` on resolvable typos.
 
 ---
 
+## 🔧 Provider Expansion (post-C addendum) — DONE
+
+**Goal**: Resolve the C.6-deferred yfinance rate-limit issue by filling
+out the resilient provider chain that B.1 had already scaffolded.
+
+**Why now (not at B.1)**: At B.1 the architecture was speculative — we
+hadn't yet hit the throttling problem in anger. C.6 smoke testing exposed
+it (4 tools × N questions → Yahoo cools down within minutes). Building
+the second + third providers AFTER feeling the pain confirmed B.1's
+Open/Closed design pays off the second time you swap a backend.
+
+### What landed
+
+| Artifact | Purpose |
+|---|---|
+| `data/providers/stooq_provider.py` | Free CSV download endpoint; captcha-only key (no signup) |
+| `data/providers/alpha_vantage_provider.py` | Free 25 req/day; paid tier toggleable |
+| `data/providers/_http.py` | Shared `get_verify_setting()` helper for httpx-based providers (corp-MITM TLS support, defensive certifi fallback) |
+| `data/providers/__init__.py` | `PROVIDER_REGISTRY` factory pattern; adding provider #4 = 1 line |
+| `config/settings.py` | New fields: `price_chain`, `price_paid`, `use_paid_prices`, `alpha_vantage_api_key`, `stooq_api_key`, `ssl_cert_file`, `requests_ca_bundle`. `effective_price_chain()` mirrors `effective_chain()` for LLMs. |
+| `tests/test_stooq_provider.py` | 25 tests — mocked httpx, parametrized ticker translation |
+| `tests/test_alpha_vantage_provider.py` | 29 tests — mocked httpx, all error envelopes covered |
+| `tests/test_settings.py` | +10 tests — chain parsing, paid toggle, lazy key validation |
+
+### Design decisions
+
+1. **Mirror the LLM `USE_PAID` pattern**. `PRICE_CHAIN` (free chain) +
+   `PRICE_PAID` (single paid provider) + `USE_PAID_PRICES` (toggle).
+   Same mental model, learned once, applied twice.
+2. **Lazy api-key validation**. Empty key OK at construction (so the
+   factory builds every registered provider unconditionally), fails at
+   fetch time with `PriceFetchError` (so resilient layer falls back
+   cleanly). User only configures keys for providers they actually use.
+3. **Registry-based factory**. `PROVIDER_REGISTRY: dict[str, Callable]`
+   maps short-name → zero-arg factory closure. Closures inject per-provider
+   config (api keys) without leaking into the `Settings` constructor.
+4. **Tell-Don't-Ask ticker translation**. Caller still passes
+   `RELIANCE.NS`. Each provider's `_to_X_ticker()` translates internally.
+   Zero churn anywhere upstream.
+5. **Shared HTTP helper for httpx providers**. Centralizes corp-MITM TLS
+   support + httpx 0.28 deprecation handling. Adding the next HTTP-based
+   provider gets it free.
+
+### Real-world findings worth keeping
+
+1. **Stooq added an apikey requirement in 2024.** Still 100% free —
+   captcha-only, no signup, no email, no expiry. Empty-key error message
+   includes the captcha URL so users self-serve.
+2. **httpx ≥ 0.28 deprecated `verify=<str>`.** Switched to
+   `ssl.create_default_context()`. One line, one place.
+3. **LiteLLM auto-loads `.env` into `os.environ` at import time.** Caused
+   an order-dependent test flake. Fix: `monkeypatch.delenv()` in
+   affected tests + inline comment so future-self doesn't lose hours.
+4. **Off-corp default matters.** Initial `.env` had Walmart
+   `HTTPS_PROXY` + corp `SSL_CERT_FILE` uncommented. Off the corp
+   network: DNS fail + TLS fail. Now off-corp is the default; Walmart
+   bits are clearly-marked opt-in. `_http.py` falls back to certifi
+   gracefully if the configured CA bundle path doesn't exist.
+
+### Test count delta: 554 → 625 (+71)
+
+| Source | Tests added |
+|---|---|
+| `test_stooq_provider.py` | +25 |
+| `test_alpha_vantage_provider.py` | +29 |
+| `test_settings.py` (chain + key handling) | +10 |
+| Misc adjustments (resilient error message, lazy fetcher) | +7 |
+
+### Lessons from Provider Expansion
+
+1. **Open/Closed pays off the SECOND time** — B.1's architecture cost
+   ~14 tests. Adding the next two providers cost ~54 tests of pure
+   feature code with zero refactoring upstream. Zen of Python: "namespaces
+   are one honking great idea".
+2. **Real-world APIs drift.** Stooq changed terms between B.1 design and
+   provider implementation. Defensive lazy validation (vs. hard fail at
+   construction) made the change a 3-line patch instead of a redesign.
+3. **Fail open on non-security config.** Missing CA bundle path? Log a
+   warning and use certifi (same trust roots browsers use). Hard fail
+   only on actual secrets/auth missing.
+4. **`.env` is documentation too.** Commenting out + adding instructional
+   headers ("UNCOMMENT only when on Walmart corp network") gives both
+   Walmart and off-corp users a working starting point in the SAME file.
+
+---
+
 ## ⏸️ Step D — Prediction Agent (NOT STARTED)
 
 **Goal**: An orchestrator agent that combines outputs from `kb`,
@@ -301,6 +388,9 @@ src/price_predictor/
 │   │   ├── __init__.py
 │   │   ├── base.py
 │   │   ├── yfinance_provider.py
+│   │   ├── stooq_provider.py            # NEW (Provider Expansion)
+│   │   ├── alpha_vantage_provider.py    # NEW (Provider Expansion)
+│   │   ├── _http.py                     # NEW (Provider Expansion) — shared httpx helper
 │   │   └── resilient.py
 │   ├── estimates.py
 │   ├── filings.py
@@ -353,7 +443,13 @@ tests/
 | Step B.1 complete | 322 | +14 | Resilient layer tests |
 | Step B.2 complete | 333 | +11 | Cache tests (single/range/concurrency) |
 | Step B.3 + B.4 complete | 394 | +61 | Indicator + pattern tests |
-| Step C.1 complete | **425** | **+31*** | Tool + classifier tests |
+| Step C.1 complete | 425 | +31* | Tool + classifier tests |
+| Step C.2 complete | 474 | +49 | Momentum tool + candlestick context-gating |
+| Step C.3 complete | 509 | +35 | Volatility tool + position-sizing helpers |
+| Step C.4 complete | 538 | +29 | Levels tool + chart pattern integration |
+| Step C.5 complete | 554 | +16 | `technical_agent` wiring |
+| Step C.6 complete | 554 | +0 | Manual smoke + LLM-chain bug fix (env-only) |
+| Provider Expansion complete | **625** | **+71** | Stooq + AlphaVantage providers, paid toggle |
 
 \*Includes a +4 incidental gap between B.4 and C.1 (fixture/import additions).
 
@@ -395,6 +491,19 @@ tests/
    dicts let the LLM recover.
 4. The `rationale` field reduces hallucination by giving the LLM
    ready-made prose to quote.
+
+### From Provider Expansion
+1. Open/Closed pays off the SECOND time you swap a backend — B.1's
+   architecture cost ~14 tests; the next two providers cost ~54 tests
+   of pure feature code with zero upstream refactor.
+2. Real-world APIs drift (Stooq apikey, httpx 0.28). Defensive lazy
+   validation makes drift a 3-line patch, not a redesign.
+3. Fail open on non-security config (missing CA bundle → fall back to
+   certifi + warn). Fail closed on auth/secrets.
+4. `.env` is documentation too. Commented-out + instructional headers
+   give both Walmart and off-corp users a working start in the same file.
+5. LiteLLM auto-loads `.env` into `os.environ` at import time — worth
+   knowing because it bites tests that expect default fallback behavior.
 
 ### Meta-lesson (recurring)
 When we agree on a build plan together, sticking to it is the contract.

@@ -8,10 +8,10 @@ uv run adk web src/price_predictor/agents
 # open http://127.0.0.1:8000 → pick "technical_agent" from dropdown
 ```
 
-## Known caveat: yfinance rate-limits
+## Known caveat: yfinance rate-limits (RESOLVED post-C — see Issue B below)
 
-Yahoo Finance throttles aggressively. When rate-limited, every tool call
-returns:
+**Original (C.6 era)**: Yahoo Finance throttles aggressively. When
+rate-limited with a single-provider chain, every tool call returns:
 
 ```json
 {
@@ -22,11 +22,12 @@ returns:
 ```
 
 The agent handles this CORRECTLY — it apologizes and does NOT fabricate
-indicator values. **This is success behavior, not failure.** To test
-the happy path, either:
-  - Wait 30-60min for Yahoo to cool down, or
-  - Add a second provider (planned, not v1-critical), or
-  - Add a MockProvider for offline testing (planned)
+indicator values. **This is success behavior, not failure.**
+
+**Now (post-addendum)**: With `PRICE_CHAIN=yfinance,stooq,alpha_vantage`
+and keys in `.env`, Yahoo throttling triggers automatic fallback to
+Stooq (free, no rate limit in practice). The error path above is now
+the **last-resort** state, not the routine one.
 
 ## Smoke-test prompts and expected behavior
 
@@ -54,7 +55,20 @@ logs.
 Gemini first (it's the model ADK was designed against), Groq last as
 emergency backup.
 
-### Issue B (DEFERRED): yfinance rate-limit
-Not a code bug. Documented above. To address robustly, add a 2nd price
-provider (e.g. Stooq) — captured as a follow-up, not v1-critical for
-the agent layer.
+### Issue B (RESOLVED): yfinance rate-limit
+
+**Original problem (C.6 era)**: `PRICE_CHAIN=yfinance` only. Yahoo throttles
+bursty agent flows (4 tools per question), leaving the user with no data.
+
+**Resolution (post-C addendum)**: Filled out the resilient chain that was
+already scaffolded in B.1.
+
+- Added `StooqProvider` (free CSV download, captcha-only key, no signup)
+- Added `AlphaVantageProvider` (free 25 req/day, paid tier toggleable)
+- New `USE_PAID_PRICES` toggle parallels `USE_PAID` for LLMs
+- Default `PRICE_CHAIN=yfinance,stooq,alpha_vantage` falls through cleanly
+  when Yahoo throttles
+- Integration test `test_fetch_ohlcv_real_reliance` now passes off-corp
+  in <4s, exercising the real chain end-to-end
+
+See `implementation_flow.md` → "Provider expansion" section for details.
