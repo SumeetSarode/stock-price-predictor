@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from price_predictor.data import _shared_cache
 from price_predictor.prediction.inputs import (
     ClusterView,
+    SynthesisInput,
     TechnicalView,
     TechnicalViewError,
     _resolve_ticker,
@@ -301,3 +302,99 @@ class TestComposeFailures:
         # — both mean "we caught the degraded case and refused to lie".
         with pytest.raises((TechnicalViewError, ValidationError)):
             asyncio.run(compose_technical_view("RELIANCE.NS"))
+
+
+# ──────────────────────────────────────────────────────────
+# 6. SynthesisInput — the gather → synthesizer contract (commit 2)
+# ──────────────────────────────────────────────────────────
+from datetime import datetime, timezone  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
+
+from price_predictor.agents.news_impact import Catalyst, ImpactAssessment  # noqa: E402
+
+
+def _sample_impact_assessment() -> ImpactAssessment:
+    """Minimal-but-valid ImpactAssessment for SynthesisInput tests."""
+    return ImpactAssessment(
+        ticker="RELIANCE.NS",
+        sentiment="bullish",
+        confidence=0.7,
+        estimated_pct_move=2.5,
+        reasoning="Strong Q3 results plus margin expansion guidance.",
+        catalysts=[
+            Catalyst(
+                description="Q3 earnings beat consensus by 12% with margin expansion",
+                source="news",
+                impact="positive",
+            )
+        ],
+    )
+
+
+def _sample_synthesis_input(**overrides) -> SynthesisInput:
+    """Builder for SynthesisInput tests — lets each test override 1 field."""
+    defaults = dict(
+        ticker="RELIANCE.NS",
+        horizon="short",
+        as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
+        technical_view=_sample_view(),
+        impact_assessment=_sample_impact_assessment(),
+        model_chain=("gemini-2.5-flash",),
+    )
+    defaults.update(overrides)
+    return SynthesisInput(**defaults)
+
+
+class TestSynthesisInput:
+    def test_minimal_construction(self):
+        si = _sample_synthesis_input()
+        assert si.ticker == "RELIANCE.NS"
+        assert si.horizon == "short"
+        assert si.technical_view.trend.signal == "bullish"
+        assert si.impact_assessment.sentiment == "bullish"
+        assert si.model_chain == ("gemini-2.5-flash",)
+
+    def test_is_frozen(self):
+        si = _sample_synthesis_input()
+        with pytest.raises(ValidationError):
+            si.ticker = "TCS.NS"  # type: ignore[misc]
+
+    def test_json_round_trip_preserves_nested_models(self):
+        """TechnicalView and ImpactAssessment must survive serialization.
+
+        This is the contract the synthesizer relies on: it receives a JSON
+        blob and must be able to reason about every field. Drift here
+        breaks the synthesizer silently.
+        """
+        original = _sample_synthesis_input()
+        rebuilt = SynthesisInput.model_validate_json(original.model_dump_json())
+        assert rebuilt == original
+        # Spot-check nested invariants survived
+        assert rebuilt.technical_view.bars_used == 400
+        assert rebuilt.impact_assessment.catalysts[0].source == "news"
+
+    def test_extra_field_rejected(self):
+        """Same loud-failure policy as the rest of the schema."""
+        with pytest.raises(ValidationError, match="sentiment_override"):
+            _sample_synthesis_input(sentiment_override="bearish")
+
+    def test_naive_datetime_rejected(self):
+        """as_of MUST be tz-aware. Mirrors Prediction.as_of's rule."""
+        with pytest.raises(ValidationError, match="tz-aware"):
+            _sample_synthesis_input(as_of=datetime(2026, 4, 28, 10, 0))
+
+    def test_empty_model_chain_rejected(self):
+        """Audit trail must record at least one model."""
+        with pytest.raises(ValidationError, match="at least one model"):
+            _sample_synthesis_input(model_chain=())
+
+    def test_utc_datetime_accepted(self):
+        """Any tz-aware datetime works — not just Asia/Kolkata.
+
+        Predictor will use Asia/Kolkata by convention, but the schema
+        shouldn't hard-code that.
+        """
+        si = _sample_synthesis_input(
+            as_of=datetime(2026, 4, 28, 4, 30, tzinfo=timezone.utc)
+        )
+        assert si.as_of.tzinfo is not None

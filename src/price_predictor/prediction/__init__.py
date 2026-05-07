@@ -8,6 +8,7 @@ Predictor orchestrator and synthesizer agent land in subsequent commits.
 """
 from price_predictor.prediction.inputs import (
     ClusterView,
+    SynthesisInput,
     TechnicalView,
     TechnicalViewError,
     compose_technical_view,
@@ -27,8 +28,9 @@ __all__ = [
     "PredictionDirection",
     "PredictionHorizon",
     "PriceLevel",
-    # inputs (3.4.2 commit 1)
+    # inputs (3.4.2 commits 1-2)
     "ClusterView",
+    "SynthesisInput",
     "TechnicalView",
     "TechnicalViewError",
     "compose_technical_view",

@@ -50,6 +50,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from price_predictor.agents.news_impact import ImpactAssessment
 from price_predictor.agents.technical_agent.tools.get_levels import get_levels
 from price_predictor.agents.technical_agent.tools.get_momentum import get_momentum
 from price_predictor.agents.technical_agent.tools.get_trend import get_trend
@@ -338,3 +339,102 @@ async def compose_technical_view(
         volatility=_cluster_view_from_response("volatility", successful["volatility"]),
         levels=_cluster_view_from_response("levels", successful["levels"]),
     )
+
+
+# ──────────────────────────────────────────────────────────────
+# Synthesis input (the gather → synthesizer contract)
+# ──────────────────────────────────────────────────────────────
+class SynthesisInput(BaseModel):
+    """Complete typed input for the synthesizer agent.
+
+    PURPOSE
+    -------
+    Sole envelope flowing from the predictor's gather phase into the
+    synthesizer agent. Everything the synthesizer needs to produce a
+    Prediction lives here — in ONE typed object, not scattered across
+    prompt-string concatenations.
+
+    DESIGN INVARIANTS
+    -----------------
+    - Frozen + extra='forbid' (matches the project-wide schema discipline)
+    - All sub-models are themselves frozen (TechnicalView, ImpactAssessment),
+      so the parent stays hashable
+    - tz-aware as_of REQUIRED (same rule as Prediction.as_of) — anchors
+      the prediction's identity to a specific moment
+    - Non-empty model_chain REQUIRED (same rule as Prediction.model_chain)
+      — audit trail must record at least the news_impact model that ran
+      during gather; synthesizer adds itself in commit 3
+    - Both technical_view and impact_assessment are NON-OPTIONAL. If
+      gather couldn't produce one, the predictor raises before ever
+      constructing this object. Synthesizer never sees half-data.
+      (News degradation, when added in commit 5, will produce a
+      degenerate-but-valid ImpactAssessment, not a None.)
+
+    WHY NOT JUST PASS A DICT?
+    -------------------------
+    A dict would: (a) skip validation, (b) drift silently as fields are
+    added, (c) make plete useless, (d) lose the typed
+    relationship between this contract and what the synthesizer is
+    documented to consume. Pydantic gives us all four for ~30 lines of
+    schema. Cheap.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ticker: str = Field(
+        ..., min_length=1,
+        description=(
+            "Canonical yfinance ticker (post-KB resolution). "
+            "Should equal technical_view.ticker."
+        ),
+    )
+    horizon: Literal["intraday", "short", "medium", "long"] = Field(
+        ...,
+        description=(
+            "Time window the prediction targets. Drives the synthesizer's "
+            "reasoning depth (intraday=tactical; long=positional). Mirrors "
+            "PredictionHorizon enum values."
+        ),
+    )
+    as_of: datetime = Field(
+        ...,
+        description=(
+            "Moment the prediction cycle was anchored at. MUST be tz-aware. "
+            "Convention: Asia/Kolkata for India-market predictions. "
+            "Inherited by Prediction.as_of so the audit timeline is consistent."
+        ),
+    )
+    technical_view: TechnicalView = Field(
+        ...,
+        description=(
+            "Output of compose_technical_view(). All 4 cluster signals + "
+            "close_price + bars_used. Synthesizer reads as nested JSON."
+        ),
+    )
+    impact_assessment: ImpactAssessment = Field(
+        ...,
+        description=(
+            "Output of news_impact agent. Sentiment, confidence, estimated "
+            "% move, catalysts, reasoning. Synthesizer reads as nested JSON."
+        ),
+    )
+    model_chain: tuple[str, ...] = Field(
+        ...,
+        description=(
+            "LLMs that participated in GATHER (so far: just the news_impact "
+            "model). Synthesizer appends its own model name before constructing "
+            "the final Prediction. Audit trail — must be non-empty."
+        ),
+    )
+
+    def model_post_init(self, __context: object) -> None:
+        """Cross-field invariants.
+
+        Pydantic v2 prefers @model_validator(mode='after'), but for two
+        simple checks model_post_init keeps the file flat. Same end result:
+        invariants enforced before any caller sees the object.
+        """
+        if self.as_of.tzinfo is None:
+            raise ValueError("as_of must be tz-aware (got naive datetime)")
+        if len(self.model_chain) == 0:
+            raise ValueError("model_chain must contain at least one model name")
