@@ -277,6 +277,11 @@ class Settings(BaseSettings):
     def kb_dir(self) -> Path:
         return self.data_dir / "kb"
 
+    @property
+    def predictions_dir(self) -> Path:
+        """Default root for PredictionStore (CLI --save flag)."""
+        return self.data_dir / "predictions"
+
 
 # Singleton — import this everywhere
 settings = Settings()
