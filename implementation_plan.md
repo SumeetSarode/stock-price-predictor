@@ -63,7 +63,6 @@ This section reflects the implementation path implied by the README and our disc
 | 3.1.2 | News fetcher (`data/news.py`) using GDELT | done | Async-first; `fetch_news` + `fetch_news_batch` (concurrency=5 default) for discovery; `fetch_article_body` for separate body extraction via trafilatura. `NewsArticle` (metadata) + `ArticleBody` (status-tagged result) schemas. 40 unit tests + 2 integration tests (GDELT skipped on Walmart corp network — DNS-blocked; works off-corp). New deps: `trafilatura`, `respx` (dev) |
 | 3.1.2.5 | Estimates fetcher (`data/estimates.py`) via yfinance | done | Async-first wrapper around yfinance analyst-data properties. **Coverage spike PASSED off-VPN: 20/20 (100%) across large/mid/small cap.** Schemas: `Estimates`/`QuarterlyEstimate`/`RecommendationDistribution`/`PriceTargets` with `has_coverage` gating. 35 unit tests with mocked yfinance. Spike script at `scripts/coverage_spike_estimates.py`. Known nuance: quarterly consensus thin for some Indian large-caps (1-2 analysts) but annual consensus robust (26-32 analysts) — downstream analyzer should weight by `num_analysts`. |
 | 3.1.3 | NSE corporate filings (`data/filings.py`) | done + spike-verified | Async fan-out across NSE corporate-events endpoints (announcement / board_meeting / corporate_action). Cookie warmup via NSE homepage; browser-like headers. Unified `Filing` schema with separate `announced_at` (filing date) and `event_at` (when split/dividend/meeting actually happens) — enables both backward ("what was filed?") and forward ("what's coming in 60 days?") queries. Per-endpoint parsers handle quirky JSON shapes; endpoint-specific extras preserved in `metadata: dict`. Partial-failure tolerant (one bad endpoint doesn't kill the batch). 58 unit tests + 1 integration test. **Off-VPN spike (`filings_coverage_20260502T142439Z`) confirmed**: 3 endpoints fully working (60/60 board_meetings, 2/2 corp_actions, 199/202 announcements after parser fix). 4th endpoint `financial_result` returns empty body — excluded from `DEFAULT_KINDS` (data still captured via `announcement` desc='Financial Results'). Spike-driven fixes: (a) `_safe_url()` helper degrades blank/relative/dash URL fields to None instead of killing rows; (b) brotli dropped from Accept-Encoding; (c) warmup soft-fails on 4xx. No new deps. |
-| 3.1.3 | Filings fetcher (`data/filings.py`) for NSE announcements | not started | 30-day corporate events window |
 | 3.1.4 | News / filings deduplication (`data/dedupe.py`) | not started | EventID + fuzzy-title fallback |
 | 3.1.5 | Cache layer (`data/cache.py`) | not started | Deferred until fetchers exist and caching is actually needed |
 
@@ -96,21 +95,30 @@ This section reflects the implementation path implied by the README and our disc
 
 | Step | Description | Status | Notes |
 |---|---|---|---|
-| 3.4.1 | Define output schema (`prediction/schema.py`) | not started | Must match README output contract |
-| 3.4.2 | Implement per-stock predictor (`prediction/predictor.py`) | not started | Orchestrates one full stock analysis |
-| 3.4.3 | Implement batch pipeline (`prediction/pipeline.py`) | not started | Run over a stock universe |
-| 3.4.4 | Add CLI commands for analysis | not started | `analyze` entry point |
-| 3.4.5 | Persist self-contained JSON outputs | not started | Required for auditability and later UI |
+| 3.4.1 | Define output schema (`prediction/schema.py`) | ✅ done | Frozen Pydantic v2 model. `Prediction` + `PredictionDirection` + `PredictionHorizon` + `PriceLevel` + `AnalysisBasis`. JSON round-trips, computed `risk_reward`. ~25 schema tests. |
+| 3.4.2 | Per-stock predictor (`prediction/predictor.py`) | ✅ done | Shipped in 6 commits (synthesizer agent, predictor orchestrator, Runner singletons, hallucination guardrails Tiers 1-3 with retry, news degradation, integration smoke test). `inputs.py` builds the synthesizer prompt from technical/news/price snapshots. `guardrails.py` enforces ticker/level/direction sanity post-LLM. |
+| 3.4.3 | Batch pipeline (`prediction/batch.py`) | ✅ done | `predict_many()` over an arbitrary ticker list. Concurrent with bounded parallelism. Per-ticker errors don't kill the batch (`BatchError` accumulates failures). |
+| 3.4.4 | CLI commands for prediction | ✅ done | `price-predictor predict TICKER` + `predict-many T1 T2 ...` + `history TICKER`. Typer + Rich rendering. |
+| 3.4.5 | Persist self-contained JSON outputs (`prediction/store.py`) | ✅ done | `PredictionStore` writes per-prediction JSON to `predictions_dir`. Indexed by ticker + date. `list_for_ticker()`, `list_in_date_range()`. Fully round-trippable. |
 
 ### 3.5 Tracking and backtesting
 
+> **Note**: Originally planned as SQLite + a separate backtest framework. We
+> shipped the tracking + calibration halves first as plain JSON (simpler, no
+> migration cost) and added a NEW sub-step (3.5.3 grading core) that the
+> original plan didn't anticipate but turned out to be the unit of work that
+> made calibration meaningful. Backtest replay/runner/evaluator are still
+> ahead of us.
+
 | Step | Description | Status | Notes |
 |---|---|---|---|
-| 3.5.1 | Tracking store (`tracking/store.py`) | not started | SQLite storage of predictions |
-| 3.5.2 | Calibration logic (`tracking/calibration.py`) | not started | Historical confidence vs reality |
-| 3.5.3 | Replay layer (`backtest/replay.py`) | not started | Honest as-of-date simulation |
-| 3.5.4 | Backtest runner (`backtest/runner.py`) | not started | Historical loop over dates |
-| 3.5.5 | Evaluator (`backtest/evaluator.py`) | not started | Hit rate, stop rate, P&L, calibration |
+| 3.5.1 | Prediction store (`prediction/store.py`) | ✅ done | JSON-on-disk (not SQLite — no migration cost, easier to inspect). Lives in `prediction/` not `tracking/` since it's just persistence of the prediction artifact. |
+| 3.5.2 | Calibration logic (`prediction/calibration.py`) | ✅ done | `CalibrationReport` (frozen Pydantic) + `compute_calibration()` + `compute_breakdown()`. Three hit-rate variants (strict / resolved / optimistic), Brier score for confidence calibration, direction accuracy, mean+median return. 20 tests. |
+| 3.5.3 | Grading core (`prediction/grading.py`) **(NEW — not in original plan)** | ✅ done | `GradedPrediction` + `grade_one()` (per-prediction, pure function on OHLCV) + `grade_many()` (orchestration with injected fetcher). 6 outcome enum: target_hit / stop_hit / stop_hit_ambiguous / expired / not_applicable / inconclusive. Same-bar T+S ambiguity surfaced as a first-class outcome. 34 tests. |
+| 3.5.4 | CLI surface for grading + calibration | ✅ done | `price-predictor grade` + `calibration` (with `--by horizon|ticker|direction|month` breakdowns). Dispatch-dict for breakdown axes (open/closed). |
+| 3.5.5 | Replay layer (`backtest/replay.py`) | not started | Honest as-of-date simulation for historical backtest |
+| 3.5.6 | Backtest runner (`backtest/runner.py`) | not started | Historical loop over dates |
+| 3.5.7 | Evaluator (`backtest/evaluator.py`) | not started | Compose calibration metrics across backtest runs |
 
 ### 3.6 Concurrency and scale
 
@@ -134,42 +142,52 @@ This section reflects the implementation path implied by the README and our disc
 
 ## 5) Immediate next step
 
-### Current state
-**Iteration 3.1.3 (NSE filings) DONE.** All four data-layer modules for v1 are
-shipped: prices, news, estimates, filings. Schema additions for v1 data are
-complete. 163 unit tests passing.
+### Current state (as of 2026-04-28)
+
+**Step 3.5 (grading + calibration) shipped.** The v1 prediction loop is now
+closed end-to-end:
+
+  prediction → persistence → grading → calibration
+
+**What's working today:**
+- 5 ADK agents shipped: `hello_agent`, `price_agent`, `news_impact`,
+  `technical_agent`, `synthesizer`
+- 5 CLI commands: `predict`, `predict-many`, `history`, `grade`, `calibration`
+- **854 unit tests passing**, 7 integration tests deselected (run off-corp)
+- All v1 data layers (prices, news, estimates, filings) shipped and verified
+- All v1 analysis primitives (trend / momentum / volatility / levels / patterns) shipped
+- All v1 prediction infrastructure (predict, predict_many, store, grade, calibration) shipped
+
+**What's NOT yet shipped for v1:**
+- 3.5.5–3.5.7: backtest replay + runner + evaluator (calibration today only
+  works on real-elapsed-time predictions; backtest would let us calibrate
+  against historical years of data)
+- 3.6: concurrency + scale (predict_many is bounded-concurrent but rate-limit
+  routing is naive)
 
 ### Three reasonable next moves — user picks
 
-**Option A: Off-VPN integration verification of NSE filings**
-Same pattern as the estimates spike. Add a `scripts/coverage_spike_filings.py`
-that hits real NSE for ~10 stocks across the 4 endpoints, captures actual JSON
-shapes (vs our inferred shapes), writes a report. Confirms whether our parsers
-match reality OR surfaces shape mismatches we need to fix. ~15 min to write,
-user runs off-VPN and brings back report. RECOMMENDED before depending on
-filings in any analyzer.
+**Option A: Step 3.6 — concurrency & scale**
+Make multi-stock prediction runs fast and rate-limit-aware. `concurrency/runner.py`
+with semaphores + rate-limit-aware LLM router (Groq → Gemini fallback).
+Unblocks production-scale runs (Nifty50 in ~5 min target). ~3-5 commits.
 
-**Option B: Move to iteration 3.2 — first analyzer (`analyzers/news_impact`)**
-With all data fetchers in place, build the first ADK analyzer agent that
-consumes news + filings + estimates + prices and produces an impact score.
-This is the FUN part — actual agent / LLM work begins here.
+**Option B: Steps 3.5.5–3.5.7 — backtest replay + runner + evaluator**
+The remaining half of "tracking + backtesting." Today we can grade real
+elapsed-time predictions; backtest would let us run the whole pipeline against
+2 years of historical data and answer "would this system have made money?"
+Bigger lift — needs as-of-date data shim, prediction replay, evaluator that
+composes calibration metrics across runs. ~5-7 commits.
 
-**Option C: Quick polish iteration — ADK tool wraps for news/filings/estimates**
-We have `agents/price_agent` from iteration 2. Wrap the other 3 modules as
-ADK tools (`news_agent`, `filings_agent`, `estimates_agent`) so an LLM can
-call them directly via ADK. Mirrors price_agent pattern. Quick (~15 min each).
-Learning value: more reps with the ADK tool-wrap pattern.
+**Option C: Step 4.1 — LightRAG knowledge layer**
+Phase-2 work. Persistent retrieval over the news/filings corpus so agents
+can cite historical context ("this looks like the Q3 2024 announcement
+that moved the stock 8%"). Nice but not v1-critical. ~5-7 commits.
 
-### What's done so far in iterations 2 + 3.1 (data layer foundation, COMPLETE)
-- `data/prices.py` — OHLCV fetcher (yfinance, sync)
-- `data/news.py` — GDELT discovery + trafilatura body extraction (async)
-- `data/estimates.py` — yfinance analyst-data wrapper (async, coverage 100%)
-- `data/filings.py` — NSE 4-endpoint fan-out (async, integration verification pending)
-- `data/schema.py` — OHLCVBar, NewsArticle, ArticleBody, QuarterlyEstimate,
-  RecommendationDistribution, PriceTargets, Estimates, FilingKind, Filing
-- `agents/price_agent/` — ADK tool wrap of price fetcher (learning artifact)
-- `scripts/coverage_spike_estimates.py` — off-VPN coverage runner
-- All test suites passing: **163 unit tests**; integration tests pass off-corp
+**Option D: Code-tour learning detour (no new code)**
+Walk through the 5 existing ADK agents end-to-end to build a complete
+mental model of how the system works. ~30 min, zero LOC. Helpful before
+tackling any of A/B/C.
 
 ---
 
@@ -183,6 +201,10 @@ Learning value: more reps with the ADK tool-wrap pattern.
 | Learning spike vs product work | Hello agent was a spike; real app work starts with the data layer |
 | Build order | Data layer first, then analysis, then prediction, then tracking/backtest |
 | Design principles | Interfaces over implementations, self-contained outputs, as-of-date correctness, async-first |
+| v1 surface (post-3.5) | `predict`, `predict-many`, `history`, `grade`, `calibration` — full prediction loop is now closed end-to-end |
+| Hit-rate reporting (3.5) | Three flavours surfaced: strict / resolved / optimistic. We REPORT all three rather than picking one because each answers a different honest question and same-bar T+S ambiguity makes any single number lossy. |
+| Confidence calibration (3.5) | Brier score over log-loss — bounded [0,1], no log(0) edge case at confidence=1.0, quadratic penalty matches user intuition. |
+| Persistence for predictions/grades | JSON-on-disk via `prediction/store.py` (NOT SQLite). Easier to inspect, no migration cost. Will revisit if scale demands it. |
 
 ---
 

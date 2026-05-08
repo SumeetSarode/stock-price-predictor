@@ -4,8 +4,8 @@
 > (Steps A, B, C, D). Complements `implementation_plan.md` (high-level
 > roadmap) and `next_steps.md` (what's coming next).
 >
-> **Last updated**: 2026-04-28 — after post-C Provider Expansion
-> (Stooq + AlphaVantage + `USE_PAID_PRICES` toggle).
+> **Last updated**: 2026-04-28 — post Step 3.5 (grading + calibration
+> shipped). Previous update: post-C Provider Expansion.
 
 ---
 
@@ -33,13 +33,26 @@
                               ▼
 ┌─ Step C ─────────────────────────────────────────────────────────┐
 │  Tools + Agent — 4 thematic ADK tools + technical_agent wiring    │
-│  STATUS: 🟡 IN PROGRESS (C.1 of 6 sub-steps complete)             │
+│  STATUS: ✅ DONE (6 of 6 sub-steps complete)                       │
 └───────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─ Step D ─────────────────────────────────────────────────────────┐
-│  prediction_agent — orchestrator that combines KB + technicals    │
-│  + news + filings into a structured prediction                    │
+│  prediction_agent — synthesizer + predict + batch + store + CLI   │
+│  (predict / predict-many / history)                               │
+│  STATUS: ✅ DONE                                                   │
+└───────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─ Step 3.5 ───────────────────────────────────────────────────────┐
+│  Grading + Calibration — grade_one + grade_many +                 │
+│  CalibrationReport + CLI (grade / calibration)                    │
+│  STATUS: ✅ DONE (3 of 3 commits)                                  │
+└───────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─ Step 3.5.5+ ────────────────────────────────────────────────────┐
+│  Backtest — replay + runner + evaluator (historical calibration)  │
 │  STATUS: ⏸️ NOT STARTED                                            │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -345,15 +358,210 @@ Open/Closed design pays off the second time you swap a backend.
 
 ---
 
-## ⏸️ Step D — Prediction Agent (NOT STARTED)
+## ✅ Step D — Prediction Agent (DONE)
 
-**Goal**: An orchestrator agent that combines outputs from `kb`,
-`price_agent`, `technical_agent`, `news_impact`, and `filings` into a
-structured prediction (direction, confidence, entry, target, stop,
-risk-reward).
+**Goal**: Orchestrator that combines outputs from `kb`, `price_agent`,
+`technical_agent`, `news_impact`, and `filings` into a structured
+`Prediction` (direction, confidence, entry, target, stop, risk-reward) +
+user-facing CLI.
 
-To be designed in detail after Step C is complete. Open questions parked
-in `next_steps.md`.
+### Sub-step progress
+
+| # | Sub-step | Status |
+|---|---|---|
+| D.1 | Schema (`prediction/schema.py`) — frozen Pydantic v2 `Prediction` | ✅ |
+| D.2 | Synthesizer agent (`agents/synthesizer/`) with `output_schema=Prediction` | ✅ |
+| D.3 | Inputs builder (`prediction/inputs.py`) — prompt assembly | ✅ |
+| D.4 | `predict()` orchestrator + Runner singletons (`prediction/predictor.py`, `runner.py`) | ✅ |
+| D.5 | Hallucination guardrails Tiers 1–3 + retry loop (`prediction/guardrails.py`) | ✅ |
+| D.6 | News degradation + integration smoke test | ✅ |
+| D.7 | Batch (`prediction/batch.py`) — `predict_many()` with bounded concurrency | ✅ |
+| D.8 | Persistence (`prediction/store.py`) — JSON-on-disk | ✅ |
+| D.9 | CLI surface (`cli/main.py`) — typer + rich (predict / predict-many / history) | ✅ |
+
+### What D.1 delivered (output schema)
+
+| Artifact | Purpose |
+|---|---|
+| `prediction/schema.py` | Frozen Pydantic v2 model. `Prediction` + `PredictionDirection` + `PredictionHorizon` + `PriceLevel` + `AnalysisBasis` |
+
+**Design decisions**:
+1. **Frozen models** (`model_config = ConfigDict(frozen=True)`) — predictions
+   are facts about a moment in time, not mutable state. Hashing is free.
+2. **`risk_reward` is computed** in a `model_validator` from entry/target/stop
+   — single source of truth, can't drift.
+3. **`model_chain: tuple[str, ...]`** as audit trail — captures which LLMs
+   actually participated in producing this prediction.
+4. **`AnalysisBasis` sub-model** — captures the synthesizer's view of the
+   world at decision time. Makes grading possible later: "the LLM thought
+   close was X; was it?"
+
+### What D.2–D.6 delivered (predict pipeline)
+
+| Artifact | Purpose |
+|---|---|
+| `agents/synthesizer/agent.py` | LlmAgent with `output_schema=Prediction` (forces structured JSON; no parse logic in our code) |
+| `prediction/inputs.py` | Pure prompt assembly: technical snapshot + news + price → string prompt |
+| `prediction/predictor.py` | `predict(ticker, horizon)` orchestrator. Calls technical_agent + news_impact + price_agent + synthesizer in sequence |
+| `prediction/runner.py` | Singleton ADK `Runner` instances per agent (one Runner per Agent is the ADK contract) |
+| `prediction/guardrails.py` | 3 tiers: ticker match, level sanity (target on right side of entry), direction-vs-levels coherence. Retry-with-feedback loop on failure |
+
+**Critical lessons from D.2–D.6**:
+1. **`output_schema=Prediction` is the killer ADK feature for synthesis.**
+   Forces the LLM to emit valid Pydantic JSON; zero parsing logic our side.
+2. **News degradation is a real production concern.** GDELT goes down,
+   articles 404, body extraction times out. Graceful degradation
+   (`news_impact` returns empty list with explanatory note) > hard fail.
+3. **Hallucination guardrails are NOT optional.** Without Tiers 1-3 + retry,
+   the synthesizer would happily invent target prices on the wrong side
+   of entry, or claim BULLISH while putting target below stop.
+   Retry-with-feedback fixed ~80% of these.
+4. **Run cheapest validation first.** Tier 1 (regex/range) > Tier 2 (cross-
+   field) > Tier 3 (LLM self-critique). Never invoke Tier 3 if 1-2 fail.
+
+### What D.7 delivered (batch)
+
+| Artifact | Purpose |
+|---|---|
+| `prediction/batch.py` | `predict_many(tickers, horizon)` with `asyncio.gather` + bounded semaphore (5) |
+| `BatchError` | Accumulates per-ticker failures without killing the batch |
+
+**Lessons from D.7**:
+1. **Per-ticker failure must NOT kill the batch.** A single 404 from GDELT
+   should produce 1 error in the result, not 49 lost predictions.
+2. **Bounded concurrency (semaphore=5) > unbounded.** LLM rate limits bite
+   at ~10 concurrent; 5 leaves headroom.
+
+### What D.8 delivered (persistence)
+
+| Artifact | Purpose |
+|---|---|
+| `prediction/store.py` | `PredictionStore` writes per-prediction JSON files; reads via `list_for_ticker()` / `list_in_date_range()` |
+| Storage layout | `predictions_dir/<TICKER>/<as_of_iso>.json` — trivially inspectable, no DB |
+
+**Why JSON-on-disk over SQLite**:
+1. **Inspectable.** `cat predictions/RELIANCE.NS/*.json` works.
+2. **No migration cost.** Schema change → add a field with a default;
+   old files still load.
+3. **Backup is `cp -r`.** No `pg_dump`-equivalent needed.
+4. **YAGNI.** ~36k files/year at 100 predictions/day. SQLite wins above
+   ~1M rows; we're 30x below that.
+
+### What D.9 delivered (CLI)
+
+| Artifact | Purpose |
+|---|---|
+| `cli/main.py` | typer app with `predict` / `predict-many` / `history` commands |
+| Rich rendering | Color-coded direction, formatted tables, helpful empty states |
+
+**Lessons from D.9**:
+1. **Typer + Rich = the right CLI stack for Python in 2026.**
+2. **Render functions return Tables, not strings.** Lets tests assert on
+   cell contents directly via Rich's API; no string-grep brittleness.
+
+### Step D test count delta: 625 → ~817 (+~192)
+
+---
+
+## ✅ Step 3.5 — Grading + Calibration (DONE)
+
+**Goal**: The prediction loop is incomplete without measuring the LLM's
+actual skill. Step 3.5 added the math (per-prediction grading), the
+aggregation (calibration metrics), and the user-facing surface (CLI).
+
+### Sub-step progress
+
+| # | Sub-step | Status |
+|---|---|---|
+| 3.5.1 | Grading core (`prediction/grading.py`) — `grade_one()` + `GradedPrediction` + 6-outcome enum | ✅ |
+| 3.5.2 | Aggregation (`prediction/calibration.py`) + orchestration (`grade_many()`) — hit-rate variants, Brier score | ✅ |
+| 3.5.3 | CLI surface (`cli/main.py`) — `grade` + `calibration` commands with `--by` breakdown axes | ✅ |
+
+### What 3.5.1 delivered (per-prediction grading)
+
+| Artifact | Purpose |
+|---|---|
+| `grade_one(pred, bars)` | Pure function on a Prediction + post-prediction OHLCV DataFrame |
+| `GradeOutcome` (enum) | TARGET_HIT / STOP_HIT / STOP_HIT_AMBIGUOUS / EXPIRED / NOT_APPLICABLE / INCONCLUSIVE |
+| `GradedPrediction` (frozen Pydantic) | Wraps prediction + outcome + realized_return + direction_correct + days_to_resolution |
+
+**The same-bar ambiguity problem (THE central insight of 3.5.1)**:
+If a bar's high ≥ target AND low ≤ stop, we genuinely don't know which
+was hit first without intraday data. We surface this as `STOP_HIT_AMBIGUOUS`
+rather than silently picking one. Honest > convenient.
+
+**Lessons from 3.5.1**:
+1. **Pure functions are the right shape for math-heavy logic.** Inject the
+   OHLCV DataFrame; don't fetch inside grade_one. Tests run with synthetic
+   bars; production injects real fetches.
+2. **6 outcomes, not 2.** Pass/fail is lossy. The middle four
+   (ambiguous/expired/N/A/inconclusive) carry signal that pure pass/fail
+   would discard.
+
+### What 3.5.2 delivered (orchestration + aggregation)
+
+| Artifact | Purpose |
+|---|---|
+| `grade_many()` | Loops grade_one over a list, fetches OHLCV per prediction (lazy yfinance import) |
+| `CalibrationReport` | Frozen Pydantic. Hit-rate variants, Brier score, direction accuracy, mean+median return |
+| `compute_calibration(graded)` | Pure aggregation: list → single CalibrationReport |
+| `compute_breakdown(graded, key_fn)` | Generic group-by: returns `dict[K, CalibrationReport]` |
+
+**Three hit-rate variants (the 3.5.2 design debate)**:
+Same-bar ambiguity bubbles up. We REPORT all three:
+  - `hit_rate_strict`     = wins / (wins + losses + ambig + expired + na)
+  - `hit_rate_resolved`   = wins / (wins + losses + ambig)  ← industry standard
+  - `hit_rate_optimistic` = wins / (wins + clean losses)
+
+Picking one would be cherry-picking. Tests assert
+`strict ≤ resolved ≤ optimistic` as a STRUCTURAL INVARIANT — mathematically
+true by definition; the test catches any future refactor that breaks it.
+
+**Brier score over log-loss (the other 3.5.2 design debate)**:
+  - Brier = mean((confidence − actual)²). Bounded [0, 1].
+  - Log-loss is unbounded; has log(0) edge case at confidence=1.0.
+  - Brier's quadratic penalty matches user intuition: 90%-wrong is 3x worse
+    than 60%-wrong (0.81 vs 0.36).
+  - 0.25 baseline (always p=0.5, half right) is a useful comparison point
+    any user can hold in their head.
+
+### What 3.5.3 delivered (CLI surface)
+
+| Artifact | Purpose |
+|---|---|
+| `cli/main.py::grade` | Loads predictions from store, runs grade_many, renders per-prediction outcome table |
+| `cli/main.py::calibration` | Same loader, then compute_calibration (or compute_breakdown if `--by`) |
+| `_BREAKDOWN_KEYS` (dispatch dict) | `{horizon, ticker, direction, month}` — adding a new axis = 1 dict entry |
+| `_load_predictions()` | Shared loader (DRY between grade + calibration) |
+
+**Lessons from 3.5.3**:
+1. **Dispatch dict for `--by` axes is open/closed in 5 lines.** Help text
+   auto-syncs from `sorted(_BREAKDOWN_KEYS)`.
+2. **Mock at the boundary.** CLI tests mock `grade_many`; the contract of
+   grade_many is exhaustively tested elsewhere with synthetic OHLCV.
+
+---
+
+## ⏸️ Step 3.5.5+ — Backtest replay/runner/evaluator (NOT STARTED)
+
+**Goal**: Today, calibration only works on real-elapsed-time predictions.
+Backtest would let us run the whole pipeline against historical data and
+answer "would this system have made money?"
+
+**Components needed**:
+- `backtest/replay.py` — as-of-date data shim: "give me prices/news/filings
+  AS THEY WOULD HAVE LOOKED on date X." Critical for honest backtest;
+  any leak of future info inflates results.
+- `backtest/runner.py` — historical loop over dates, calling predict()
+  with the replay shim active.
+- `backtest/evaluator.py` — composes calibration metrics across backtest
+  runs (e.g., per-month, per-regime). Reuses `compute_breakdown()`.
+
+**Open design questions parked for Step 3.5.5 design**:
+- How do we honestly replay GDELT? News articles published AFTER our
+  as-of-date must NOT be visible.
+- How do we handle survivorship bias in the Nifty50 list?
+- Do we replay at end-of-day cadence or hourly?
 
 ---
 
@@ -365,43 +573,45 @@ src/price_predictor/
 │   ├── hello_agent/                    # Learning spike (DONE)
 │   ├── price_agent/                    # Refactored to use KB (Step A)
 │   ├── news_impact/                    # Prompt simplified by KB (Step A)
-│   └── technical_agent/                # NEW (Step C)
+│   ├── technical_agent/                # NEW (Step C)
+│   │   ├── __init__.py
+│   │   └── tools/
+│   │       ├── _types.py / _trend_signal.py
+│   │       └── get_trend.py / get_momentum.py / get_volatility.py / get_levels.py
+│   └── synthesizer/                    # NEW (Step D.2)
 │       ├── __init__.py
-│       └── tools/
-│           ├── __init__.py
-│           ├── _types.py
-│           ├── _trend_signal.py
-│           └── get_trend.py
+│       └── agent.py                    # LlmAgent with output_schema=Prediction
 ├── analysis/                           # NEW (Step B.3 + B.4)
 │   ├── __init__.py                     # PRESETS + validate_preset()
-│   ├── trend.py
-│   ├── momentum.py
-│   ├── volatility.py
-│   ├── levels.py
-│   ├── candlestick_patterns.py
-│   └── chart_patterns.py
+│   ├── trend.py / momentum.py / volatility.py / levels.py
+│   └── candlestick_patterns.py / chart_patterns.py
+├── prediction/                         # NEW (Step D + 3.5)
+│   ├── __init__.py
+│   ├── schema.py                       # D.1: Prediction model
+│   ├── inputs.py                       # D.3: prompt assembly
+│   ├── predictor.py                    # D.4: predict() orchestrator
+│   ├── runner.py                       # D.4: ADK Runner singletons
+│   ├── guardrails.py                   # D.5: hallucination guardrails Tiers 1-3
+│   ├── batch.py                        # D.7: predict_many()
+│   ├── store.py                        # D.8: PredictionStore (JSON-on-disk)
+│   ├── grading.py                      # 3.5.1+3.5.2: grade_one + grade_many
+│   └── calibration.py                  # 3.5.2: CalibrationReport + compute_*
+├── cli/                                # NEW (Step D.9 + 3.5.3)
+│   ├── __init__.py
+│   └── main.py                         # typer + rich: predict / predict-many / history / grade / calibration
 ├── data/
 │   ├── prices.py                       # Thin shim (Step B.1)
 │   ├── cache.py                        # NEW (Step B.2)
 │   ├── _shared_cache.py                # NEW (Step C.1) — singleton
 │   ├── providers/                      # NEW (Step B.1)
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── yfinance_provider.py
-│   │   ├── stooq_provider.py            # NEW (Provider Expansion)
-│   │   ├── alpha_vantage_provider.py    # NEW (Provider Expansion)
-│   │   ├── _http.py                     # NEW (Provider Expansion) — shared httpx helper
-│   │   └── resilient.py
-│   ├── estimates.py
-│   ├── filings.py
-│   ├── news.py
-│   └── schema.py
+│   │   ├── base.py / yfinance_provider.py / resilient.py
+│   │   └── stooq_provider.py / alpha_vantage_provider.py / _http.py  # Provider Expansion
+│   ├── estimates.py / filings.py / news.py / schema.py
 ├── kb/                                 # NEW (Step A)
-│   ├── __init__.py
 │   └── stocks.py
 ├── llm/
 │   ├── factory.py
-│   └── resilient.py                    # Pattern reused for B.1
+│   └── resilient.py
 └── config/
     └── settings.py
 
@@ -412,24 +622,20 @@ data/kb/
 scripts/
 └── bootstrap_indices.py                # NEW (Step A)
 
-tests/
+tests/                                  # 854 unit tests + 7 integration
 ├── test_kb_stocks.py                   # 36 tests (Step A)
-├── test_prices.py                      # Updated mock paths (Step B.1)
-├── test_resilient_price_fetcher.py     # 14 tests (Step B.1)
-├── test_price_cache.py                 # 11 tests (Step B.2)
+├── test_prices.py / test_resilient_price_fetcher.py / test_price_cache.py
 ├── analysis/                           # 61 tests (Step B.3 + B.4)
-│   ├── __init__.py
-│   ├── conftest.py                     # synthetic OHLCV fixtures
-│   ├── test_trend.py
-│   ├── test_momentum.py
-│   ├── test_volatility.py
-│   ├── test_levels.py
-│   ├── test_candlestick_patterns.py
-│   └── test_chart_patterns.py
-└── tools/                              # NEW (Step C.1)
-    ├── __init__.py
-    ├── test_trend_signal.py            # 18 tests
-    └── test_get_trend.py               # 16 tests
+├── tools/                              # Step C tool tests
+├── prediction/                         # Step D + 3.5 tests
+│   ├── test_schema.py
+│   ├── test_inputs.py / test_predictor.py / test_runner.py
+│   ├── test_guardrails.py
+│   ├── test_batch.py / test_store.py
+│   ├── test_grading.py / test_grade_many.py
+│   └── test_calibration.py
+└── cli/
+    └── test_main.py                    # CLI integration tests
 ```
 
 ---
@@ -449,9 +655,25 @@ tests/
 | Step C.4 complete | 538 | +29 | Levels tool + chart pattern integration |
 | Step C.5 complete | 554 | +16 | `technical_agent` wiring |
 | Step C.6 complete | 554 | +0 | Manual smoke + LLM-chain bug fix (env-only) |
-| Provider Expansion complete | **625** | **+71** | Stooq + AlphaVantage providers, paid toggle |
+| Provider Expansion complete | 625 | +71 | Stooq + AlphaVantage providers, paid toggle |
+| Step D.1 (schema) | ~650 | +25 | Frozen Pydantic Prediction + round-trip |
+| Step D.2 (synthesizer) | ~685 | +35 | LlmAgent with `output_schema=Prediction` |
+| Step D.3 (inputs) | ~705 | +20 | Prompt assembly |
+| Step D.4 (predictor + runner) | ~735 | +30 | predict() orchestrator + Runner singletons |
+| Step D.5 (guardrails) | ~780 | +45 | Tier 1-3 + retry-with-feedback |
+| Step D.6 (news degradation) | ~795 | +15 | + integration smoke test |
+| Step D.7 (batch) | ~820 | +25 | predict_many + BatchError |
+| Step D.8 (store) | ~850 | +30 | PredictionStore JSON-on-disk |
+| Step D.9 (CLI) | ~864 | +14 | typer + rich: predict / predict-many / history |
+| Step 3.5.1 (grading) | ~898 | +34 | grade_one + GradedPrediction + 6-outcome enum |
+| Step 3.5.2 (calibration) | ~924 | +26 | grade_many + CalibrationReport + Brier |
+| Step 3.5.3 (CLI grade+calibration) | **854** | net | Net delta after test cleanup; gross +37 |
 
 \*Includes a +4 incidental gap between B.4 and C.1 (fixture/import additions).
+
+Note: Step D + 3.5 totals are approximate per-substep snapshots reconstructed
+from commit log; the 854 figure is the actual current `pytest --collect-only`
+count (with 7 integration tests deselected).
 
 ---
 
@@ -504,6 +726,50 @@ tests/
    give both Walmart and off-corp users a working start in the same file.
 5. LiteLLM auto-loads `.env` into `os.environ` at import time — worth
    knowing because it bites tests that expect default fallback behavior.
+
+### From Step D (Prediction Agent)
+1. **`output_schema=Prediction` is the killer ADK feature for synthesis.**
+   Forces the LLM to emit valid Pydantic JSON; zero parse logic our side.
+2. **Hallucination guardrails are NOT optional.** Without Tiers 1-3 +
+   retry-with-feedback, the synthesizer would invent target prices on the
+   wrong side of entry, or claim BULLISH while putting target below stop.
+3. **Run cheapest validation first.** Tier 1 (regex/range) > Tier 2 (cross-
+   field coherence) > Tier 3 (LLM self-critique). Never invoke Tier 3 if
+   1-2 fail.
+4. **News degradation is a real production concern.** Graceful degradation
+   (return empty list with explanatory note) > hard fail.
+5. **Per-ticker failure must NOT kill the batch.** A single 404 = 1 error,
+   not 49 lost predictions. Use a `BatchError` accumulator.
+6. **JSON-on-disk beats SQLite at our scale.** Inspectable, no migration
+   cost, backup is `cp -r`. Will revisit above ~1M predictions.
+7. **Render functions return Tables (not strings).** Lets tests assert on
+   cell contents directly via Rich's API.
+
+### From Step 3.5 (Grading + Calibration)
+1. **Same-bar T+S ambiguity is a first-class outcome, not a bug.** If a
+   bar's high ≥ target AND low ≤ stop, we genuinely don't know which was
+   hit first. Surfacing it as `STOP_HIT_AMBIGUOUS` is honest > silently
+   picking one.
+2. **Six outcomes, not two.** Pass/fail is lossy. The middle four
+   (ambiguous/expired/N/A/inconclusive) carry signal pure pass/fail throws away.
+3. **Three hit-rate variants reported, not one.** strict / resolved /
+   optimistic. Picking one would be cherry-picking; reporting all three is
+   honest. Tests assert `strict ≤ resolved ≤ optimistic` as a structural
+   invariant.
+4. **Brier score over log-loss.** Bounded [0,1], no log(0) edge case at
+   confidence=1.0, quadratic penalty matches user intuition (90%-wrong is
+   3x worse than 60%-wrong).
+5. **Pure functions are right for math-heavy logic.** Inject the OHLCV
+   DataFrame into `grade_one`; don't fetch inside it. Tests use synthetic
+   bars; production injects real fetches.
+6. **Lazy yfinance import** in `grade_many` keeps `from prediction import
+   grade_one` fast (yfinance load is ~1s).
+7. **Dispatch dict for `--by` axes is open/closed in 5 lines.** Adding
+   `--by week` would be one more entry; help text auto-syncs from
+   `sorted(_BREAKDOWN_KEYS)`.
+8. **Mock at the boundary.** CLI tests mock `grade_many`; the contract of
+   grade_many is exhaustively tested elsewhere with synthetic OHLCV.
+   No need to repeat.
 
 ### Meta-lesson (recurring)
 When we agree on a build plan together, sticking to it is the contract.
