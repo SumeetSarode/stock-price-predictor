@@ -1,9 +1,32 @@
 # 📈 Predictor — Project Description
 
-> **Status:** ✅ Spec finalized · ready to build
+> **Status:** 🚧 v1 in progress — `predict` + `grade` + `calibration`
+> shipped end-to-end (854 unit tests passing). Backtest replay + concurrency
+> still ahead.
 > **Owner:** Sumeet
 > **Codename:** *Predictor* (placeholder — final name TBD)
-> **Last updated:** 2026-04-24
+> **Last updated:** 2026-04-28
+
+> This is the **canonical full spec** — problem, design, output schema,
+> decisions, risks. For practical "how do I run it" content see
+> [`../README.md`](../README.md). For per-step build status see
+> `../implementation_plan.md` and `../implementation_flow.md`.
+
+---
+
+## 0. 🟢 Current state (added 2026-04-28)
+
+| Layer | Status |
+|---|---|
+| Data layer (prices / news / estimates / filings) | ✅ shipped |
+| KB (Nifty50 registry) | ✅ shipped |
+| Analysis primitives (trend / momentum / volatility / levels / patterns) | ✅ shipped |
+| ADK agents (price / news / technical / synthesizer) | ✅ shipped |
+| Prediction pipeline (predict / predict-many / store) | ✅ shipped |
+| Grading + Calibration | ✅ shipped |
+| Backtest replay / runner / evaluator | ⏸️ not started |
+| Concurrency / scale (rate-limit-aware router) | ⏸️ not started |
+| LightRAG knowledge layer (Phase 2) | ⏸️ not started |
 
 ---
 
@@ -121,80 +144,96 @@ This system addresses all three by being **systematic, explainable, and self-tra
 
 ## 6. 🗂️ Project Structure
 
+> **Note (2026-04-28):** Below shows what's actually shipped today, with
+> phase-2 / not-yet-built modules marked `(planned)`. The original spec
+> proposed `tracking/` as a separate package and SQLite-backed storage —
+> we shipped both calibration and predictions inside `prediction/` as
+> JSON-on-disk for inspectability and zero-migration cost. See
+> `../implementation_flow.md` for the rationale.
+
 ```
-predictor/
+price_predictor/
 ├── pyproject.toml                # uv-managed
 ├── README.md
 ├── .env.example                  # API keys template
 ├── .gitignore
 │
-├── config/
-│   └── settings.py               # central config (env, paths, defaults)
-│
-├── src/predictor/
+├── src/price_predictor/
 │   ├── __init__.py
-│   ├── cli.py                    # entry: analyze, backtest, kb-build
 │   │
-│   ├── llm/                      # ── LLM abstraction ──
-│   │   ├── base.py               #    abstract LLMClient interface
-│   │   ├── groq_client.py        #    Groq implementation (primary)
-│   │   ├── gemini_client.py      #    Google Gemini (fallback)
-│   │   └── router.py             #    primary/fallback + rate-limit handling
+│   ├── cli/                       # ── typer + rich entry points ──
+│   │   └── main.py                #    predict / predict-many / history / grade / calibration
 │   │
-│   ├── data/                     # ── External data fetchers ──
-│   │   ├── prices.py             #    yfinance + as-of-date support
-│   │   ├── news.py               #    GDELT client (general news, 7d)
-│   │   ├── filings.py            #    NSE corporate announcements (30d)
-│   │   ├── dedupe.py             #    GDELT EventID + fuzzy title match
-│   │   └── cache.py              #    SQLite-backed cache layer
+│   ├── config/
+│   │   └── settings.py            #    central config (env, paths, defaults)
 │   │
-│   ├── kb/                       # ── Knowledge base ──
-│   │   ├── interface.py          #    abstract KnowledgeBase ← LightRAG hides here
-│   │   ├── structured.py         #    Phase 1: SQLite-backed KB
-│   │   ├── lightrag_layer.py     #    Phase 2: optional, plugged via interface
-│   │   ├── builder.py            #    auto-build from Wiki + NSE + LLM
-│   │   └── stocks.py             #    Nifty50 ticker registry
+│   ├── llm/                       # ── LLM abstraction ──
+│   │   ├── factory.py             #    LiteLLM factory (Groq / Gemini)
+│   │   └── resilient.py           #    retry/backoff wrapper
 │   │
-│   ├── analysis/                 # ── Core analyzers ──
-│   │   ├── technical.py          #    pandas-ta indicators (comprehensive)
-│   │   ├── levels.py             #    support/resistance, pivots, swings
-│   │   ├── patterns.py           #    candlestick + chart patterns
-│   │   ├── news_impact.py        #    LLM scoring per article
-│   │   ├── reasoning.py          #    grounded prediction generation
-│   │   └── pluggable.py          #    extensibility hook (fundamentals, etc.)
+│   ├── data/                      # ── External data fetchers ──
+│   │   ├── prices.py              #    Thin shim over providers
+│   │   ├── cache.py               #    Range-aware in-memory cache
+│   │   ├── _shared_cache.py       #    Singleton cache instance
+│   │   ├── providers/             #    yfinance → Stooq → Alpha Vantage chain
+│   │   │   ├── base.py / resilient.py
+│   │   │   ├── yfinance_provider.py
+│   │   │   ├── stooq_provider.py
+│   │   │   └── alpha_vantage_provider.py
+│   │   ├── news.py                #    GDELT discovery + trafilatura body extraction
+│   │   ├── filings.py             #    NSE corporate-events fan-out (30d)
+│   │   ├── estimates.py           #    yfinance analyst data wrapper
+│   │   └── schema.py              #    OHLCVBar, NewsArticle, Filing, Estimates
 │   │
-│   ├── prediction/               # ── Prediction generation ──
-│   │   ├── schema.py             #    Pydantic models (see §10)
-│   │   ├── predictor.py          #    per-stock orchestration
-│   │   └── pipeline.py           #    batch over Nifty50
+│   ├── kb/                        # ── Knowledge base ──
+│   │   └── stocks.py              #    Nifty50 ticker registry (Wikipedia-sourced)
+│   │   # (planned) interface.py / lightrag_layer.py / builder.py for Phase 2
 │   │
-│   ├── backtest/                 # ── Backtest engine ──
-│   │   ├── runner.py             #    loop over historical dates
-│   │   ├── evaluator.py          #    hit-rate, stop-rate, P&L, calibration
-│   │   └── replay.py             #    as-of-date data shim
+│   ├── analysis/                  # ── Pure-function analyzers ──
+│   │   ├── trend.py               #    SMA/EMA/MACD/ADX/Ichimoku
+│   │   ├── momentum.py            #    RSI/Stoch/CCI/Williams%R/ROC
+│   │   ├── volatility.py          #    Bollinger/ATR/Keltner
+│   │   ├── levels.py              #    pivots, swings, S/R clusters
+│   │   ├── candlestick_patterns.py
+│   │   └── chart_patterns.py
 │   │
-│   ├── tracking/                 # ── Live prediction tracking ──
-│   │   ├── store.py              #    SQLite store of all predictions
-│   │   └── calibration.py        #    historical accuracy + calibration curves
+│   ├── agents/                    # ── ADK agents ──
+│   │   ├── hello_agent/           #    Learning spike
+│   │   ├── price_agent/           #    Tool-wrapped price fetcher
+│   │   ├── news_impact/           #    LLM scoring per article
+│   │   ├── technical_agent/       #    4 thematic tools (trend/momentum/volatility/levels)
+│   │   └── synthesizer/           #    LlmAgent with output_schema=Prediction
 │   │
-│   └── concurrency/
-│       └── runner.py             #    asyncio semaphores, batching
+│   └── prediction/                # ── Prediction generation, persistence, grading ──
+│       ├── schema.py              #    Frozen Pydantic Prediction model (§10)
+│       ├── inputs.py              #    Prompt assembly from technical/news/price snapshots
+│       ├── predictor.py           #    predict() per-stock orchestrator
+│       ├── runner.py              #    ADK Runner singletons (one per Agent)
+│       ├── guardrails.py          #    Hallucination guardrails Tiers 1-3 + retry
+│       ├── batch.py               #    predict_many() with bounded concurrency
+│       ├── store.py               #    PredictionStore (JSON-on-disk)
+│       ├── grading.py             #    grade_one + grade_many + 6-outcome enum
+│       └── calibration.py         #    CalibrationReport + Brier + 3 hit-rate variants
 │
-├── data/                         # ── Runtime data (gitignored) ──
-│   ├── kb.sqlite
-│   ├── cache.sqlite
-│   ├── predictions.sqlite
-│   └── outputs/                  #    JSON outputs of runs
+├── # (planned) src/price_predictor/backtest/
+│ #            ├── replay.py        #    as-of-date data shim
+│ #            ├── runner.py        #    historical loop
+│ #            └── evaluator.py     #    composes calibration across runs
+│
+├── # (planned) src/price_predictor/concurrency/
+│ #            └── runner.py        #    asyncio semaphores + rate-limit-aware router
+│
+├── data/                          # ── Runtime data (gitignored) ──
+│   ├── kb/                        #    stocks.json + indices.json (committed)
+│   └── predictions/               #    per-prediction JSON files (gitignored)
 │
 ├── scripts/
-│   ├── bootstrap_kb.py           #    one-time KB build for all Nifty50
-│   └── refresh_kb.py             #    monthly KB refresh
+│   └── bootstrap_indices.py       #    one-time index registry build
 │
-├── tests/
-│   └── ...
+├── tests/                         # 854 unit tests + 7 integration
 │
 └── docs/
-    └── project_description.md    ← this file
+    └── project description.md     ← this file
 ```
 
 ---
@@ -523,6 +562,12 @@ LLM_SEMAPHORE  = asyncio.Semaphore(5)    # LLM calls (rate-limited)
 | Self-contained JSON output                                | UI / audit need no extra lookups                                     | Normalized DB-only — UI gets complicated                 |
 | Explainable entry/target/stop (`*_basis` + `*_rationale`) | Forces grounded numbers; aids debugging + backtest analytics         | Plain numbers — no audit trail                           |
 | Trading style irrelevant to design                        | System emits both daily + weekly; user picks                         | Optimize for one — limits flexibility                    |
+| **JSON-on-disk for predictions/grades** (not SQLite)      | Inspectable; no migration cost; backup is `cp -r`; YAGNI at our scale (~36k files/yr) | SQLite — wins above ~1M rows; we're 30x below |
+| **Three hit-rate variants reported** (strict/resolved/optimistic) | Same-bar T+S ambiguity makes any single number lossy; reporting all three is honest, picking one is cherry-picking | Pick one — dishonest |
+| **Brier score over log-loss** for confidence calibration  | Bounded [0,1]; no log(0) edge case at confidence=1.0; quadratic penalty matches user intuition; 0.25 baseline (always p=0.5) is memorable | Log-loss — unbounded, edge cases |
+| **Six grading outcomes**, not pass/fail                   | Pass/fail is lossy; ambiguous/expired/N/A/inconclusive carry signal | Binary outcome — throws away signal |
+| **`output_schema=Prediction` on synthesizer**             | Forces LLM to emit valid Pydantic JSON; zero parse logic our side; pairs perfectly with frozen models | Free-form output + parse — brittle |
+| **Hallucination guardrails Tiers 1-3 + retry-with-feedback** | Without them synthesizer invented target prices on wrong side of entry; retry fixed ~80% of failures | Trust the LLM — no |
 
 ---
 
