@@ -41,6 +41,12 @@ from price_predictor.prediction.store import (
     PredictionStore,
     PredictionStoreError,
 )
+from price_predictor.prediction.grading import (
+    GradeOutcome,
+    GradedPrediction,
+    grade_one,
+    horizon_window,
+)
 from price_predictor.prediction.schema import (
     AnalysisBasis,
     Prediction,
@@ -80,4 +86,9 @@ __all__ = [
     # store (3.4.3 commit 2)
     "PredictionStore",
     "PredictionStoreError",
+    # grading (3.5 commit 1)
+    "GradeOutcome",
+    "GradedPrediction",
+    "grade_one",
+    "horizon_window",
 ]
