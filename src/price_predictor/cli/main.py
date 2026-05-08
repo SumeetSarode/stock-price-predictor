@@ -34,7 +34,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Optional
+from datetime import date, datetime
+from typing import Callable, Optional
 
 import typer
 from rich.console import Console
@@ -43,12 +44,22 @@ from rich.table import Table
 from price_predictor.config.settings import settings
 from price_predictor.prediction import (
     BatchError,
-    PredictionStore,
+    CalibrationReport,
+    GradeOutcome,
+    GradedPrediction,
     PredictionError,
+    PredictionStore,
+    compute_breakdown,
+    compute_calibration,
+    grade_many,
     predict as _predict,
     predict_many as _predict_many,
 )
-from price_predictor.prediction.schema import Prediction, PredictionDirection
+from price_predictor.prediction.schema import (
+    Prediction,
+    PredictionDirection,
+    PredictionHorizon,
+)
 
 app = typer.Typer(
     name="price-predictor",
@@ -255,6 +266,244 @@ def history(
     if limit is not None and limit > 0:
         preds = preds[-limit:]
     console.print(_render_history(preds, ticker))
+
+
+# ─────────────────────────────────────────────────────────────
+# Step 3.5: grade + calibration commands
+# ─────────────────────────────────────────────────────────────
+_OUTCOME_STYLE = {
+    GradeOutcome.TARGET_HIT:         "bold green",
+    GradeOutcome.STOP_HIT:           "bold red",
+    GradeOutcome.STOP_HIT_AMBIGUOUS: "red",
+    GradeOutcome.EXPIRED:            "yellow",
+    GradeOutcome.NOT_APPLICABLE:     "dim",
+    GradeOutcome.INCONCLUSIVE:       "dim",
+}
+
+# Maps the --by CLI flag to a key function for compute_breakdown. Adding
+# a new grouping is a one-line dict entry - no schema/CLI surgery needed.
+_BREAKDOWN_KEYS: dict[str, Callable[[GradedPrediction], object]] = {
+    "horizon":   lambda g: g.prediction.horizon.value,
+    "ticker":    lambda g: g.prediction.ticker,
+    "direction": lambda g: g.prediction.direction.value,
+    "month":     lambda g: g.prediction.as_of.strftime("%Y-%m"),
+}
+
+
+# ─────────────────────────────────────────────────────────────
+# Shared loader (DRY: grade + calibration BOTH need this exact pipeline)
+# ─────────────────────────────────────────────────────────────
+def _parse_iso_date(s: str | None, *, label: str) -> date | None:
+    """Parse YYYY-MM-DD or exit 1 with a friendly message."""
+    if s is None:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        console.print(f"[red]Invalid --{label} date '{s}'. Use YYYY-MM-DD.[/red]")
+        sys.exit(1)
+
+
+def _load_predictions(
+    *, ticker: str | None, since: date | None, until: date | None,
+) -> list[Prediction]:
+    """Read predictions from the store, filtering by ticker / date range.
+
+    Pure 'load + filter' - no grading, no I/O beyond store reads. Each
+    command builds its own pipeline on top of this so the loader stays
+    one job.
+    """
+    store = PredictionStore(settings.predictions_dir)
+
+    if ticker is not None:
+        preds = store.list_for_ticker(ticker)
+    elif since is not None or until is not None:
+        # Date-range query when no ticker filter is given.
+        # Defaults: open-ended on either side fills with sensible bounds.
+        start = since or date(1970, 1, 1)
+        end = until or date.today()
+        preds = store.list_in_date_range(start, end)
+    else:
+        # No filters at all -> grade EVERYTHING the store knows about.
+        preds = store.list_in_date_range(date(1970, 1, 1), date.today())
+
+    # Apply secondary date filter when ticker AND since/until are both set:
+    # list_for_ticker doesn't take a date range, so trim afterwards.
+    if ticker is not None and (since is not None or until is not None):
+        s = since or date(1970, 1, 1)
+        e = until or date.today()
+        preds = [p for p in preds if s <= p.as_of.date() <= e]
+
+    return preds
+
+
+# ─────────────────────────────────────────────────────────────
+# Renderers (pure - return Table; tests assert on rendered text)
+# ─────────────────────────────────────────────────────────────
+def _render_grades(graded: list[GradedPrediction]) -> Table:
+    """Per-prediction outcome table."""
+    table = Table(
+        title=f"Graded predictions ({len(graded)})",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Date")
+    table.add_column("Ticker")
+    table.add_column("Dir")
+    table.add_column("Outcome")
+    table.add_column("Conf")
+    table.add_column("Return")
+    table.add_column("Days")
+
+    for g in graded:
+        p = g.prediction
+        dir_style = _DIRECTION_STYLE[p.direction]
+        out_style = _OUTCOME_STYLE[g.outcome]
+        # Realized return only meaningful when judged.
+        ret_str = "-" if g.outcome == GradeOutcome.INCONCLUSIVE else f"{g.realized_return:+.2%}"
+        days_str = str(g.days_to_resolution) if g.days_to_resolution else "-"
+        table.add_row(
+            p.as_of.strftime("%Y-%m-%d"),
+            p.ticker,
+            f"[{dir_style}]{p.direction.value}[/{dir_style}]",
+            f"[{out_style}]{g.outcome.value}[/{out_style}]",
+            f"{p.confidence:.0%}",
+            ret_str,
+            days_str,
+        )
+    return table
+
+
+def _render_calibration(report: CalibrationReport, title: str = "Calibration") -> Table:
+    """Single-report summary table.
+
+    Lays out the metrics in a 'metric | value | how-to-read-it' format
+    so a non-stats user gets context inline. The 'how-to-read-it' column
+    embeds the docstring summary - DRY with the report module's docs.
+    """
+    table = Table(title=title, show_header=True, header_style="bold cyan")
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_column("Note")
+
+    table.add_row("Total predictions", str(report.n_predictions), "")
+    table.add_row("Judged (excl. inconclusive)", str(report.n_judged), "")
+    table.add_row(
+        "Hit rate (strict)", f"{report.hit_rate_strict:.1%}",
+        "[dim]wins / (wins + losses + ambig + expired + na)[/dim]",
+    )
+    table.add_row(
+        "Hit rate (resolved)", f"{report.hit_rate_resolved:.1%}",
+        "[dim]wins / (wins + losses + ambig)  ← industry std[/dim]",
+    )
+    table.add_row(
+        "Hit rate (optimistic)", f"{report.hit_rate_optimistic:.1%}",
+        "[dim]wins / (wins + clean losses)[/dim]",
+    )
+    table.add_row(
+        "Direction accuracy", f"{report.direction_accuracy:.1%}",
+        "[dim]correct directional calls / judged[/dim]",
+    )
+    brier_str = f"{report.brier_score:.3f}" if report.brier_score is not None else "-"
+    table.add_row(
+        "Brier score", brier_str,
+        "[dim]0=perfect, 0.25=random, 1=pathological[/dim]",
+    )
+    conf_str = f"{report.mean_confidence:.0%}" if report.mean_confidence is not None else "-"
+    table.add_row("Mean confidence", conf_str, "")
+    table.add_row("Mean return", f"{report.mean_return:+.2%}", "")
+    table.add_row("Median return", f"{report.median_return:+.2%}", "")
+    return table
+
+
+def _render_breakdown(
+    breakdown: dict, by: str,
+) -> Table:
+    """Compact multi-row breakdown table for `--by` queries."""
+    table = Table(
+        title=f"Calibration breakdown by {by}",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column(by.capitalize())
+    table.add_column("N")
+    table.add_column("Hit rate (resolved)")
+    table.add_column("Direction acc")
+    table.add_column("Brier")
+    table.add_column("Mean return")
+
+    for key, report in breakdown.items():
+        brier_str = f"{report.brier_score:.3f}" if report.brier_score is not None else "-"
+        table.add_row(
+            str(key),
+            str(report.n_predictions),
+            f"{report.hit_rate_resolved:.1%}",
+            f"{report.direction_accuracy:.1%}",
+            brier_str,
+            f"{report.mean_return:+.2%}",
+        )
+    return table
+
+
+# ─────────────────────────────────────────────────────────────
+# Commands
+# ─────────────────────────────────────────────────────────────
+@app.command()
+def grade(
+    ticker: Optional[str] = typer.Option(None, "--ticker", "-t"),
+    since: Optional[str] = typer.Option(None, "--since", help="YYYY-MM-DD lower bound"),
+    until: Optional[str] = typer.Option(None, "--until", help="YYYY-MM-DD upper bound"),
+) -> None:
+    """Grade stored predictions against realized OHLCV."""
+    since_d = _parse_iso_date(since, label="since")
+    until_d = _parse_iso_date(until, label="until")
+
+    preds = _load_predictions(ticker=ticker, since=since_d, until=until_d)
+    if not preds:
+        console.print("[yellow]No predictions matched the filters.[/yellow]")
+        console.print(f"[dim](looking in {settings.predictions_dir})[/dim]")
+        return
+
+    console.print(f"[dim]Grading {len(preds)} prediction(s) - this fetches OHLCV...[/dim]")
+    graded = grade_many(preds)
+    console.print(_render_grades(graded))
+
+
+@app.command()
+def calibration(
+    ticker: Optional[str] = typer.Option(None, "--ticker", "-t"),
+    since: Optional[str] = typer.Option(None, "--since"),
+    until: Optional[str] = typer.Option(None, "--until"),
+    by: Optional[str] = typer.Option(
+        None, "--by",
+        help=f"Breakdown axis: one of {sorted(_BREAKDOWN_KEYS)}",
+    ),
+) -> None:
+    """Compute calibration metrics over stored + graded predictions."""
+    if by is not None and by not in _BREAKDOWN_KEYS:
+        console.print(
+            f"[red]Unknown --by '{by}'. Valid: {sorted(_BREAKDOWN_KEYS)}[/red]"
+        )
+        sys.exit(1)
+
+    since_d = _parse_iso_date(since, label="since")
+    until_d = _parse_iso_date(until, label="until")
+
+    preds = _load_predictions(ticker=ticker, since=since_d, until=until_d)
+    if not preds:
+        console.print("[yellow]No predictions matched the filters.[/yellow]")
+        return
+
+    console.print(f"[dim]Grading {len(preds)} prediction(s)...[/dim]")
+    graded = grade_many(preds)
+
+    if by is None:
+        report = compute_calibration(graded)
+        console.print(_render_calibration(report))
+        return
+
+    breakdown = compute_breakdown(graded, _BREAKDOWN_KEYS[by])
+    console.print(_render_breakdown(breakdown, by))
 
 
 # ─────────────────────────────────────────────────────────────
