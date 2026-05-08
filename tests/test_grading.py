@@ -14,7 +14,7 @@ Coverage map:
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -25,6 +25,7 @@ from price_predictor.prediction.grading import (
     GradeOutcome,
     GradedPrediction,
     _direction_correct,
+    grade_many,
     grade_one,
     horizon_window,
 )
@@ -346,3 +347,96 @@ class TestGradedPredictionModel:
         blob = result.model_dump_json()
         restored = GradedPrediction.model_validate_json(blob)
         assert restored == result
+
+
+# ─────────────────────────────────────────────────────────────
+# grade_many (orchestration with injected fetcher)
+# ─────────────────────────────────────────────────────────────
+class TestGradeMany:
+    """grade_many fetches OHLCV per prediction and runs grade_one.
+
+    All tests use a stub fetcher (zero network) so they're fast and
+    deterministic. The DEFAULT fetcher (data.prices.fetch_ohlcv) is
+    only swapped in by production code.
+    """
+
+    def _stub_fetcher(self, bars_by_ticker: dict):
+        """Build a fake fetch_ohlcv that returns canned bars.
+
+        Records every call into a list so tests can assert on the
+        date range / ticker arguments.
+        """
+        calls: list[tuple] = []
+
+        def _f(ticker, start, end):
+            calls.append((ticker, start, end))
+            return bars_by_ticker.get(ticker, _make_bars([]))
+
+        _f.calls = calls  # type: ignore[attr-defined]
+        return _f
+
+    def test_grades_each_prediction_in_order(self):
+        preds = [_make_pred(), _make_pred()]
+        # Both predictions get target-hit data
+        bars = _make_bars([(112, 99, 110)])
+        fetcher = self._stub_fetcher({"TEST.NS": bars})
+        results = grade_many(preds, fetch_ohlcv=fetcher, today=date(2026, 6, 1))
+        assert len(results) == 2
+        assert all(r.outcome == GradeOutcome.TARGET_HIT for r in results)
+
+    def test_fetch_window_starts_day_after_prediction(self):
+        # Prediction on April 28 -> fetch starts April 29 (no lookahead
+        # bias from the prediction's own bar).
+        preds = [_make_pred()]
+        fetcher = self._stub_fetcher({"TEST.NS": _make_bars([(112, 99, 110)])})
+        grade_many(preds, fetch_ohlcv=fetcher, today=date(2026, 6, 1))
+        ticker, start, end = fetcher.calls[0]  # type: ignore[attr-defined]
+        assert ticker == "TEST.NS"
+        assert start == date(2026, 4, 29)
+        # End is generously buffered past the 5-day SHORT window
+        assert end > start
+
+    def test_fetch_window_capped_at_today(self):
+        # Even if horizon would extend further, we can't fetch the future.
+        preds = [_make_pred(horizon=PredictionHorizon.LONG)]  # 60 trading days
+        fetcher = self._stub_fetcher({"TEST.NS": _make_bars([(112, 99, 110)])})
+        # 'today' is only 10 days after prediction
+        today = date(2026, 5, 8)
+        grade_many(preds, fetch_ohlcv=fetcher, today=today)
+        _, start, end = fetcher.calls[0]  # type: ignore[attr-defined]
+        assert end <= today
+
+    def test_fetcher_failure_marks_inconclusive_keeps_position(self):
+        # If fetch raises, that prediction gets an INCONCLUSIVE
+        # GradedPrediction so the output list stays aligned with input.
+        preds = [_make_pred(), _make_pred(), _make_pred()]
+
+        def _f(ticker, start, end):
+            # fail the middle one
+            if len(_f.calls) == 1:  # type: ignore[attr-defined]
+                _f.calls.append(None)  # type: ignore[attr-defined]
+                raise RuntimeError("network down")
+            _f.calls.append(None)  # type: ignore[attr-defined]
+            return _make_bars([(112, 99, 110)])
+
+        _f.calls = []  # type: ignore[attr-defined]
+        results = grade_many(preds, fetch_ohlcv=_f, today=date(2026, 6, 1))
+        assert len(results) == 3
+        assert results[0].outcome == GradeOutcome.TARGET_HIT
+        assert results[1].outcome == GradeOutcome.INCONCLUSIVE
+        assert results[2].outcome == GradeOutcome.TARGET_HIT
+
+    def test_no_elapsed_time_marks_inconclusive(self):
+        # Prediction made today. fetch_end < fetch_start -> can't fetch.
+        # Should NOT call the fetcher and should mark INCONCLUSIVE.
+        preds = [_make_pred()]  # default as_of = 2026-04-28
+        fetcher = self._stub_fetcher({})
+        # 'today' BEFORE the prediction date - degenerate but defensive
+        results = grade_many(preds, fetch_ohlcv=fetcher, today=date(2026, 4, 28))
+        assert results[0].outcome == GradeOutcome.INCONCLUSIVE
+        # fetcher should not have been called
+        assert fetcher.calls == []  # type: ignore[attr-defined]
+
+    def test_empty_input_returns_empty(self):
+        fetcher = self._stub_fetcher({})
+        assert grade_many([], fetch_ohlcv=fetcher) == []

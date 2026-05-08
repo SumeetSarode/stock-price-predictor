@@ -44,8 +44,14 @@ from price_predictor.prediction.store import (
 from price_predictor.prediction.grading import (
     GradeOutcome,
     GradedPrediction,
+    grade_many,
     grade_one,
     horizon_window,
+)
+from price_predictor.prediction.calibration import (
+    CalibrationReport,
+    compute_breakdown,
+    compute_calibration,
 )
 from price_predictor.prediction.schema import (
     AnalysisBasis,
@@ -90,5 +96,10 @@ __all__ = [
     "GradeOutcome",
     "GradedPrediction",
     "grade_one",
+    "grade_many",
     "horizon_window",
+    # calibration (3.5 commit 2)
+    "CalibrationReport",
+    "compute_breakdown",
+    "compute_calibration",
 ]

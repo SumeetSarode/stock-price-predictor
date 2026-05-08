@@ -66,10 +66,12 @@ held to expiry,' which is independent of whether they got out earlier.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
 from enum import Enum
-from typing import Optional
+from typing import Callable, Optional
 
 import pandas as pd
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from price_predictor.prediction.schema import (
@@ -350,4 +352,138 @@ def grade_one(
         days_to_resolution=days_to_resolution,
         bars_examined=n_bars,
         close_at_window_end=close_at_end,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Orchestration: grade many predictions by fetching post-pred bars
+# ─────────────────────────────────────────────────────────────
+# How many CALENDAR days to add as buffer when converting trading-day
+# windows to date ranges for fetch_ohlcv. The 1.7 multiplier covers:
+#   - weekends (5 trading days = 7 calendar days = 1.4x)
+#   - the occasional bank holiday (extra padding)
+# Plus a +3-day floor so that even INTRADAY (1 trading day) gets a
+# tiny lookahead in case the next day is a holiday.
+_FETCH_BUFFER_MULT: float = 1.7
+_FETCH_BUFFER_FLOOR: int = 3
+
+
+def _fetch_window_end(prediction_date: date, horizon: PredictionHorizon) -> date:
+    """Compute a generous calendar-date end for fetch_ohlcv.
+
+    We OVER-FETCH on purpose: grade_one will internally slice to the
+    correct trading-day window. Better to fetch a few extra bars than
+    to short-fetch and end up with INCONCLUSIVE results.
+    """
+    trading_days = horizon_window(horizon)
+    calendar_days = max(
+        int(trading_days * _FETCH_BUFFER_MULT) + 1,
+        trading_days + _FETCH_BUFFER_FLOOR,
+    )
+    return prediction_date + timedelta(days=calendar_days)
+
+
+# Type alias - the fetcher contract is just 'give me bars for a ticker
+# and date range.' Tests inject fakes; production uses data.prices.fetch_ohlcv.
+FetchOHLCV = Callable[[str, date, date], pd.DataFrame]
+
+
+def _default_fetch_ohlcv() -> FetchOHLCV:
+    """Lazy import wrapper.
+
+    Importing data.prices at module load triggers a chain that pulls
+    in yfinance / pandas providers, which is heavy. Defer until first
+    real use - keeps `from price_predictor.prediction import grade_one`
+    fast for callers who only want the pure function.
+    """
+    from price_predictor.data.prices import fetch_ohlcv
+
+    def _wrapped(ticker: str, start: date, end: date) -> pd.DataFrame:
+        return fetch_ohlcv(ticker, start, end)
+
+    return _wrapped
+
+
+def grade_many(
+    predictions: list[Prediction],
+    *,
+    fetch_ohlcv: FetchOHLCV | None = None,
+    today: date | None = None,
+) -> list[GradedPrediction]:
+    """Grade many predictions by fetching post-prediction OHLCV.
+
+    Args:
+        predictions:   List of Predictions to grade. Order preserved
+                       in the output.
+        fetch_ohlcv:   Optional fetcher. Defaults to data.prices.fetch_ohlcv.
+                       Tests inject a fake to avoid network.
+        today:         Optional 'as-of-now' date. Defaults to date.today().
+                       Predictions whose horizon hasn't fully elapsed yet
+                       still get graded (with whatever bars are available)
+                       but may end up EXPIRED with partial data. Tests use
+                       this to freeze 'now' deterministically.
+
+    Returns:
+        list[GradedPrediction] in the same order as inputs. Predictions
+        whose fetch fails get an INCONCLUSIVE GradedPrediction so the
+        caller can still render results without losing position
+        information in the list.
+
+    Why sync, not async?
+        fetch_ohlcv has its own provider-chain caching + retries. Most
+        users grade a few-hundred predictions at a time. Async adds
+        complexity for marginal speedup; YAGNI for now. If grading
+        thousands of predictions becomes a thing, swap to asyncio.gather
+        with a TaskGroup - same signature.
+    """
+    if today is None:
+        today = date.today()
+    if fetch_ohlcv is None:
+        fetch_ohlcv = _default_fetch_ohlcv()
+
+    out: list[GradedPrediction] = []
+    for pred in predictions:
+        pred_date = pred.as_of.date()
+        # Day AFTER the prediction is the first bar that can grade it.
+        # (Prediction's own day is what made the prediction; using it
+        # would be lookahead bias.)
+        fetch_start = pred_date + timedelta(days=1)
+        fetch_end = min(_fetch_window_end(pred_date, pred.horizon), today)
+
+        # Edge case: no time has elapsed since prediction. Can't grade.
+        if fetch_end < fetch_start:
+            logger.debug(
+                f"[grade_many] {pred.ticker}: no elapsed days yet "
+                f"(pred={pred_date}, today={today}); marking INCONCLUSIVE"
+            )
+            out.append(_inconclusive(pred))
+            continue
+
+        try:
+            bars = fetch_ohlcv(pred.ticker, fetch_start, fetch_end)
+        except Exception as e:
+            # Don't kill the batch over one bad fetch. Log + mark inconclusive
+            # so the position in the output list is preserved.
+            logger.warning(
+                f"[grade_many] {pred.ticker}: fetch failed ({type(e).__name__}: {e}); "
+                f"marking INCONCLUSIVE"
+            )
+            out.append(_inconclusive(pred))
+            continue
+
+        out.append(grade_one(pred, bars))
+
+    return out
+
+
+def _inconclusive(pred: Prediction) -> GradedPrediction:
+    """Build the canonical INCONCLUSIVE result. Used when fetch fails."""
+    return GradedPrediction(
+        prediction=pred,
+        outcome=GradeOutcome.INCONCLUSIVE,
+        realized_return=0.0,
+        direction_correct=None,
+        days_to_resolution=None,
+        bars_examined=0,
+        close_at_window_end=None,
     )
