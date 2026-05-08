@@ -13,6 +13,7 @@ dependencies = [
     "litellm>=1.83.0",
     "loguru>=0.7.3",
     "pandas>=2.3.3",
+    "pandas-market-calendars>=5.3.2",
     "pandas-ta>=0.4.71b0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.6.0",
