@@ -141,21 +141,23 @@ class TestRenderers:
 class TestPredictCommand:
     @patch("price_predictor.cli.main._predict", new_callable=AsyncMock)
     def test_happy_path(self, mock_predict, runner):
-        mock_predict.return_value = _make_pred()
+        # CLI now wraps the single horizon in a list before calling
+        # predict(), and predict() returns dict[Horizon, Prediction].
+        mock_predict.return_value = {PredictionHorizon.WEEKLY: _make_pred()}
         result = runner.invoke(app, ["predict", "RELIANCE.NS"])
         assert result.exit_code == 0, result.output
         assert "RELIANCE.NS" in result.output
         assert "BULLISH" in result.output
-        # Default horizon = short
+        # Default horizon = weekly, wrapped in a list of enum.
         mock_predict.assert_awaited_once()
-        assert mock_predict.call_args.args == ("RELIANCE.NS", "weekly")
+        assert mock_predict.call_args.args == ("RELIANCE.NS", [PredictionHorizon.WEEKLY])
 
     @patch("price_predictor.cli.main._predict", new_callable=AsyncMock)
     def test_horizon_flag(self, mock_predict, runner):
-        mock_predict.return_value = _make_pred()
+        mock_predict.return_value = {PredictionHorizon.BIWEEKLY: _make_pred()}
         result = runner.invoke(app, ["predict", "AAPL", "--horizon", "biweekly"])
         assert result.exit_code == 0, result.output
-        assert mock_predict.call_args.args == ("AAPL", "biweekly")
+        assert mock_predict.call_args.args == ("AAPL", [PredictionHorizon.BIWEEKLY])
 
     @patch("price_predictor.cli.main._predict", new_callable=AsyncMock)
     def test_failure_exits_nonzero(self, mock_predict, runner):
@@ -168,7 +170,7 @@ class TestPredictCommand:
     def test_save_flag_writes_to_store(
         self, mock_predict, runner, isolated_store,
     ):
-        mock_predict.return_value = _make_pred()
+        mock_predict.return_value = {PredictionHorizon.WEEKLY: _make_pred()}
         result = runner.invoke(app, ["predict", "RELIANCE.NS", "--save"])
         assert result.exit_code == 0, result.output
         # Verify a file landed in the isolated store

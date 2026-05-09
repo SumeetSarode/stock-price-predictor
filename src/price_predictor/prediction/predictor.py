@@ -1,38 +1,46 @@
-"""predict() — the per-stock prediction orchestrator (Step 3.4.2 commit 4).
+"""predict() — the per-stock prediction orchestrator.
 
 THE BIG PICTURE
 ===============
 This module wires the gather and synthesis phases into one async function:
 
-    predict(ticker, horizon)
+    predict(ticker, horizons=DEFAULT_HORIZONS)
         |
-        +-- PHASE 1 (parallel via asyncio.gather):
+        +-- PHASE 1 (parallel via asyncio.gather, ONCE per call):
         |     compose_technical_view(ticker)      [Layer-1 cluster tools]
         |     run_news_impact_agent(ticker)       [Agent #1]
         |
-        +-- Bundle into SynthesisInput
+        +-- PHASE 2 (parallel fan-out across N horizons):
+        |     for each h in horizons:
+        |         build SynthesisInput(horizon=h, ...)
+        |         run_synthesizer_agent(si) + guardrails  [Agent #2 × N]
         |
-        +-- PHASE 2 (sequential, depends on gather):
-        |     run_synthesizer_agent(synthesis_input)  [Agent #2]
-        |
-        +-- return Prediction
+        +-- return dict[PredictionHorizon, Prediction]
+
+WHY GATHER ONCE, SYNTHESIZE N TIMES
+===================================
+Technical indicators (RSI, ATR, etc.) and news/filings are HORIZON-AGNOSTIC
+— the same evidence applies whether we're predicting daily or monthly.
+The horizon-specific reasoning happens at SYNTHESIS time, where the LLM
+weighs the same evidence against different time windows. Refetching prices
+or news per horizon would be pure waste.
 
 This is the FIRST place we invoke ADK agents programmatically (vs via
 `adk run` CLI). The agent-call helpers (`run_news_impact_agent`,
 `run_synthesizer_agent`) hide the Runner / SessionService / Event-stream
 plumbing behind a clean async function-call shape.
 
-DEGRADATION POLICY (commit 4 baseline; revisited in commit 5)
-=============================================================
-- Technical failure  -> raise PredictionError. Technicals are core; a
-                        prediction missing them is unreliable.
-- News failure       -> raise PredictionError. (Commit 5 will replace
-                        this with graceful degradation: log warning,
-                        substitute a 'neutral' ImpactAssessment, mark
-                        the Prediction's analysis_basis appropriately.)
-- Synthesizer failure -> bubble up. ADK already retries on schema
-                        violations; if it still fails, the caller
-                        needs to know.
+DEGRADATION POLICY
+==================
+- Technical failure   -> raise PredictionError. Technicals are core; a
+                         prediction missing them is unreliable.
+- News failure        -> degrade to neutral ImpactAssessment, mark
+                         analysis_basis fields, append degraded tag to
+                         model_chain. Predictions still produced.
+- Synthesizer failure -> raise PredictionError. Fail-fast across ALL
+                         horizons: a partial result (e.g. daily ok but
+                         weekly failed) breaks the daily+weekly UX
+                         contract and masks reliability problems.
 
 WHY THE AGENT HELPERS LIVE HERE (not in their agent packages)
 =============================================================
@@ -73,12 +81,22 @@ from price_predictor.prediction.guardrails import (
     validate_all,
 )
 from price_predictor.prediction.runner import USER_ID, get_runner, get_session_service
-from price_predictor.prediction.schema import Prediction
+from price_predictor.prediction.schema import (
+    DEFAULT_HORIZONS,
+    Prediction,
+    PredictionHorizon,
+)
+
+from collections.abc import Iterable
 
 # Horizon literal mirrors PredictionHorizon enum values. We accept the
 # raw string for ergonomic API; the synthesizer agent passes it through
 # to Prediction unchanged.
 Horizon = Literal["daily", "weekly", "biweekly", "monthly"]
+
+# Caller-friendly alias: anywhere we accept a horizon, accept either the
+# enum or the string (which gets normalized to the enum internally).
+HorizonLike = PredictionHorizon | Horizon
 
 # India Standard Time anchor for as_of. Same convention used elsewhere.
 from datetime import timedelta, timezone  # noqa: E402
@@ -305,40 +323,148 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
 # ─────────────────────────────────────────────────────────────
 # The public API: predict()
 # ─────────────────────────────────────────────────────────────
+def _normalize_horizons(
+    horizons: Iterable[HorizonLike] | None,
+) -> tuple[PredictionHorizon, ...]:
+    """Coerce the caller's horizons argument to a deduplicated enum tuple.
+
+    Accepts:
+      - None                           -> DEFAULT_HORIZONS
+      - PredictionHorizon enum members
+      - Raw strings ("daily" / "weekly" / "biweekly" / "monthly")
+      - Mixed iterables of either
+
+    Why dedupe: callers passing `["weekly", "weekly"]` (whether by
+    accident or by glueing together CLI args) shouldn't pay 2x synth
+    calls. We preserve first-occurrence order so output is stable.
+
+    Raises:
+        ValueError: empty input, or any element fails to coerce to enum.
+    """
+    if horizons is None:
+        return DEFAULT_HORIZONS
+
+    materialized = list(horizons)
+    if not materialized:
+        raise ValueError(
+            "horizons must be non-empty (pass None for DEFAULT_HORIZONS)"
+        )
+
+    out: list[PredictionHorizon] = []
+    seen: set[PredictionHorizon] = set()
+    for h in materialized:
+        try:
+            enum_val = PredictionHorizon(h) if not isinstance(h, PredictionHorizon) else h
+        except ValueError as e:
+            raise ValueError(
+                f"Unknown horizon {h!r}. "
+                f"Valid: {[m.value for m in PredictionHorizon]}"
+            ) from e
+        if enum_val not in seen:
+            seen.add(enum_val)
+            out.append(enum_val)
+    return tuple(out)
+
+
 async def predict(
     ticker: str,
-    horizon: Horizon = "weekly",
+    horizons: Iterable[HorizonLike] | None = None,
     *,
     sensitivity: Literal["standard", "sensitive", "smooth"] = "standard",
-) -> Prediction:
-    """Produce one Prediction for one stock.
+) -> dict[PredictionHorizon, Prediction]:
+    """Produce one Prediction per requested horizon for one stock.
 
-    GATHER PHASE: technicals + news in parallel.
-    SYNTHESIS PHASE: hand both to the synthesizer agent.
+    GATHER PHASE: technicals + news fetched ONCE (horizon-agnostic).
+    SYNTHESIS PHASE: N synthesizer calls in parallel, one per horizon.
+
+    The gather phase is shared across horizons because:
+      - Technical indicators (RSI, ATR, etc.) are computed from the SAME
+        OHLCV history regardless of prediction window.
+      - News + filings are inputs to ALL horizons; refetching per horizon
+        would be wasteful.
+      - The horizon-specific reasoning happens at SYNTHESIS time, where
+        the LLM weighs the same evidence against different time windows.
 
     Args:
         ticker: Stock symbol in any form ('reliance', 'RELIANCE.NS',
             'AAPL'). Resolved to canonical via the KB.
-        horizon: Prediction window. Default 'short' (1-5 trading days).
+        horizons: Iterable of PredictionHorizon enum values OR strings
+            ("daily"/"weekly"/etc). Defaults to DEFAULT_HORIZONS (all 4).
+            Duplicates are removed; first-occurrence order preserved.
         sensitivity: Indicator-cluster preset. Default 'standard'.
 
     Returns:
-        A validated Prediction.
+        dict[PredictionHorizon, Prediction] keyed by horizon enum, in
+        the order requested. ALL requested horizons present on success.
 
     Raises:
-        PredictionError: any phase failed in a way that makes the
-            prediction unreliable. Wraps the underlying cause.
+        PredictionError: gather phase failed, OR ANY horizon's synthesis
+            failed (fail-fast: partial results would mask reliability
+            problems and break the daily+weekly UX contract). Wraps the
+            underlying cause.
+        ValueError: empty/unknown horizons argument.
     """
+    horizon_tuple = _normalize_horizons(horizons)
     canonical = _resolve_ticker(ticker)
     as_of = datetime.now(IST)
+    horizon_labels = [h.value for h in horizon_tuple]
     logger.info(
-        f"predict() start: ticker={canonical} horizon={horizon} "
+        f"predict() start: ticker={canonical} horizons={horizon_labels} "
         f"sensitivity={sensitivity}"
     )
 
-    # ── PHASE 1: GATHER (parallel, with news degradation) ───
-    # return_exceptions=True so we can degrade news without losing
-    # technicals. Each result is checked individually below.
+    # ── PHASE 1: GATHER (parallel, horizon-agnostic) ───────────
+    technical_view, impact_assessment, news_degraded = await _gather_phase(
+        canonical, sensitivity
+    )
+
+    # ── PHASE 2: SYNTHESIZE per horizon (parallel fan-out) ─────
+    # All N synthesizer calls share the same gathered evidence; each
+    # gets its own SynthesisInput with a horizon-specific prompt slot.
+    initial_chain: tuple[str, ...] = (
+        (_NEWS_DEGRADED_TAG,) if news_degraded else (_NEWS_MODEL_TAG,)
+    )
+
+    async def _synth_one(h: PredictionHorizon) -> Prediction:
+        si = SynthesisInput(
+            ticker=canonical,
+            horizon=h.value,
+            as_of=as_of,
+            technical_view=technical_view,
+            impact_assessment=impact_assessment,
+            model_chain=initial_chain,
+        )
+        prediction = await synthesize_with_guardrails(si)
+        # Append synth tag here (single source of truth for audit trail).
+        return _finalize_prediction(prediction, news_degraded=news_degraded)
+
+    # asyncio.gather without return_exceptions: ANY horizon failing
+    # raises immediately. See docstring 'Raises' for rationale.
+    results = await asyncio.gather(*(_synth_one(h) for h in horizon_tuple))
+
+    out: dict[PredictionHorizon, Prediction] = dict(zip(horizon_tuple, results))
+
+    summary = ", ".join(
+        f"{h.value}={p.direction.value}@{p.confidence:.2f}"
+        for h, p in out.items()
+    )
+    logger.info(f"predict() done: ticker={canonical} {summary}")
+    return out
+
+
+async def _gather_phase(
+    canonical: str,
+    sensitivity: Literal["standard", "sensitive", "smooth"],
+) -> tuple[TechnicalView, ImpactAssessment, bool]:
+    """Run the gather phase (technicals + news) once for all horizons.
+
+    Extracted from the old predict() body so the public function reads
+    as a clean two-phase orchestration. Returns:
+      (technical_view, impact_assessment, news_degraded_flag)
+
+    Raises:
+        PredictionError: technicals failed (core, non-degradable).
+    """
     technical_task = compose_technical_view(canonical, sensitivity=sensitivity)
     news_task = run_news_impact_agent(canonical)
     technical_result, news_result = await asyncio.gather(
@@ -351,7 +477,7 @@ async def predict(
             raise PredictionError(
                 f"Technical analysis failed for {canonical}: {technical_result}"
             ) from technical_result
-        # Unexpected exception - propagate as-is so we don't swallow bugs.
+        # Unexpected exception - propagate so we don't swallow bugs.
         raise technical_result
     technical_view = technical_result
 
@@ -376,38 +502,26 @@ async def predict(
         f"impact sentiment={impact_assessment.sentiment} "
         f"confidence={impact_assessment.confidence:.2f}"
     )
+    return technical_view, impact_assessment, news_degraded
 
-    # ── Bundle ─────────────────────────────────
-    # Audit trail: append degraded marker if news fell back, so
-    # consumers reading model_chain can see at a glance.
-    initial_chain: tuple[str, ...] = (
-        (_NEWS_DEGRADED_TAG,) if news_degraded else (_NEWS_MODEL_TAG,)
-    )
-    synthesis_input = SynthesisInput(
-        ticker=canonical,
-        horizon=horizon,
-        as_of=as_of,
-        technical_view=technical_view,
-        impact_assessment=impact_assessment,
-        # Synthesizer's prompt copies this verbatim; we append synth
-        # tag after the Prediction comes back.
-        model_chain=initial_chain,
-    )
 
-    # ── PHASE 2: SYNTHESIZE (with hallucination guardrails) ──
-    prediction = await synthesize_with_guardrails(synthesis_input)
+def _finalize_prediction(
+    prediction: Prediction, *, news_degraded: bool
+) -> Prediction:
+    """Append synth tag to model_chain; null-out news fields if degraded.
 
-    # The synthesizer's prompt instructs it to copy model_chain verbatim
-    # from the input. We append the synthesizer tag AFTER the call by
-    # constructing a new Prediction (frozen models) - this guarantees
-    # the audit trail reflects reality regardless of LLM compliance.
+    The synthesizer's prompt instructs it to copy model_chain verbatim
+    from the input. We append the synthesizer tag AFTER the call by
+    constructing a new Prediction (frozen models) - this guarantees the
+    audit trail reflects reality regardless of LLM compliance.
+
+    When news was degraded, force analysis_basis to reflect that:
+    consumers should see news_articles_considered=0 and
+    news_sentiment_score=None regardless of what the LLM put there.
+    """
     final = prediction.model_copy(
         update={"model_chain": (*prediction.model_chain, _SYNTH_MODEL_TAG)}
     )
-
-    # When news was degraded, force analysis_basis to reflect that:
-    # consumers of the Prediction should see news_articles_considered=0
-    # and news_sentiment_score=None regardless of what the LLM put there.
     if news_degraded:
         final = final.model_copy(
             update={
@@ -420,10 +534,4 @@ async def predict(
                 )
             }
         )
-
-    logger.info(
-        f"predict() done: ticker={canonical} direction={final.direction.value} "
-        f"confidence={final.confidence:.2f} target={final.target.value:.2f} "
-        f"stop={final.stop_loss.value:.2f}"
-    )
     return final

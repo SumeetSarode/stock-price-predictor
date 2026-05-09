@@ -62,6 +62,16 @@ def _make_pred(ticker: str = "RELIANCE.NS") -> Prediction:
     )
 
 
+def _ok_dict(ticker: str, horizons: list, *_a, **_k) -> dict:
+    """Mock side_effect: predict() now returns dict[Horizon, Prediction].
+
+    batch.py wraps the caller's `horizon` arg in a single-element list
+    before calling predict(), so mocks need to key the returned dict
+    on horizons[0] to match what batch.py will look up.
+    """
+    return {horizons[0]: _make_pred(ticker)}
+
+
 # ─────────────────────────────────────────────────────────────
 # Input validation
 # ─────────────────────────────────────────────────────────────
@@ -87,8 +97,9 @@ class TestHappyPath:
            new_callable=AsyncMock)
     def test_all_succeed_returns_predictions(self, mock_predict):
         # Each call returns a Prediction tagged with the ticker it
-        # received, so we can assert order.
-        mock_predict.side_effect = lambda t, *a, **k: _make_pred(t)
+        # received, so we can assert order. Mock returns a dict because
+        # batch.py now unwraps predict()'s dict[Horizon, Prediction].
+        mock_predict.side_effect = _ok_dict
 
         results = asyncio.run(predict_many(["A", "B", "C"]))
 
@@ -99,14 +110,16 @@ class TestHappyPath:
     @patch("price_predictor.prediction.batch.predict",
            new_callable=AsyncMock)
     def test_horizon_and_sensitivity_forwarded(self, mock_predict):
-        mock_predict.return_value = _make_pred()
+        mock_predict.return_value = {PredictionHorizon.BIWEEKLY: _make_pred()}
         asyncio.run(predict_many(
             ["A"], horizon="biweekly", sensitivity="sensitive",
         ))
-        # Verify predict() got the right kwargs
+        # Verify predict() got the right kwargs. batch.py now wraps the
+        # caller's horizon string into a [PredictionHorizon enum] list
+        # before forwarding.
         call = mock_predict.call_args_list[0]
         assert call.args[0] == "A"
-        assert call.args[1] == "biweekly"
+        assert call.args[1] == [PredictionHorizon.BIWEEKLY]
         assert call.kwargs["sensitivity"] == "sensitive"
 
 
@@ -118,10 +131,10 @@ class TestPartialFailure:
            new_callable=AsyncMock)
     def test_one_failure_other_succeed(self, mock_predict):
         # Middle ticker fails, others succeed.
-        def _side(ticker, *a, **k):
+        def _side(ticker, horizons, *a, **k):
             if ticker == "BAD":
                 raise PredictionError(f"{ticker} blew up")
-            return _make_pred(ticker)
+            return {horizons[0]: _make_pred(ticker)}
         mock_predict.side_effect = _side
 
         results = asyncio.run(predict_many(["A", "BAD", "C"]))
@@ -166,14 +179,14 @@ class TestConcurrency:
         in_flight = 0
         max_seen = 0
 
-        async def _slow_predict(ticker, *a, **k):
+        async def _slow_predict(ticker, horizons, *a, **k):
             nonlocal in_flight, max_seen
             in_flight += 1
             max_seen = max(max_seen, in_flight)
             # Yield to scheduler so other tasks can also enter
             await asyncio.sleep(0.01)
             in_flight -= 1
-            return _make_pred(ticker)
+            return {horizons[0]: _make_pred(ticker)}
         mock_predict.side_effect = _slow_predict
 
         # 10 tickers with cap=2 - max in-flight should never exceed 2.
@@ -186,7 +199,7 @@ class TestConcurrency:
            new_callable=AsyncMock)
     def test_concurrency_higher_than_tickers_is_fine(self, mock_predict):
         # cap=10 with 3 tickers - just runs all in parallel
-        mock_predict.side_effect = lambda t, *a, **k: _make_pred(t)
+        mock_predict.side_effect = _ok_dict
         results = asyncio.run(predict_many(["A", "B", "C"], concurrency=10))
         assert len(results) == 3
 
@@ -198,7 +211,7 @@ class TestDeduplication:
     @patch("price_predictor.prediction.batch.predict",
            new_callable=AsyncMock)
     def test_duplicates_called_once(self, mock_predict):
-        mock_predict.side_effect = lambda t, *a, **k: _make_pred(t)
+        mock_predict.side_effect = _ok_dict
         results = asyncio.run(predict_many(["A", "B", "A", "B", "A"]))
         assert len(results) == 2
         assert mock_predict.await_count == 2
@@ -207,7 +220,7 @@ class TestDeduplication:
     @patch("price_predictor.prediction.batch.predict",
            new_callable=AsyncMock)
     def test_dedup_preserves_first_occurrence_order(self, mock_predict):
-        mock_predict.side_effect = lambda t, *a, **k: _make_pred(t)
+        mock_predict.side_effect = _ok_dict
         # 'C' appears first at index 1, before 'A' at index 2.
         results = asyncio.run(predict_many(["B", "C", "A", "C", "B"]))
         assert [r.ticker for r in results] == ["B", "C", "A"]

@@ -105,6 +105,22 @@ class PredictionHorizon(str, Enum):
     MONTHLY  = "monthly"
 
 
+# Default horizon set for `predict()` when caller doesn't specify one.
+# Per project description §10: every prediction call returns BOTH daily
+# and weekly side-by-side so users can pick their trading style. Biweekly
+# and monthly are included in the default to cover the swing-trader and
+# positional-trader use cases without requiring a separate call.
+#
+# The order matters — it determines the rendering order in the CLI
+# (daily on top, monthly on bottom). Don't reorder casually.
+DEFAULT_HORIZONS: tuple[PredictionHorizon, ...] = (
+    PredictionHorizon.DAILY,
+    PredictionHorizon.WEEKLY,
+    PredictionHorizon.BIWEEKLY,
+    PredictionHorizon.MONTHLY,
+)
+
+
 # ─────────────────────────────────────────────────────────────
 # Reusable typed level (entry / target / stop)
 # ─────────────────────────────────────────────────────────────

@@ -49,6 +49,25 @@ from price_predictor.prediction.schema import (
 # ─────────────────────────────────────────────────────────────
 # Fixtures
 # ─────────────────────────────────────────────────────────────
+
+# Single-horizon shortcut for legacy single-prediction tests. New
+# multi-horizon tests should call predict() directly and inspect the
+# returned dict. Keeps existing assertions terse without polluting
+# production code with a deprecated 1-prediction return shape.
+_LEGACY_TEST_HORIZON = PredictionHorizon.WEEKLY
+
+
+def _run_predict_one(*args, **kwargs) -> Prediction:
+    """Run predict() and unwrap the dict to a single Prediction.
+
+    Defaults to a single-horizon call (`[WEEKLY]`) so mocks can use
+    `assert_awaited_once()` semantics. Pass an explicit `horizons=`
+    kwarg to override.
+    """
+    horizons = kwargs.pop("horizons", [_LEGACY_TEST_HORIZON])
+    result_dict = asyncio.run(predict(*args, horizons=horizons, **kwargs))
+    return result_dict[_LEGACY_TEST_HORIZON]
+
 def _build_uptrend_df(n: int = 400) -> pd.DataFrame:
     closes = np.linspace(100, 200, n)
     dates = pd.date_range("2024-01-01", periods=n, freq="D", tz="Asia/Kolkata")
@@ -177,7 +196,7 @@ class TestPredictHappyPath:
         mock_news.return_value = _sample_impact()
         mock_synth.return_value = _sample_prediction()
 
-        result = asyncio.run(predict("RELIANCE.NS"))
+        result = _run_predict_one("RELIANCE.NS")
         assert isinstance(result, Prediction)
         assert result.ticker == "RELIANCE.NS"
         assert result.direction == PredictionDirection.BULLISH
@@ -190,7 +209,7 @@ class TestPredictHappyPath:
         mock_news.return_value = _sample_impact()
         mock_synth.return_value = _sample_prediction()
 
-        asyncio.run(predict("RELIANCE.NS"))
+        _run_predict_one("RELIANCE.NS")
         mock_news.assert_awaited_once_with("RELIANCE.NS")
         mock_synth.assert_awaited_once()
         # Synthesizer received a SynthesisInput
@@ -209,7 +228,7 @@ class TestPredictHappyPath:
         mock_news.return_value = _sample_impact()
         mock_synth.return_value = _sample_prediction()
 
-        result = asyncio.run(predict("RELIANCE.NS"))
+        result = _run_predict_one("RELIANCE.NS")
         assert "synthesizer:agentic" in result.model_chain
         assert result.model_chain[-1] == "synthesizer:agentic"
 
@@ -222,7 +241,7 @@ class TestPredictHappyPath:
         mock_news.return_value = _sample_impact()
         mock_synth.return_value = _sample_prediction()
 
-        asyncio.run(predict("reliance"))
+        _run_predict_one("reliance")
         # Both agents see the canonical form
         mock_news.assert_awaited_once_with("RELIANCE.NS")
         si = mock_synth.call_args.args[0]
@@ -250,7 +269,7 @@ class TestPredictFailures:
         mock_synth.return_value = _sample_prediction()
 
         with pytest.raises(PredictionError, match="Technical analysis failed"):
-            asyncio.run(predict("RELIANCE.NS"))
+            _run_predict_one("RELIANCE.NS")
 
     @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
@@ -267,7 +286,7 @@ class TestPredictFailures:
         mock_news.side_effect = PredictionError("news_impact failed")
         mock_synth.return_value = _sample_prediction()
 
-        result = asyncio.run(predict("RELIANCE.NS"))
+        result = _run_predict_one("RELIANCE.NS")
         assert isinstance(result, Prediction)
 
         # Synthesizer was called - confirm with degraded assessment.
@@ -289,7 +308,7 @@ class TestPredictFailures:
         mock_news.side_effect = RuntimeError("GDELT timeout")
         mock_synth.return_value = _sample_prediction()
 
-        result = asyncio.run(predict("RELIANCE.NS"))
+        result = _run_predict_one("RELIANCE.NS")
         # Synthesizer's input had degraded marker; final still has
         # synthesizer tag appended after.
         assert "news_impact:degraded" in " ".join(
@@ -311,7 +330,7 @@ class TestPredictFailures:
         # this to be FORCED to 0 by the degradation override.
         mock_synth.return_value = _sample_prediction()
 
-        result = asyncio.run(predict("RELIANCE.NS"))
+        result = _run_predict_one("RELIANCE.NS")
         assert result.analysis_basis.news_articles_considered == 0
         assert result.analysis_basis.filings_considered == 0
         assert result.analysis_basis.news_sentiment_score is None
@@ -327,8 +346,198 @@ class TestPredictFailures:
         mock_synth.side_effect = PredictionError("synth bad json")
 
         with pytest.raises(PredictionError, match="synth bad json"):
-            asyncio.run(predict("RELIANCE.NS"))
+            _run_predict_one("RELIANCE.NS")
 
     def test_empty_ticker_raises(self):
         with pytest.raises(ValueError, match="non-empty"):
-            asyncio.run(predict(""))
+            _run_predict_one("")
+
+
+# ─────────────────────────────────────────────────────────────
+# 4. Multi-horizon fan-out (commit 3 of multi-horizon refactor)
+# ─────────────────────────────────────────────────────────────
+class TestNormalizeHorizons:
+    """Pure unit tests for _normalize_horizons — no async, no mocks."""
+
+    def test_none_returns_default_horizons(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+        from price_predictor.prediction.schema import DEFAULT_HORIZONS
+
+        assert _normalize_horizons(None) == DEFAULT_HORIZONS
+
+    def test_accepts_enum_values(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+
+        result = _normalize_horizons([PredictionHorizon.DAILY, PredictionHorizon.MONTHLY])
+        assert result == (PredictionHorizon.DAILY, PredictionHorizon.MONTHLY)
+
+    def test_accepts_string_values(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+
+        result = _normalize_horizons(["daily", "weekly"])
+        assert result == (PredictionHorizon.DAILY, PredictionHorizon.WEEKLY)
+
+    def test_accepts_mixed_enum_and_strings(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+
+        result = _normalize_horizons(["daily", PredictionHorizon.WEEKLY, "monthly"])
+        assert result == (
+            PredictionHorizon.DAILY,
+            PredictionHorizon.WEEKLY,
+            PredictionHorizon.MONTHLY,
+        )
+
+    def test_dedupes_preserving_first_occurrence(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+
+        result = _normalize_horizons(["weekly", "daily", "weekly", "daily"])
+        assert result == (PredictionHorizon.WEEKLY, PredictionHorizon.DAILY)
+
+    def test_empty_list_raises(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+
+        with pytest.raises(ValueError, match="non-empty"):
+            _normalize_horizons([])
+
+    def test_unknown_string_raises(self):
+        from price_predictor.prediction.predictor import _normalize_horizons
+
+        with pytest.raises(ValueError, match="Unknown horizon"):
+            _normalize_horizons(["yearly"])
+
+
+class TestPredictMultiHorizon:
+    """End-to-end fan-out behavior with mocked agents."""
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_default_returns_all_four_horizons(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """predict() with no horizons argument fans out to DEFAULT_HORIZONS."""
+        from price_predictor.prediction.schema import DEFAULT_HORIZONS
+
+        mock_news.return_value = _sample_impact()
+        mock_synth.return_value = _sample_prediction()
+
+        result = asyncio.run(predict("RELIANCE.NS"))
+
+        assert isinstance(result, dict)
+        assert set(result.keys()) == set(DEFAULT_HORIZONS)
+        # Synth called once per horizon (4×); news called ONCE (shared).
+        assert mock_synth.await_count == len(DEFAULT_HORIZONS)
+        mock_news.assert_awaited_once_with("RELIANCE.NS")
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_explicit_horizons_subset(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Caller can request a subset of horizons."""
+        mock_news.return_value = _sample_impact()
+        mock_synth.return_value = _sample_prediction()
+
+        result = asyncio.run(predict(
+            "RELIANCE.NS",
+            [PredictionHorizon.DAILY, PredictionHorizon.MONTHLY],
+        ))
+
+        assert set(result.keys()) == {PredictionHorizon.DAILY, PredictionHorizon.MONTHLY}
+        assert mock_synth.await_count == 2
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_each_synth_input_carries_correct_horizon(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Each parallel synthesis call gets its OWN horizon in SynthesisInput."""
+        mock_news.return_value = _sample_impact()
+        mock_synth.return_value = _sample_prediction()
+
+        horizons = [PredictionHorizon.DAILY, PredictionHorizon.WEEKLY, PredictionHorizon.MONTHLY]
+        asyncio.run(predict("RELIANCE.NS", horizons))
+
+        # Collect horizon values from each synth call's SynthesisInput.
+        seen = {call.args[0].horizon for call in mock_synth.call_args_list}
+        assert seen == {h.value for h in horizons}
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_partial_synth_failure_aborts_whole_predict(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """If ANY horizon's synth fails, the entire predict() raises.
+
+        Fail-fast contract: the daily+weekly UX promise breaks if we
+        return partial dicts. Caller wants either all-or-none.
+        """
+        mock_news.return_value = _sample_impact()
+
+        call_count = {"n": 0}
+        async def _synth_side(*args, **kwargs):
+            call_count["n"] += 1
+            # Second call fails; first/third would succeed.
+            if call_count["n"] == 2:
+                raise PredictionError("synth bombed on horizon #2")
+            return _sample_prediction()
+        mock_synth.side_effect = _synth_side
+
+        with pytest.raises(PredictionError, match="synth bombed"):
+            asyncio.run(predict(
+                "RELIANCE.NS",
+                [PredictionHorizon.DAILY, PredictionHorizon.WEEKLY, PredictionHorizon.MONTHLY],
+            ))
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_gather_phase_runs_once_for_all_horizons(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Technicals + news fetched ONCE even when N horizons requested.
+
+        This is the whole point of the fan-out design: don't waste
+        compute or rate limits refetching horizon-agnostic evidence.
+        """
+        mock_news.return_value = _sample_impact()
+        mock_synth.return_value = _sample_prediction()
+
+        asyncio.run(predict(
+            "RELIANCE.NS",
+            list(PredictionHorizon),  # all 4
+        ))
+
+        # News agent called exactly once (gather phase is shared).
+        assert mock_news.await_count == 1
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_string_horizons_work_too(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Ergonomics: caller can pass raw strings; enum is internal."""
+        mock_news.return_value = _sample_impact()
+        mock_synth.return_value = _sample_prediction()
+
+        result = asyncio.run(predict("RELIANCE.NS", ["daily", "weekly"]))
+
+        assert set(result.keys()) == {PredictionHorizon.DAILY, PredictionHorizon.WEEKLY}
+
+    def test_empty_horizons_list_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            asyncio.run(predict("RELIANCE.NS", []))
+
+    def test_unknown_horizon_raises(self):
+        with pytest.raises(ValueError, match="Unknown horizon"):
+            asyncio.run(predict("RELIANCE.NS", ["yearly"]))

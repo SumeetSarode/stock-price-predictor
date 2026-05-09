@@ -29,7 +29,7 @@ import os
 import pytest
 
 from price_predictor.prediction import Prediction, predict
-from price_predictor.prediction.schema import PredictionDirection
+from price_predictor.prediction.schema import PredictionDirection, PredictionHorizon
 
 
 # Skip if any required key is missing — surfaces a useful message instead
@@ -58,7 +58,8 @@ async def test_predict_real_end_to_end():
     levels in the right relative order). Does NOT assert specific values
     because real markets move and LLMs vary; we'd be flaky.
     """
-    result = await predict(_TICKER, horizon="weekly")
+    result_dict = await predict(_TICKER, [PredictionHorizon.WEEKLY])
+    result = result_dict[PredictionHorizon.WEEKLY]
 
     # Type + identity
     assert isinstance(result, Prediction)

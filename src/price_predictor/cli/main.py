@@ -195,9 +195,19 @@ def predict_one(
         help=f"Save to {settings.predictions_dir}",
     ),
 ) -> None:
-    """Predict a single ticker. Exit 1 on failure."""
+    """Predict a single ticker. Exit 1 on failure.
+
+    Single-horizon view. Multi-horizon (--horizons plural) lands in the
+    CLI refactor commit; this wrapper extracts the lone Prediction from
+    the dict that predict() now returns.
+    """
     try:
-        result = asyncio.run(_predict(ticker, horizon, sensitivity=sensitivity))  # type: ignore[arg-type]
+        from price_predictor.prediction.schema import PredictionHorizon
+        h_enum = PredictionHorizon(horizon)
+        result_dict = asyncio.run(
+            _predict(ticker, [h_enum], sensitivity=sensitivity)  # type: ignore[arg-type]
+        )
+        result = result_dict[h_enum]
     except PredictionError as e:
         console.print(f"[red]Prediction failed:[/red] {e}")
         sys.exit(1)

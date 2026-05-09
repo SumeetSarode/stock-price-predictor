@@ -44,7 +44,7 @@ from typing import Literal, Union
 from loguru import logger
 
 from price_predictor.prediction.predictor import predict
-from price_predictor.prediction.schema import Prediction
+from price_predictor.prediction.schema import Prediction, PredictionHorizon
 
 # Re-export for callers (avoids them needing two imports).
 Horizon = Literal["daily", "weekly", "biweekly", "monthly"]
@@ -133,12 +133,18 @@ async def predict_many(
         in one task doesn't propagate up and cancel sibling tasks. The
         caller can still find the interrupt in the returned BatchError
         and re-raise it explicitly if they want.
+
+        predict() now returns dict[PredictionHorizon, Prediction]; we
+        unwrap to a single Prediction here for backward compatibility.
+        Multi-horizon batch output is deferred to commit 6 (CLI refactor).
         """
         async with sem:
             try:
-                return await predict(
-                    ticker, horizon, sensitivity=sensitivity,
+                horizon_enum = PredictionHorizon(horizon)
+                results = await predict(
+                    ticker, [horizon_enum], sensitivity=sensitivity,
                 )
+                return results[horizon_enum]
             except BaseException as exc:  # noqa: BLE001 - intentional broad catch
                 logger.warning(
                     f"predict_many: {ticker} failed - "
