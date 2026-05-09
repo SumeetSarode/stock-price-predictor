@@ -19,6 +19,14 @@ APPROACH
 ========
 - Use scipy.signal.find_peaks for swing point detection.
 - Geometric checks for each pattern (symmetry, neckline angle, etc.).
+
+CANONICAL THRESHOLDS
+====================
+Geometric tolerances follow Lo, Mamaysky, Wang (2000), "Foundations of
+Technical Analysis", Journal of Finance 55(4), NBER WP #7613, Sec. II.A,
+Definitions 1-5. The 22-trading-day double-top separation is from
+Edwards & Magee (1966), "Technical Analysis of Stock Trends", 5th Ed.,
+cited by LMW. See docs/research/constants_dossier.md.
 """
 from __future__ import annotations
 
@@ -30,6 +38,20 @@ from scipy.signal import find_peaks
 
 # Confidence threshold below which patterns are NOT surfaced
 DEFAULT_CONFIDENCE_THRESHOLD = 0.7
+
+# LMW (2000) academic-standard tolerances for chart-pattern geometry.
+# Tightened from earlier looser values (5% / 3%) to match the Journal of
+# Finance reference implementation.
+_HS_SHOULDER_TOLERANCE = 0.015        # LMW Def 1: E1, E5 within 1.5% of avg
+_HS_NECKLINE_TOLERANCE = 0.015        # LMW Def 1: E2, E4 within 1.5% of avg
+_DOUBLE_TOP_PEAK_TOLERANCE = 0.015    # LMW Def 5: two tops within 1.5% of avg
+_DOUBLE_TOP_MIN_SEPARATION_BARS = 22  # Edwards & Magee (1966), via LMW Def 5
+
+# LMW Def 4 (Rectangle): pivot prices on a "flat" trendline must lie within
+# 0.75% of their average. We reuse this for ascending/descending triangle's
+# horizontal line — it's the same geometric construct (a horizontal
+# resistance or support).
+_FLAT_LINE_SPREAD_TOLERANCE = 0.0075
 
 
 @dataclass
@@ -64,8 +86,12 @@ def _find_swing_lows(df: pd.DataFrame, distance: int = 5) -> np.ndarray:
     return peaks
 
 
-def _similarity_score(a: float, b: float, tolerance: float = 0.03) -> float:
-    """1.0 if a == b, decreasing linearly to 0 at `tolerance` relative diff."""
+def _similarity_score(a: float, b: float, tolerance: float = 0.015) -> float:
+    """1.0 if a == b, decreasing linearly to 0 at `tolerance` relative diff.
+
+    Default 1.5% matches LMW (2000) chart pattern definitions. Callers may
+    pass a different tolerance for non-LMW use cases (e.g., depth filters).
+    """
     if a == 0:
         return 0.0
     diff_pct = abs(a - b) / abs(a)
@@ -78,13 +104,22 @@ def _similarity_score(a: float, b: float, tolerance: float = 0.03) -> float:
 
 
 def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
-    """Two consecutive swing highs at similar price, separated by a trough."""
+    """Two consecutive swing highs at similar price, separated by a trough.
+
+    Implements LMW (2000) Definition 5: two tops within 1.5% of their
+    average, separated by at least 22 trading days (Edwards & Magee 1966).
+    """
     highs = _find_swing_highs(df)
     if len(highs) < 2:
         return None
 
     # Use the two most recent swing highs
     h1_idx, h2_idx = highs[-2], highs[-1]
+
+    # LMW Def 5 / Edwards & Magee: tops must be at least ~1 month apart
+    if (h2_idx - h1_idx) < _DOUBLE_TOP_MIN_SEPARATION_BARS:
+        return None
+
     h1, h2 = df.iloc[h1_idx]["high"], df.iloc[h2_idx]["high"]
 
     # Need a trough between them
@@ -94,7 +129,7 @@ def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
     trough = float(between["low"].min())
 
     # Confidence: how similar are the peaks, and how deep is the trough
-    peak_similarity = _similarity_score(h1, h2, tolerance=0.03)
+    peak_similarity = _similarity_score(h1, h2, tolerance=_DOUBLE_TOP_PEAK_TOLERANCE)
     if peak_similarity == 0:
         return None
     avg_peak = (h1 + h2) / 2
@@ -117,11 +152,16 @@ def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
 
 
 def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
-    """Mirror of double top."""
+    """Mirror of double top. See detect_double_top for citations."""
     lows = _find_swing_lows(df)
     if len(lows) < 2:
         return None
     l1_idx, l2_idx = lows[-2], lows[-1]
+
+    # LMW Def 5 / Edwards & Magee: bottoms must be at least ~1 month apart
+    if (l2_idx - l1_idx) < _DOUBLE_TOP_MIN_SEPARATION_BARS:
+        return None
+
     l1, l2 = df.iloc[l1_idx]["low"], df.iloc[l2_idx]["low"]
 
     between = df.iloc[l1_idx + 1:l2_idx]
@@ -129,7 +169,7 @@ def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
         return None
     peak = float(between["high"].max())
 
-    trough_similarity = _similarity_score(l1, l2, tolerance=0.03)
+    trough_similarity = _similarity_score(l1, l2, tolerance=_DOUBLE_TOP_PEAK_TOLERANCE)
     if trough_similarity == 0:
         return None
     avg_trough = (l1 + l2) / 2
@@ -156,7 +196,11 @@ def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
 
 def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
     """Three consecutive swing highs: middle (head) is tallest, two shoulders
-    are shorter and roughly equal."""
+    are shorter and roughly equal.
+
+    Implements LMW (2000) Definition 1: shoulders (E1, E5) within 1.5% of
+    their average AND neckline troughs (E2, E4) within 1.5% of theirs.
+    """
     highs = _find_swing_highs(df)
     if len(highs) < 3:
         return None
@@ -169,7 +213,7 @@ def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
 
     if not (head > s1 and head > s2):
         return None
-    shoulder_similarity = _similarity_score(s1, s2, tolerance=0.05)
+    shoulder_similarity = _similarity_score(s1, s2, tolerance=_HS_SHOULDER_TOLERANCE)
     if shoulder_similarity == 0:
         return None
 
@@ -181,9 +225,19 @@ def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
     # Neckline = average of the two troughs between (s1, head) and (head, s2)
     trough1 = float(df.iloc[s1_idx + 1:h_idx]["low"].min())
     trough2 = float(df.iloc[h_idx + 1:s2_idx]["low"].min())
+
+    # LMW Def 1: the two neckline troughs (E2, E4) must also be near-equal
+    neckline_similarity = _similarity_score(
+        trough1, trough2, tolerance=_HS_NECKLINE_TOLERANCE,
+    )
+    if neckline_similarity == 0:
+        return None
+
     neckline = (trough1 + trough2) / 2
 
-    confidence = round(shoulder_similarity * prominence_score, 2)
+    confidence = round(
+        shoulder_similarity * prominence_score * neckline_similarity, 2,
+    )
     if confidence < 0.3:
         return None
 
@@ -202,7 +256,11 @@ def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
 
 
 def detect_inverse_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
-    """Mirror: three swing lows with middle (head) lowest."""
+    """Mirror: three swing lows with middle (head) lowest.
+
+    Implements LMW (2000) Definition 1 (inverted): shoulders within 1.5%
+    of average AND neckline peaks within 1.5% of theirs.
+    """
     lows = _find_swing_lows(df)
     if len(lows) < 3:
         return None
@@ -215,7 +273,7 @@ def detect_inverse_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
 
     if not (head < s1 and head < s2):
         return None
-    shoulder_similarity = _similarity_score(s1, s2, tolerance=0.05)
+    shoulder_similarity = _similarity_score(s1, s2, tolerance=_HS_SHOULDER_TOLERANCE)
     if shoulder_similarity == 0:
         return None
 
@@ -225,9 +283,19 @@ def detect_inverse_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
 
     peak1 = float(df.iloc[s1_idx + 1:h_idx]["high"].max())
     peak2 = float(df.iloc[h_idx + 1:s2_idx]["high"].max())
+
+    # LMW Def 1 (inverted): the two neckline peaks must also be near-equal
+    neckline_similarity = _similarity_score(
+        peak1, peak2, tolerance=_HS_NECKLINE_TOLERANCE,
+    )
+    if neckline_similarity == 0:
+        return None
+
     neckline = (peak1 + peak2) / 2
 
-    confidence = round(shoulder_similarity * prominence_score, 2)
+    confidence = round(
+        shoulder_similarity * prominence_score * neckline_similarity, 2,
+    )
     if confidence < 0.3:
         return None
 
@@ -256,6 +324,22 @@ def _fit_line(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
     return float(slope), float(intercept)
 
 
+def _is_flat_line(prices: np.ndarray) -> bool:
+    """True if the pivot prices form a near-horizontal line.
+
+    LMW (2000) Def 4 (Rectangle): all pivot prices on a horizontal
+    trendline lie within 0.75% of their average. We reuse the same
+    rule for triangle's flat side detection.
+    """
+    if len(prices) < 2:
+        return True
+    avg = float(np.mean(prices))
+    if avg == 0:
+        return False
+    spread = float(np.max(prices) - np.min(prices))
+    return (spread / abs(avg)) <= _FLAT_LINE_SPREAD_TOLERANCE
+
+
 def detect_triangle(df: pd.DataFrame, min_pivots: int = 4) -> ChartPattern | None:
     """Detect ascending / descending / symmetric triangle from recent pivots.
 
@@ -282,28 +366,37 @@ def detect_triangle(df: pd.DataFrame, min_pivots: int = 4) -> ChartPattern | Non
         l_idx.astype(float), df.iloc[l_idx]["low"].values
     )
 
-    # Normalize slopes by mean price so threshold is unit-free
-    mean_price = float(df["close"].iloc[-len(df) // 4:].mean()) or 1.0
-    upper_norm = upper_slope / mean_price
-    lower_norm = lower_slope / mean_price
-
-    flat_threshold = 1e-4   # ~0.01% of price per bar = essentially flat
-    rising_threshold = 5e-4
+    # Classify each line as flat / rising / falling using LMW Def 4's
+    # 0.75% pivot-price-spread tolerance (instead of an unitless normalized
+    # slope hack). "Flat" means: max(prices) - min(prices) <= 0.75% of mean.
+    upper_prices = df.iloc[h_idx]["high"].values
+    lower_prices = df.iloc[l_idx]["low"].values
+    upper_flat = _is_flat_line(upper_prices)
+    lower_flat = _is_flat_line(lower_prices)
 
     name: str | None = None
-    if abs(upper_norm) < flat_threshold and lower_norm > rising_threshold:
+    if upper_flat and not lower_flat and lower_slope > 0:
         name = "ascending_triangle"
-    elif upper_norm < -rising_threshold and abs(lower_norm) < flat_threshold:
+    elif lower_flat and not upper_flat and upper_slope < 0:
         name = "descending_triangle"
-    elif upper_norm < -rising_threshold and lower_norm > rising_threshold:
+    elif (
+        not upper_flat
+        and not lower_flat
+        and upper_slope < 0
+        and lower_slope > 0
+    ):
         name = "symmetric_triangle"
     if name is None:
         return None
 
-    # Confidence: how cleanly the slopes match the pattern signature
+    # Confidence: how cleanly the slopes match the pattern signature.
+    # Use unit-free normalized slopes ONLY for the symmetry-bonus calculation
+    # — never as a classification threshold.
     confidence = 0.7  # base for matching the shape
     if name == "symmetric_triangle":
-        # Bonus if slopes are roughly symmetric in magnitude
+        mean_price = float(df["close"].iloc[-len(df) // 4:].mean()) or 1.0
+        upper_norm = upper_slope / mean_price
+        lower_norm = lower_slope / mean_price
         ratio = min(abs(upper_norm), abs(lower_norm)) / max(
             abs(upper_norm), abs(lower_norm)
         )
