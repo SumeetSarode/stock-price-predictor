@@ -78,7 +78,7 @@ from price_predictor.prediction.schema import Prediction
 # Horizon literal mirrors PredictionHorizon enum values. We accept the
 # raw string for ergonomic API; the synthesizer agent passes it through
 # to Prediction unchanged.
-Horizon = Literal["intraday", "short", "medium", "long"]
+Horizon = Literal["daily", "weekly", "biweekly", "monthly"]
 
 # India Standard Time anchor for as_of. Same convention used elsewhere.
 from datetime import timedelta, timezone  # noqa: E402
@@ -307,7 +307,7 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
 # ─────────────────────────────────────────────────────────────
 async def predict(
     ticker: str,
-    horizon: Horizon = "short",
+    horizon: Horizon = "weekly",
     *,
     sensitivity: Literal["standard", "sensitive", "smooth"] = "standard",
 ) -> Prediction:

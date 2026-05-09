@@ -43,7 +43,7 @@ from price_predictor.prediction.schema import (
 # ─────────────────────────────────────────────────────────────
 def _make_pred(
     direction: PredictionDirection = PredictionDirection.BULLISH,
-    horizon: PredictionHorizon = PredictionHorizon.SHORT,
+    horizon: PredictionHorizon = PredictionHorizon.WEEKLY,
     close: float = 100.0,
     target: float = 110.0,
     stop: float = 95.0,
@@ -101,10 +101,10 @@ class TestHorizonWindow:
     def test_longer_horizon_means_more_bars(self):
         # Sanity: monotonically increasing.
         assert (
-            horizon_window(PredictionHorizon.INTRADAY)
-            < horizon_window(PredictionHorizon.SHORT)
-            < horizon_window(PredictionHorizon.MEDIUM)
-            < horizon_window(PredictionHorizon.LONG)
+            horizon_window(PredictionHorizon.DAILY)
+            < horizon_window(PredictionHorizon.WEEKLY)
+            < horizon_window(PredictionHorizon.BIWEEKLY)
+            < horizon_window(PredictionHorizon.MONTHLY)
         )
 
 
@@ -317,7 +317,7 @@ class TestWindowSlicing:
         rows.extend([(115, 96, 113), (115, 96, 113), (115, 96, 113),
                      (115, 96, 113), (115, 96, 113)])  # 5 more: target hit
         bars = _make_bars(rows)
-        result = grade_one(_make_pred(horizon=PredictionHorizon.SHORT), bars)
+        result = grade_one(_make_pred(horizon=PredictionHorizon.WEEKLY), bars)
         assert result.outcome == GradeOutcome.EXPIRED
         assert result.bars_examined == 5  # only the in-window bars
 
@@ -326,7 +326,7 @@ class TestWindowSlicing:
             (105, 96, 100),   # day 1: nothing
             (115, 90, 110),   # day 2: would hit but outside intraday
         ])
-        result = grade_one(_make_pred(horizon=PredictionHorizon.INTRADAY), bars)
+        result = grade_one(_make_pred(horizon=PredictionHorizon.DAILY), bars)
         assert result.bars_examined == 1
         assert result.outcome == GradeOutcome.EXPIRED
 
@@ -398,7 +398,7 @@ class TestGradeMany:
 
     def test_fetch_window_capped_at_today(self):
         # Even if horizon would extend further, we can't fetch the future.
-        preds = [_make_pred(horizon=PredictionHorizon.LONG)]  # 60 trading days
+        preds = [_make_pred(horizon=PredictionHorizon.MONTHLY)]  # 60 trading days
         fetcher = self._stub_fetcher({"TEST.NS": _make_bars([(112, 99, 110)])})
         # 'today' is only 10 days after prediction
         today = date(2026, 5, 8)

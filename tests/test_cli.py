@@ -51,7 +51,7 @@ def _make_pred(
     return Prediction(
         ticker=ticker,
         as_of=datetime(2026, 4, 28, 10, 30, 45, tzinfo=ZoneInfo("Asia/Kolkata")),
-        horizon=PredictionHorizon.SHORT,
+        horizon=PredictionHorizon.WEEKLY,
         model_chain=("news_impact:agentic", "synthesizer:agentic"),
         direction=direction,
         confidence=0.7,
@@ -148,14 +148,14 @@ class TestPredictCommand:
         assert "BULLISH" in result.output
         # Default horizon = short
         mock_predict.assert_awaited_once()
-        assert mock_predict.call_args.args == ("RELIANCE.NS", "short")
+        assert mock_predict.call_args.args == ("RELIANCE.NS", "weekly")
 
     @patch("price_predictor.cli.main._predict", new_callable=AsyncMock)
     def test_horizon_flag(self, mock_predict, runner):
         mock_predict.return_value = _make_pred()
-        result = runner.invoke(app, ["predict", "AAPL", "--horizon", "medium"])
+        result = runner.invoke(app, ["predict", "AAPL", "--horizon", "biweekly"])
         assert result.exit_code == 0, result.output
-        assert mock_predict.call_args.args == ("AAPL", "medium")
+        assert mock_predict.call_args.args == ("AAPL", "biweekly")
 
     @patch("price_predictor.cli.main._predict", new_callable=AsyncMock)
     def test_failure_exits_nonzero(self, mock_predict, runner):
@@ -275,7 +275,7 @@ def _make_graded(
     realized_return: float = 0.05,
     confidence: float = 0.7,
     direction: PredictionDirection = PredictionDirection.BULLISH,
-    horizon: PredictionHorizon = PredictionHorizon.SHORT,
+    horizon: PredictionHorizon = PredictionHorizon.WEEKLY,
 ) -> GradedPrediction:
     pred = Prediction(
         ticker=ticker,
@@ -410,16 +410,16 @@ class TestCalibrationCommand:
         # Save 1 prediction (mocked grades override anyway)
         store.save(_make_graded().prediction)
         mock_grade.return_value = [
-            _make_graded(horizon=PredictionHorizon.SHORT),
-            _make_graded(horizon=PredictionHorizon.MEDIUM, outcome=GradeOutcome.STOP_HIT,
+            _make_graded(horizon=PredictionHorizon.WEEKLY),
+            _make_graded(horizon=PredictionHorizon.BIWEEKLY, outcome=GradeOutcome.STOP_HIT,
                          direction_correct=False, realized_return=-0.04),
         ]
 
         result = runner.invoke(app, ["calibration", "--by", "horizon"])
         assert result.exit_code == 0, result.output
         assert "breakdown by horizon" in result.output.lower()
-        assert "short" in result.output
-        assert "medium" in result.output
+        assert "weekly" in result.output
+        assert "biweekly" in result.output
 
     def test_invalid_by_axis_exits_nonzero(self, runner, isolated_store):
         result = runner.invoke(app, ["calibration", "--by", "banana"])

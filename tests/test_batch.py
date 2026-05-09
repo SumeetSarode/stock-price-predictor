@@ -41,7 +41,7 @@ def _make_pred(ticker: str = "RELIANCE.NS") -> Prediction:
     return Prediction(
         ticker=ticker,
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
-        horizon=PredictionHorizon.SHORT,
+        horizon=PredictionHorizon.WEEKLY,
         model_chain=("news_impact:agentic", "synthesizer:agentic"),
         direction=PredictionDirection.BULLISH,
         confidence=0.7,
@@ -101,12 +101,12 @@ class TestHappyPath:
     def test_horizon_and_sensitivity_forwarded(self, mock_predict):
         mock_predict.return_value = _make_pred()
         asyncio.run(predict_many(
-            ["A"], horizon="medium", sensitivity="sensitive",
+            ["A"], horizon="biweekly", sensitivity="sensitive",
         ))
         # Verify predict() got the right kwargs
         call = mock_predict.call_args_list[0]
         assert call.args[0] == "A"
-        assert call.args[1] == "medium"
+        assert call.args[1] == "biweekly"
         assert call.kwargs["sensitivity"] == "sensitive"
 
 

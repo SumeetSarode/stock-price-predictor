@@ -47,7 +47,7 @@ from price_predictor.prediction.predictor import predict
 from price_predictor.prediction.schema import Prediction
 
 # Re-export for callers (avoids them needing two imports).
-Horizon = Literal["intraday", "short", "medium", "long"]
+Horizon = Literal["daily", "weekly", "biweekly", "monthly"]
 Sensitivity = Literal["standard", "sensitive", "smooth"]
 
 
@@ -86,7 +86,7 @@ def _dedupe_preserving_order(items: list[str]) -> list[str]:
 
 async def predict_many(
     tickers: list[str],
-    horizon: Horizon = "short",
+    horizon: Horizon = "weekly",
     *,
     sensitivity: Sensitivity = "standard",
     concurrency: int = 3,

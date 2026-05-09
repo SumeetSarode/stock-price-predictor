@@ -51,7 +51,7 @@ INPUT
 You will receive ONE JSON object (a SynthesisInput) containing:
 
   ticker               — canonical yfinance symbol (e.g. "RELIANCE.NS")
-  horizon              — "intraday" | "short" | "medium" | "long"
+  horizon              — "daily" | "weekly" | "biweekly" | "monthly"
   as_of                — tz-aware ISO timestamp (cycle anchor)
   model_chain          — tuple of LLM names that already contributed
   technical_view       — bundled output of 4 indicator clusters:
@@ -84,14 +84,14 @@ will reject any deviation. Every field's value is derived as follows:
   confidence             ← float in [0, 1]; see calibration section
   entry_zone             ← (low, high) tuple of positive floats; anchor
                             to close_price with a small spread (e.g. ±0.5%
-                            for short horizons, wider for medium/long)
+                            for daily/weekly horizons, wider for biweekly/monthly)
   target                 ← {value, rationale}; use levels cluster's
                             swing_high / r1 / r2 (bullish) or swing_low
                             / s1 / s2 (bearish), or close_price ± k*ATR
                             where ATR comes from volatility.indicators
   stop_loss              ← {value, rationale}; use a real volatility-
                             scaled level (close_price ∓ ~1*ATR is a sane
-                            default; tighter for intraday, wider for long)
+                            default; tighter for daily, wider for monthly)
   rationale              ← multi-paragraph synthesis weaving technical
                             + news evidence; cite SPECIFIC values
                             (e.g. "RSI=68", "Q3 beat by 12%")
@@ -134,7 +134,7 @@ HARD RULES (the schema validator will reject violations)
 
 4. All prices must be positive floats with sensible precision (2-4
    decimals). NEVER emit prices that are wildly off close_price (more
-   than ±15% for short horizons, ±30% for long).
+   than ±15% for daily/weekly horizons, ±30% for monthly).
 
 5. rationale must be at least one sentence. contributing_signals and
    conflicting_signals are tuples (JSON arrays); each entry is a short
@@ -155,9 +155,9 @@ CONFIDENCE CALIBRATION (be honest, not optimistic)
               say so in the rationale.
 
 When technicals and news DISAGREE:
-  - For "intraday" / "short": lean technical (price action wins
+  - For "daily" / "weekly":    lean technical (price action wins
     near-term).
-  - For "medium" / "long":     lean news (catalysts dominate over
+  - For "biweekly" / "monthly": lean news (catalysts dominate over
     multi-week windows).
 
 ==============================================================

@@ -335,7 +335,7 @@ def _sample_synthesis_input(**overrides) -> SynthesisInput:
     """Builder for SynthesisInput tests — lets each test override 1 field."""
     defaults = dict(
         ticker="RELIANCE.NS",
-        horizon="short",
+        horizon="weekly",
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
         technical_view=_sample_view(),
         impact_assessment=_sample_impact_assessment(),
@@ -349,7 +349,7 @@ class TestSynthesisInput:
     def test_minimal_construction(self):
         si = _sample_synthesis_input()
         assert si.ticker == "RELIANCE.NS"
-        assert si.horizon == "short"
+        assert si.horizon == "weekly"
         assert si.technical_view.trend.signal == "bullish"
         assert si.impact_assessment.sentiment == "bullish"
         assert si.model_chain == ("gemini-2.5-flash",)

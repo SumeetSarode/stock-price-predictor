@@ -398,7 +398,7 @@ class SynthesisInput(BaseModel):
             "Should equal technical_view.ticker."
         ),
     )
-    horizon: Literal["intraday", "short", "medium", "long"] = Field(
+    horizon: Literal["daily", "weekly", "biweekly", "monthly"] = Field(
         ...,
         description=(
             "Time window the prediction targets. Drives the synthesizer's "

@@ -58,12 +58,12 @@ async def test_predict_real_end_to_end():
     levels in the right relative order). Does NOT assert specific values
     because real markets move and LLMs vary; we'd be flaky.
     """
-    result = await predict(_TICKER, horizon="short")
+    result = await predict(_TICKER, horizon="weekly")
 
     # Type + identity
     assert isinstance(result, Prediction)
     assert result.ticker == _TICKER
-    assert result.horizon.value == "short"
+    assert result.horizon.value == "weekly"
 
     # Direction is one of the three legal values (Pydantic enforces)
     assert result.direction in PredictionDirection

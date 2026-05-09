@@ -49,7 +49,7 @@ def _valid_bullish_kwargs() -> dict:
     return {
         "ticker": "RELIANCE.NS",
         "as_of": datetime(2026, 4, 28, 15, 30, tzinfo=ZoneInfo("Asia/Kolkata")),
-        "horizon": PredictionHorizon.SHORT,
+        "horizon": PredictionHorizon.WEEKLY,
         "model_chain": ("gemini/gemini-2.5-flash",),
         "direction": PredictionDirection.BULLISH,
         "confidence": 0.7,
@@ -118,7 +118,7 @@ class TestJSONAndHashing:
         p = Prediction(**_valid_bullish_kwargs())
         js = p.model_dump_json()
         assert '"direction":"bullish"' in js
-        assert '"horizon":"short"' in js
+        assert '"horizon":"weekly"' in js
 
     def test_prediction_is_hashable(self):
         """frozen=True + tuple collections => the model is hashable.
@@ -395,3 +395,82 @@ class TestNestedModels:
         original = PriceLevel(value=1500.5, rationale="20-day SMA")
         rebuilt = PriceLevel.model_validate_json(original.model_dump_json())
         assert rebuilt == original
+
+
+# ─────────────────────────────────────────────────────────────
+# 9. target_datetime computed field (added in commit 2 of multi-horizon refactor)
+# ─────────────────────────────────────────────────────────────
+class TestTargetDatetime:
+    """target_datetime is the @computed_field that delegates to the NSE
+    trading-calendar. Schema-level tests verify the integration: the
+    full math contract is covered in test_trading_calendar.py.
+    """
+
+    def _kwargs_with_horizon(self, horizon: PredictionHorizon, as_of: datetime) -> dict:
+        kwargs = _valid_bullish_kwargs()
+        kwargs["horizon"] = horizon
+        kwargs["as_of"] = as_of
+        return kwargs
+
+    def test_daily_target_is_today_close_when_predicted_mid_session(self):
+        """Predicted Wed 10am IST → target = Wed 15:30 IST."""
+        from zoneinfo import ZoneInfo
+        ist = ZoneInfo("Asia/Kolkata")
+        as_of = datetime(2026, 4, 15, 10, 0, tzinfo=ist)
+        p = Prediction(**self._kwargs_with_horizon(PredictionHorizon.DAILY, as_of))
+        assert p.target_datetime == datetime(2026, 4, 15, 15, 30, tzinfo=ist)
+
+    def test_daily_target_is_next_session_when_predicted_post_close(self):
+        """Predicted Wed 5pm IST → target = Thu 15:30 IST."""
+        from zoneinfo import ZoneInfo
+        ist = ZoneInfo("Asia/Kolkata")
+        as_of = datetime(2026, 4, 15, 17, 0, tzinfo=ist)
+        p = Prediction(**self._kwargs_with_horizon(PredictionHorizon.DAILY, as_of))
+        assert p.target_datetime == datetime(2026, 4, 16, 15, 30, tzinfo=ist)
+
+    def test_weekly_target_is_seven_calendar_days_later(self):
+        """Predicted Thu Apr 16 → target = Thu Apr 23 (next Thu, trading)."""
+        from zoneinfo import ZoneInfo
+        ist = ZoneInfo("Asia/Kolkata")
+        as_of = datetime(2026, 4, 16, 10, 0, tzinfo=ist)
+        p = Prediction(**self._kwargs_with_horizon(PredictionHorizon.WEEKLY, as_of))
+        assert p.target_datetime == datetime(2026, 4, 23, 15, 30, tzinfo=ist)
+
+    def test_monthly_target_handles_month_end_via_relativedelta(self):
+        """Predicted Mon Aug 31 → target = Wed Sep 30 (NOT Sep 31, which doesn't exist)."""
+        from zoneinfo import ZoneInfo
+        ist = ZoneInfo("Asia/Kolkata")
+        as_of = datetime(2026, 8, 31, 10, 0, tzinfo=ist)
+        p = Prediction(**self._kwargs_with_horizon(PredictionHorizon.MONTHLY, as_of))
+        assert p.target_datetime == datetime(2026, 9, 30, 15, 30, tzinfo=ist)
+
+    def test_target_datetime_serializes_into_json(self):
+        """JSON dump must include target_datetime (audit trail)."""
+        kwargs = _valid_bullish_kwargs()
+        p = Prediction(**kwargs)
+        js = p.model_dump_json()
+        assert "target_datetime" in js
+
+    def test_target_datetime_round_trips_via_json(self):
+        """Round-trip through JSON works despite extra='forbid' policy.
+
+        The _strip_computed_fields validator drops target_datetime on parse;
+        the @computed_field re-derives it on read. Round-trip is byte-equal
+        for the underlying inputs (horizon + as_of), and target_datetime is
+        identical because it's a pure function of those inputs.
+        """
+        original = Prediction(**_valid_bullish_kwargs())
+        rebuilt = Prediction.model_validate_json(original.model_dump_json())
+        assert rebuilt == original
+        assert rebuilt.target_datetime == original.target_datetime
+
+    def test_target_datetime_consistent_across_all_horizons(self):
+        """Sanity: every horizon produces a tz-aware datetime at 15:30 IST."""
+        from zoneinfo import ZoneInfo
+        ist = ZoneInfo("Asia/Kolkata")
+        as_of = datetime(2026, 4, 15, 10, 0, tzinfo=ist)
+        for h in PredictionHorizon:
+            p = Prediction(**self._kwargs_with_horizon(h, as_of))
+            td = p.target_datetime
+            assert td.tzinfo is not None
+            assert (td.hour, td.minute) == (15, 30)

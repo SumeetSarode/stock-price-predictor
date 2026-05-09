@@ -38,7 +38,7 @@ def _make_pred(
     ticker: str = "RELIANCE.NS",
     *,
     as_of: datetime | None = None,
-    horizon: PredictionHorizon = PredictionHorizon.SHORT,
+    horizon: PredictionHorizon = PredictionHorizon.WEEKLY,
 ) -> Prediction:
     if as_of is None:
         as_of = datetime(2026, 4, 28, 10, 30, 45, tzinfo=ZoneInfo("Asia/Kolkata"))
@@ -91,9 +91,9 @@ class TestPathComputation:
         store = PredictionStore(tmp_path)
         pred = _make_pred()
         path = store.path_for(pred)
-        # Expected: {root}/2026-04-28/RELIANCE.NS_103045_short.json
+        # Expected: {root}/2026-04-28/RELIANCE.NS_103045_weekly.json
         assert path.parent.name == "2026-04-28"
-        assert path.name == "RELIANCE.NS_103045_short.json"
+        assert path.name == "RELIANCE.NS_103045_weekly.json"
 
     def test_horizon_in_filename(self, tmp_path: Path):
         store = PredictionStore(tmp_path)

@@ -55,6 +55,10 @@ from pydantic import (
     model_validator,
 )
 
+from price_predictor.prediction.trading_calendar import (
+    target_datetime_for_horizon,
+)
+
 
 # ─────────────────────────────────────────────────────────────
 # Enums (stable controlled vocabularies)
@@ -80,20 +84,25 @@ class PredictionDirection(str, Enum):
 class PredictionHorizon(str, Enum):
     """Time window over which the prediction is intended to play out.
 
-    These map to indicator preset choices downstream:
-      INTRADAY -> sensitive presets (short SMAs, low EMA spans)
-      SHORT    -> standard presets
-      MEDIUM   -> standard presets
-      LONG     -> smooth presets (long SMAs, slow signals)
+    Concrete time labels matching user vocabulary and the project
+    description's daily/weekly contract. Maps to calendar windows via
+    `trading_calendar.target_datetime_for_horizon`:
 
-    Boundaries are intentionally fuzzy because real market regimes don't
-    respect calendar boundaries. Use the spirit, not the letter.
+      DAILY    -> end of next applicable NSE session (today's close if
+                  before 15:30 IST on a trading day, else next session)
+      WEEKLY   -> as_of + 7  calendar days, snapped to last trading day
+      BIWEEKLY -> as_of + 14 calendar days, snapped to last trading day
+      MONTHLY  -> as_of + 1  calendar month  (relativedelta), snapped
+
+    Future horizons (parked in next_steps): SIX_MONTHS, YEARLY. Custom
+    durations are NOT supported — calibration becomes meaningless when
+    every prediction is its own bucket.
     """
 
-    INTRADAY = "intraday"   # same day
-    SHORT    = "short"      # 1-5 trading days
-    MEDIUM   = "medium"     # 1-4 weeks
-    LONG     = "long"       # 1-3 months
+    DAILY    = "daily"
+    WEEKLY   = "weekly"
+    BIWEEKLY = "biweekly"
+    MONTHLY  = "monthly"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -328,17 +337,19 @@ class Prediction(BaseModel):
     def _strip_computed_fields(cls, data: object) -> object:
         """Drop @computed_field values from input dict before validation.
 
-        WHY: model_dump_json() includes risk_reward (it's @computed_field),
-        but extra='forbid' would reject it on model_validate_json().
-        Stripping it here makes JSON round-trip work while still catching
-        genuine LLM typos like 'confidence_score' instead of 'confidence'.
+        WHY: model_dump_json() includes computed fields (risk_reward,
+        target_datetime), but extra='forbid' would reject them on
+        model_validate_json(). Stripping them here makes JSON round-trip
+        work while still catching genuine LLM typos like 'confidence_score'
+        instead of 'confidence'.
 
         Only acts on dict inputs (the JSON-parsing path); leaves model
         instances and other types untouched.
         """
+        _COMPUTED_KEYS = {"risk_reward", "target_datetime"}
         if isinstance(data, dict):
             # Copy to avoid mutating caller's dict
-            data = {k: v for k, v in data.items() if k != "risk_reward"}
+            data = {k: v for k, v in data.items() if k not in _COMPUTED_KEYS}
         return data
 
     # ── Cross-field validation ──────────────────────────────────────
@@ -446,3 +457,31 @@ class Prediction(BaseModel):
         if risk <= 0:  # pragma: no cover (validator catches this)
             return 0.0
         return reward / risk
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def target_datetime(self) -> datetime:
+        """The moment this prediction will be evaluated against actuals.
+
+        Derived from (horizon, as_of) via the NSE trading-calendar.
+        Always lands at 15:30 IST on a real NSE trading day.
+
+        WHY @computed_field (not stored):
+        - Single source of truth: the trading_calendar module.
+        - No validator-populated field to maintain.
+        - Still serializes into JSON (audit trail preserved).
+        - The agent uses the calendar at predict-time — that's the
+          moment that matters. We deliberately don't try to insulate
+          historical predictions against retroactive holiday changes;
+          the rare cost isn't worth the per-prediction storage bloat.
+
+        Example mapping (predicted on Wed Apr 15 2026 at 10:00 IST):
+          DAILY    -> Wed Apr 15 2026 15:30 IST  (today's close)
+          WEEKLY   -> Wed Apr 22 2026 15:30 IST  (+7 cal days)
+          BIWEEKLY -> Wed Apr 29 2026 15:30 IST  (+14 cal days)
+          MONTHLY  -> Fri May 15 2026 15:30 IST  (+1 cal month)
+
+        Returns:
+            Tz-aware datetime in IST.
+        """
+        return target_datetime_for_horizon(self.horizon.value, self.as_of)

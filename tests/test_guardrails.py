@@ -108,7 +108,7 @@ def _make_si(
     )
     return SynthesisInput(
         ticker="RELIANCE.NS",
-        horizon="short",
+        horizon="weekly",
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
         technical_view=tv,
         impact_assessment=ia,
@@ -129,7 +129,7 @@ def _make_pred(
     return Prediction(
         ticker="RELIANCE.NS",
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
-        horizon=PredictionHorizon.SHORT,
+        horizon=PredictionHorizon.WEEKLY,
         model_chain=("news_impact:agentic",),
         direction=direction,
         confidence=0.72,

@@ -78,7 +78,7 @@ def _sample_synthesis_input() -> SynthesisInput:
     )
     return SynthesisInput(
         ticker="RELIANCE.NS",
-        horizon="short",
+        horizon="weekly",
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
         technical_view=tv,
         impact_assessment=ia,
@@ -178,7 +178,7 @@ class TestBuildSynthPrompt:
     def test_embeds_ticker_and_horizon(self):
         prompt = build_synth_prompt(_sample_synthesis_input())
         assert "RELIANCE.NS" in prompt
-        assert "short" in prompt
+        assert "weekly" in prompt
 
     def test_embeds_close_price_and_signals(self):
         """Critical evidence must reach the LLM verbatim."""

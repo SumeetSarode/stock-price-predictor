@@ -101,7 +101,7 @@ def _sample_prediction() -> Prediction:
     return Prediction(
         ticker="RELIANCE.NS",
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
-        horizon=PredictionHorizon.SHORT,
+        horizon=PredictionHorizon.WEEKLY,
         # Synthesizer's prompt copies model_chain from input, so it'll
         # have the news tag here. Predictor appends synth tag after.
         model_chain=("news_impact:agentic",),

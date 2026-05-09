@@ -39,7 +39,7 @@ _IST = ZoneInfo("Asia/Kolkata")
 def _make_pred(
     confidence: float = 0.7,
     direction: PredictionDirection = PredictionDirection.BULLISH,
-    horizon: PredictionHorizon = PredictionHorizon.SHORT,
+    horizon: PredictionHorizon = PredictionHorizon.WEEKLY,
     ticker: str = "TEST.NS",
     as_of: datetime | None = None,
 ) -> Prediction:
@@ -273,18 +273,18 @@ class TestBreakdown:
     def test_groups_by_horizon(self):
         graded = [
             _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True,
-                   horizon=PredictionHorizon.SHORT),
+                   horizon=PredictionHorizon.WEEKLY),
             _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True,
-                   horizon=PredictionHorizon.SHORT),
+                   horizon=PredictionHorizon.WEEKLY),
             _grade(outcome=GradeOutcome.STOP_HIT, direction_correct=False,
-                   horizon=PredictionHorizon.MEDIUM),
+                   horizon=PredictionHorizon.BIWEEKLY),
         ]
         breakdown = compute_breakdown(graded, lambda g: g.prediction.horizon)
-        assert PredictionHorizon.SHORT in breakdown
-        assert PredictionHorizon.MEDIUM in breakdown
-        assert breakdown[PredictionHorizon.SHORT].n_predictions == 2
-        assert breakdown[PredictionHorizon.SHORT].hit_rate_optimistic == 1.0
-        assert breakdown[PredictionHorizon.MEDIUM].hit_rate_optimistic == 0.0
+        assert PredictionHorizon.WEEKLY in breakdown
+        assert PredictionHorizon.BIWEEKLY in breakdown
+        assert breakdown[PredictionHorizon.WEEKLY].n_predictions == 2
+        assert breakdown[PredictionHorizon.WEEKLY].hit_rate_optimistic == 1.0
+        assert breakdown[PredictionHorizon.BIWEEKLY].hit_rate_optimistic == 0.0
 
     def test_groups_by_ticker(self):
         graded = [

@@ -183,8 +183,8 @@ def _render_history(predictions: list[Prediction], ticker: str) -> Table:
 def predict_one(
     ticker: str = typer.Argument(..., help="Stock ticker (e.g. RELIANCE.NS, AAPL)"),
     horizon: str = typer.Option(
-        "short", "--horizon", "-h",
-        help="Prediction window: intraday/short/medium/long",
+        "weekly", "--horizon", "-h",
+        help="Prediction window: daily/weekly/biweekly/monthly",
     ),
     sensitivity: str = typer.Option(
         "standard", "--sensitivity", "-s",
@@ -213,7 +213,7 @@ def predict_one(
 @app.command(name="predict-many")
 def predict_many_cmd(
     tickers: list[str] = typer.Argument(..., help="One or more tickers"),
-    horizon: str = typer.Option("short", "--horizon", "-h"),
+    horizon: str = typer.Option("weekly", "--horizon", "-h"),
     sensitivity: str = typer.Option("standard", "--sensitivity", "-s"),
     concurrency: int = typer.Option(3, "--concurrency", "-c"),
     save: bool = typer.Option(False, "--save"),

@@ -87,16 +87,17 @@ from price_predictor.prediction.schema import (
 # grading: we look at the next N bars. Beyond N, the prediction is
 # 'expired' regardless of what price does after.
 #
-# Mapping rationale:
-#   intraday: 1  (today only - if intraday made before close, same-day bar)
-#   short:    5  (1 trading week)
-#   medium:   20 (~1 trading month)
-#   long:     60 (~3 trading months)
+# Mapping rationale (interim — commit 5 will replace this map with the
+# calendar-anchored target_datetime computed on the Prediction itself):
+#   daily:    1  (today's close, or next session if predicted post-close)
+#   weekly:   5  (1 calendar week ≈ 5 trading days)
+#   biweekly: 10 (2 calendar weeks ≈ 10 trading days)
+#   monthly:  21 (1 calendar month ≈ 21 trading days)
 _HORIZON_TRADING_DAYS: dict[PredictionHorizon, int] = {
-    PredictionHorizon.INTRADAY: 1,
-    PredictionHorizon.SHORT: 5,
-    PredictionHorizon.MEDIUM: 20,
-    PredictionHorizon.LONG: 60,
+    PredictionHorizon.DAILY: 1,
+    PredictionHorizon.WEEKLY: 5,
+    PredictionHorizon.BIWEEKLY: 10,
+    PredictionHorizon.MONTHLY: 21,
 }
 
 # Tolerance for NEUTRAL direction correctness: if the LLM said neutral
@@ -362,7 +363,7 @@ def grade_one(
 # windows to date ranges for fetch_ohlcv. The 1.7 multiplier covers:
 #   - weekends (5 trading days = 7 calendar days = 1.4x)
 #   - the occasional bank holiday (extra padding)
-# Plus a +3-day floor so that even INTRADAY (1 trading day) gets a
+# Plus a +3-day floor so that even DAILY (1 trading day) gets a
 # tiny lookahead in case the next day is a holiday.
 _FETCH_BUFFER_MULT: float = 1.7
 _FETCH_BUFFER_FLOOR: int = 3
