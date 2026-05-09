@@ -37,7 +37,8 @@ For a BEARISH prediction (mirror):
 
 For NEUTRAL: there's no target/stop semantics (range-bound call).
   - Outcome is always EXPIRED.
-  - direction_correct: True iff |realized_return| <= NEUTRAL_TOLERANCE.
+  - direction_correct: True iff |realized_return| <= per-horizon
+  NEUTRAL_TOLERANCE_BY_HORIZON[horizon].
 
 THE 'BOTH HIT SAME BAR' AMBIGUITY
 =================================
@@ -102,10 +103,38 @@ _HORIZON_TRADING_DAYS: dict[PredictionHorizon, int] = {
 
 # Tolerance for NEUTRAL direction correctness: if the LLM said neutral
 # and price moved less than this fraction either way, it was right.
-# 2% is a deliberate choice - tighter would punish neutral calls in
-# any volatile name; looser would count almost everything as 'neutral
-# success'.
-NEUTRAL_TOLERANCE: float = 0.02
+#
+# Why per-horizon (was a single 2% constant; that was a CALIBRATION BUG):
+#   Stocks drift roughly with sqrt(t). A 2% band that's tight for a 1-day
+#   call is effectively zero for a monthly call -- nearly every monthly
+#   NEUTRAL prediction would grade as wrong even when nothing happened,
+#   purely from random walk drift.
+#
+# Numbers below are anchored to NIFTY 50 large-cap typical daily move
+# (~1.5-2%) scaled by sqrt(trading days), then rounded to even integers:
+#       daily    (1d):  2%   <- baseline (~1 std daily move)
+#       weekly   (5d):  4%   <- 2% * sqrt(5) ~ 4.5%, rounded
+#       biweekly (10d): 6%   <- 2% * sqrt(10) ~ 6.3%, rounded
+#       monthly  (21d): 8%   <- 2% * sqrt(21) ~ 9.2%, rounded down for caution
+#
+# These are v1 heuristics; final values should be derived empirically from
+# actual NIFTY 50 daily-return distributions per horizon. See
+# docs/research/constants_dossier.md §10.1 (NEEDS BACKTEST in Phase 2).
+NEUTRAL_TOLERANCE_BY_HORIZON: dict[PredictionHorizon, float] = {
+    PredictionHorizon.DAILY:    0.02,
+    PredictionHorizon.WEEKLY:   0.04,
+    PredictionHorizon.BIWEEKLY: 0.06,
+    PredictionHorizon.MONTHLY:  0.08,
+}
+
+
+def neutral_tolerance(horizon: PredictionHorizon) -> float:
+    """Per-horizon NEUTRAL grading tolerance.
+
+    Public lookup so callers (tests, calibration reports) can read the
+    same value the grader uses without recomputing.
+    """
+    return NEUTRAL_TOLERANCE_BY_HORIZON[horizon]
 
 
 def horizon_window(horizon: PredictionHorizon) -> int:
@@ -179,7 +208,7 @@ class GradedPrediction(BaseModel):
             "Did the predicted direction match what happened?\n"
             "  - bullish:  True iff realized_return > 0\n"
             "  - bearish:  True iff realized_return < 0\n"
-            "  - neutral:  True iff |realized_return| <= NEUTRAL_TOLERANCE\n"
+            "  - neutral:  True iff |realized_return| <= NEUTRAL_TOLERANCE_BY_HORIZON[horizon]\n"
             "None if INCONCLUSIVE (can't judge what we couldn't measure)."
         ),
     )
@@ -263,20 +292,24 @@ def _grade_directional(
 
 
 def _direction_correct(
-    direction: PredictionDirection, realized_return: float,
+    direction: PredictionDirection,
+    realized_return: float,
+    horizon: PredictionHorizon,
 ) -> bool:
     """Did the predicted direction match reality?
 
     Pure function with three branches matching PredictionDirection.
-    Extracted so it's separately testable and so its semantics are
-    visible at a glance.
+    NEUTRAL uses a per-horizon tolerance band (see
+    NEUTRAL_TOLERANCE_BY_HORIZON) because a flat 2% band would
+    systematically grade monthly NEUTRALs as wrong from random drift.
     """
     if direction == PredictionDirection.BULLISH:
         return realized_return > 0
     if direction == PredictionDirection.BEARISH:
         return realized_return < 0
-    # NEUTRAL: 'right' means price stayed approximately flat
-    return abs(realized_return) <= NEUTRAL_TOLERANCE
+    # NEUTRAL: 'right' means price stayed approximately flat for the
+    # duration of the horizon (per-horizon tolerance — see dossier §10.1)
+    return abs(realized_return) <= NEUTRAL_TOLERANCE_BY_HORIZON[horizon]
 
 
 def grade_one(
@@ -332,7 +365,7 @@ def grade_one(
             prediction=prediction,
             outcome=GradeOutcome.NOT_APPLICABLE,
             realized_return=realized_return,
-            direction_correct=_direction_correct(prediction.direction, realized_return),
+            direction_correct=_direction_correct(prediction.direction, realized_return, prediction.horizon),
             days_to_resolution=None,  # neutral never 'resolves' to T or S
             bars_examined=n_bars,
             close_at_window_end=close_at_end,
@@ -349,7 +382,7 @@ def grade_one(
         prediction=prediction,
         outcome=outcome,
         realized_return=realized_return,
-        direction_correct=_direction_correct(prediction.direction, realized_return),
+        direction_correct=_direction_correct(prediction.direction, realized_return, prediction.horizon),
         days_to_resolution=days_to_resolution,
         bars_examined=n_bars,
         close_at_window_end=close_at_end,

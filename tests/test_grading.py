@@ -21,13 +21,14 @@ import pandas as pd
 import pytest
 
 from price_predictor.prediction.grading import (
-    NEUTRAL_TOLERANCE,
+    NEUTRAL_TOLERANCE_BY_HORIZON,
     GradeOutcome,
     GradedPrediction,
     _direction_correct,
     grade_many,
     grade_one,
     horizon_window,
+    neutral_tolerance,
 )
 from price_predictor.prediction.schema import (
     AnalysisBasis,
@@ -112,21 +113,46 @@ class TestHorizonWindow:
 # direction_correct (pure helper)
 # ─────────────────────────────────────────────────────────────
 class TestDirectionCorrect:
+    # Default horizon for bullish/bearish tests — doesn't affect those branches
+    H = PredictionHorizon.DAILY
+
     @pytest.mark.parametrize("ret,expected", [(0.05, True), (-0.05, False), (0.0, False)])
     def test_bullish(self, ret, expected):
-        assert _direction_correct(PredictionDirection.BULLISH, ret) is expected
+        assert _direction_correct(PredictionDirection.BULLISH, ret, self.H) is expected
 
     @pytest.mark.parametrize("ret,expected", [(-0.05, True), (0.05, False), (0.0, False)])
     def test_bearish(self, ret, expected):
-        assert _direction_correct(PredictionDirection.BEARISH, ret) is expected
+        assert _direction_correct(PredictionDirection.BEARISH, ret, self.H) is expected
 
-    def test_neutral_within_tolerance_is_correct(self):
-        assert _direction_correct(PredictionDirection.NEUTRAL, NEUTRAL_TOLERANCE / 2) is True
-        assert _direction_correct(PredictionDirection.NEUTRAL, -NEUTRAL_TOLERANCE / 2) is True
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_neutral_within_tolerance_is_correct(self, horizon):
+        tol = neutral_tolerance(horizon)
+        assert _direction_correct(PredictionDirection.NEUTRAL, tol / 2, horizon) is True
+        assert _direction_correct(PredictionDirection.NEUTRAL, -tol / 2, horizon) is True
 
-    def test_neutral_outside_tolerance_is_wrong(self):
-        assert _direction_correct(PredictionDirection.NEUTRAL, NEUTRAL_TOLERANCE * 2) is False
-        assert _direction_correct(PredictionDirection.NEUTRAL, -NEUTRAL_TOLERANCE * 2) is False
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_neutral_outside_tolerance_is_wrong(self, horizon):
+        tol = neutral_tolerance(horizon)
+        assert _direction_correct(PredictionDirection.NEUTRAL, tol * 2, horizon) is False
+        assert _direction_correct(PredictionDirection.NEUTRAL, -tol * 2, horizon) is False
+
+    def test_tolerance_grows_with_horizon(self):
+        # Sanity: longer horizons get more permissive NEUTRAL bands.
+        # Otherwise monthly NEUTRAL grading would be systematically biased.
+        assert (
+            neutral_tolerance(PredictionHorizon.DAILY)
+            < neutral_tolerance(PredictionHorizon.WEEKLY)
+            < neutral_tolerance(PredictionHorizon.BIWEEKLY)
+            < neutral_tolerance(PredictionHorizon.MONTHLY)
+        )
+
+    def test_tolerance_table_covers_all_horizons(self):
+        # If a new horizon is added to the enum, this test fails until
+        # NEUTRAL_TOLERANCE_BY_HORIZON gets an entry for it.
+        for horizon in PredictionHorizon:
+            assert horizon in NEUTRAL_TOLERANCE_BY_HORIZON, (
+                f"NEUTRAL_TOLERANCE_BY_HORIZON missing entry for {horizon}"
+            )
 
 
 # ─────────────────────────────────────────────────────────────
