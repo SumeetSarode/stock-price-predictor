@@ -25,12 +25,19 @@ from price_predictor.agents.synthesizer import (
     make_synthesizer_agent,
     root_agent,
 )
+from price_predictor.agents.synthesizer.prompt import _render_per_horizon_table
+from price_predictor.prediction.horizon_constants import (
+    confidence_cap,
+    entry_zone_pct,
+    stop_atr_range,
+    target_atr_range,
+)
 from price_predictor.prediction.inputs import (
     ClusterView,
     SynthesisInput,
     TechnicalView,
 )
-from price_predictor.prediction.schema import Prediction
+from price_predictor.prediction.schema import Prediction, PredictionHorizon
 
 
 # ─────────────────────────────────────────────────────────────
@@ -164,6 +171,112 @@ class TestSystemInstruction:
     def test_warns_about_anti_patterns(self):
         """We've called out specific failure modes by name."""
         assert "ANTI-PATTERNS" in SYSTEM_INSTRUCTION
+
+
+# ────────────────────────────────────────────
+# 2b. PER-HORIZON RULES table (commit C of multi-horizon refactor)
+# ────────────────────────────────────────────
+class TestPerHorizonTable:
+    """The prompt MUST teach the LLM the per-horizon rules — and those
+    rules MUST be the same numbers the guardrails enforce. Anything
+    else means the LLM is being told one thing and graded against
+    another (the bug commit C was built to fix).
+
+    These tests treat horizon_constants.py as the single source of
+    truth: they read the helpers, then assert the rendered table and
+    the SYSTEM_INSTRUCTION reflect those values. Tune in horizon_
+    constants and these tests stay green.
+    """
+
+    def test_render_helper_returns_table_with_header(self):
+        table = _render_per_horizon_table()
+        assert "horizon" in table
+        assert "stop ATR" in table
+        assert "target ATR" in table
+        assert "entry zone" in table
+        assert "conf cap" in table
+
+    def test_render_helper_includes_every_horizon(self):
+        table = _render_per_horizon_table()
+        for horizon in PredictionHorizon:
+            assert horizon.value in table, (
+                f"per-horizon table missing row for {horizon.value}"
+            )
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_table_rows_match_horizon_constants(self, horizon: PredictionHorizon):
+        """Every number in every row MUST match horizon_constants.
+
+        This is the load-bearing single-source-of-truth check: if
+        horizon_constants.py changes, the prompt updates automatically;
+        if a developer ever hand-codes numbers into the prompt instead,
+        this test will fire.
+        """
+        table = _render_per_horizon_table()
+
+        s_lo, s_hi = stop_atr_range(horizon)
+        t_lo, t_hi = target_atr_range(horizon)
+        ez = entry_zone_pct(horizon)
+        cap = confidence_cap(horizon)
+
+        # Find the row for this horizon. Match by the column-padded
+        # prefix to avoid "weekly" matching "biweekly" too.
+        row_prefix = f"| {horizon.value:<8} |"
+        rows = [line for line in table.splitlines() if line.startswith(row_prefix)]
+        assert len(rows) == 1, f"expected one row for {horizon.value}, got {rows}"
+        row = rows[0]
+
+        # Each constant MUST appear in the row, formatted as the
+        # renderer formats it. We check string presence (not parse the
+        # row) so the test is robust to layout tweaks.
+        assert f"{s_lo}–{s_hi}×ATR" in row, (
+            f"stop ATR band {s_lo}–{s_hi} missing for {horizon.value}"
+        )
+        assert f"{t_lo}–{t_hi}×ATR" in row, (
+            f"target ATR band {t_lo}–{t_hi} missing for {horizon.value}"
+        )
+        assert f"{ez*100:.1f}%" in row, (
+            f"entry zone {ez*100:.1f}% missing for {horizon.value}"
+        )
+        assert f"{cap:.2f}" in row, (
+            f"confidence cap {cap:.2f} missing for {horizon.value}"
+        )
+
+    def test_system_instruction_embeds_the_table(self):
+        """The rendered table MUST appear inside SYSTEM_INSTRUCTION."""
+        assert _render_per_horizon_table() in SYSTEM_INSTRUCTION
+
+    def test_system_instruction_has_per_horizon_section(self):
+        assert "PER-HORIZON RULES" in SYSTEM_INSTRUCTION
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_system_instruction_mentions_each_horizon_cap(
+        self, horizon: PredictionHorizon,
+    ):
+        """The cap value for each horizon must literally appear in the
+        prompt — belt-and-braces over the table-embedding test.
+        """
+        cap_str = f"{confidence_cap(horizon):.2f}"
+        assert cap_str in SYSTEM_INSTRUCTION, (
+            f"per-horizon cap {cap_str} for {horizon.value} not in prompt"
+        )
+
+    # ────────────────────────────────────────────
+    # Regression nets: the dead hand-wavy phrasing MUST stay deleted.
+    # If someone re-adds vague language about "tighter for daily,
+    # wider for monthly," the per-horizon table can be silently
+    # contradicted. These tests prevent that drift.
+    # ────────────────────────────────────────────
+    @pytest.mark.parametrize("dead_phrase", [
+        "tighter for daily, wider for monthly",
+        "±0.5%\n                            for daily/weekly",
+        "close_price ∓ ~1*ATR is a sane",
+    ])
+    def test_dead_handwavy_phrasing_removed(self, dead_phrase: str):
+        assert dead_phrase not in SYSTEM_INSTRUCTION, (
+            f"vague phrasing {dead_phrase!r} re-introduced — use the "
+            "PER-HORIZON RULES table instead."
+        )
 
 
 # ─────────────────────────────────────────────────────────────
