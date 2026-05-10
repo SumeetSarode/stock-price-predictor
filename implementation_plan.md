@@ -96,10 +96,11 @@ This section reflects the implementation path implied by the README and our disc
 | Step | Description | Status | Notes |
 |---|---|---|---|
 | 3.4.1 | Define output schema (`prediction/schema.py`) | ✅ done | Frozen Pydantic v2 model. `Prediction` + `PredictionDirection` + `PredictionHorizon` + `PriceLevel` + `AnalysisBasis`. JSON round-trips, computed `risk_reward`. ~25 schema tests. |
-| 3.4.2 | Per-stock predictor (`prediction/predictor.py`) | ✅ done | Shipped in 6 commits (synthesizer agent, predictor orchestrator, Runner singletons, hallucination guardrails Tiers 1-3 with retry, news degradation, integration smoke test). `inputs.py` builds the synthesizer prompt from technical/news/price snapshots. `guardrails.py` enforces ticker/level/direction sanity post-LLM. |
+| 3.4.2 | Per-stock predictor (`prediction/predictor.py`) | ✅ done (initially shipped single-horizon; **truly multi-horizon as of Step 3.4.6**) | Shipped in 6 commits (synthesizer agent, predictor orchestrator, Runner singletons, hallucination guardrails Tiers 1-3 with retry, news degradation, integration smoke test). `inputs.py` builds the synthesizer prompt from technical/news/price snapshots. `guardrails.py` enforces ticker/level/direction sanity post-LLM. **Caveat (now closed)**: as originally shipped, the predictor took a `horizon` argument but used the same hard-coded thresholds for all horizons — "fake multi-horizon." Step 3.4.6 closes that gap honestly. |
 | 3.4.3 | Batch pipeline (`prediction/batch.py`) | ✅ done | `predict_many()` over an arbitrary ticker list. Concurrent with bounded parallelism. Per-ticker errors don't kill the batch (`BatchError` accumulates failures). |
 | 3.4.4 | CLI commands for prediction | ✅ done | `price-predictor predict TICKER` + `predict-many T1 T2 ...` + `history TICKER`. Typer + Rich rendering. |
 | 3.4.5 | Persist self-contained JSON outputs (`prediction/store.py`) | ✅ done | `PredictionStore` writes per-prediction JSON to `predictions_dir`. Indexed by ticker + date. `list_for_ticker()`, `list_in_date_range()`. Fully round-trippable. |
+| 3.4.6 | **Multi-horizon hardening** (NEW — not in original plan) | ✅ done | 8-commit refactor that closed a latent bug in 3.4.2: predictor accepted `horizon` but used horizon-blind constants. Built across: (a) `0d5cdec` NSE trading-calendar helper for honest horizon math, (b) `505cb4d` rename horizon enum to DAILY/WEEKLY/BIWEEKLY/MONTHLY, (c) `ff037fc` `predict()` fans out across all 4 horizons in parallel, (d) `3253d89` per-horizon NEUTRAL grading tolerance (sqrt-t scaled), (e) `9efa283` research-grounded `docs/research/constants_dossier.md` + LMW chart-pattern alignment, (f) `34bb240` `prediction/horizon_constants.py` as single source of truth (Commit A), (g) `c66388e` guardrails wired to per-horizon bands + new Tier 4 calibration cap (Commit B), (h) `eb3c84f` synthesizer prompt embeds the per-horizon rules table read straight from `horizon_constants` (Commit C). End state: one tunable surface (`horizon_constants.py`); guardrails + LLM prompt cannot drift apart (regression tests prove it). |
 
 ### 3.5 Tracking and backtesting
 
@@ -142,21 +143,28 @@ This section reflects the implementation path implied by the README and our disc
 
 ## 5) Immediate next step
 
-### Current state (as of 2026-04-28)
+### Current state (as of 2026-04-28, post multi-horizon refactor)
 
-**Step 3.5 (grading + calibration) shipped.** The v1 prediction loop is now
-closed end-to-end:
+**Step 3.5 (grading + calibration) shipped + Step 3.4.6 (multi-horizon
+hardening) shipped.** The v1 prediction loop is now closed end-to-end
+AND honestly multi-horizon:
 
-  prediction → persistence → grading → calibration
+  prediction (×4 horizons fanned out) → persistence → grading (per-horizon
+  tolerances) → calibration
 
 **What's working today:**
 - 5 ADK agents shipped: `hello_agent`, `price_agent`, `news_impact`,
   `technical_agent`, `synthesizer`
 - 5 CLI commands: `predict`, `predict-many`, `history`, `grade`, `calibration`
-- **854 unit tests passing**, 7 integration tests deselected (run off-corp)
+- **1021 unit tests passing, 1 skipped**, 7 integration tests deselected
+  (run off-corp). Up from 854 pre-multi-horizon.
 - All v1 data layers (prices, news, estimates, filings) shipped and verified
 - All v1 analysis primitives (trend / momentum / volatility / levels / patterns) shipped
 - All v1 prediction infrastructure (predict, predict_many, store, grade, calibration) shipped
+- **Honest multi-horizon**: `predict()` fans out across DAILY / WEEKLY /
+  BIWEEKLY / MONTHLY in parallel; each horizon has its own ATR bands,
+  entry zone, and confidence cap; guardrails enforce them; LLM prompt
+  is taught the same numbers; tests prove no drift.
 
 **What's NOT yet shipped for v1:**
 - 3.5.5–3.5.7: backtest replay + runner + evaluator (calibration today only
@@ -201,9 +209,11 @@ tackling any of A/B/C.
 | Learning spike vs product work | Hello agent was a spike; real app work starts with the data layer |
 | Build order | Data layer first, then analysis, then prediction, then tracking/backtest |
 | Design principles | Interfaces over implementations, self-contained outputs, as-of-date correctness, async-first |
-| v1 surface (post-3.5) | `predict`, `predict-many`, `history`, `grade`, `calibration` — full prediction loop is now closed end-to-end |
+| v1 surface (post-3.5 + post-3.4.6) | `predict`, `predict-many`, `history`, `grade`, `calibration` — full prediction loop is closed end-to-end AND truly multi-horizon (4 horizons fanned out per ticker) |
 | Hit-rate reporting (3.5) | Three flavours surfaced: strict / resolved / optimistic. We REPORT all three rather than picking one because each answers a different honest question and same-bar T+S ambiguity makes any single number lossy. |
 | Confidence calibration (3.5) | Brier score over log-loss — bounded [0,1], no log(0) edge case at confidence=1.0, quadratic penalty matches user intuition. |
+| Per-horizon tunables (3.4.6) | Single source of truth: `prediction/horizon_constants.py`. Helpers `stop_atr_range()`, `target_atr_range()`, `entry_zone_pct()`, `confidence_cap()`, `neutral_tolerance_pct()` consulted by guardrails AND the LLM prompt. Tune one place; both layers update; regression tests prove no drift. |
+| NEUTRAL grading tolerance (3.4.6) | Per-horizon and sqrt-t scaled (longer horizons → wider tolerance) so a 0.5% move at daily isn't graded the same as a 0.5% move at monthly. |
 | Persistence for predictions/grades | JSON-on-disk via `prediction/store.py` (NOT SQLite). Easier to inspect, no migration cost. Will revisit if scale demands it. |
 
 ---

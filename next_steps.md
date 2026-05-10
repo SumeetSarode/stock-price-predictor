@@ -4,29 +4,35 @@
 > see `implementation_flow.md`. For the higher-level project roadmap see
 > `implementation_plan.md`.
 >
-> **Last updated**: 2026-04-28 — post Step 3.5 (grading + calibration shipped).
-> Previous update: post-C Provider Expansion.
+> **Last updated**: 2026-04-28 — post multi-horizon refactor (Step 3.4.6;
+> 8 commits closing the "fake multi-horizon" gap from Step 3.4.2).
+> Previous update: post Step 3.5 (grading + calibration shipped).
 
 ---
 
 ## 🟢 Where we are right now
 
-**The v1 prediction loop is closed end-to-end:**
+**The v1 prediction loop is closed end-to-end AND truly multi-horizon:**
 
-  prediction → persistence → grading → calibration
+  prediction (×4 horizons fanned out) → persistence → grading
+  (per-horizon tolerances) → calibration
 
 | Surface | Shipped? |
 |---|---|
-| `predict TICKER` | ✅ |
+| `predict TICKER` (fans out across DAILY / WEEKLY / BIWEEKLY / MONTHLY) | ✅ |
 | `predict-many T1 T2 ...` | ✅ |
 | `history TICKER` | ✅ |
-| `grade` | ✅ |
+| `grade` (per-horizon NEUTRAL tolerance) | ✅ |
 | `calibration [--by horizon\|ticker\|direction\|month]` | ✅ |
 
-- **854 unit tests passing** (+ 7 integration tests deselected, run off-corp)
+- **1021 unit tests passing, 1 skipped** (+ 7 integration tests deselected,
+  run off-corp). Up from 854 pre-multi-horizon.
 - **5 ADK agents** live (`hello`, `price`, `news_impact`, `technical`, `synthesizer`)
 - **All v1 data layers** shipped (prices chain, news, estimates, filings, KB)
 - **All v1 analysis primitives** shipped (trend / momentum / volatility / levels / patterns)
+- **Single source of truth for per-horizon tunables**:
+  `prediction/horizon_constants.py` consulted by both runtime guardrails
+  and the LLM prompt. Regression tests prove no drift.
 
 What's NOT yet shipped for v1:
 - Backtest replay + runner + evaluator (3.5.5 → 3.5.7)
@@ -130,7 +136,8 @@ actually helped or just changed numbers.
 
 ### Option D — Code-tour learning detour (no new code)
 
-**Why**: With 854 tests and 5 agents shipped, we now have a substantial
+**Why**: With 1021 tests and 5 agents shipped (post multi-horizon
+refactor), we now have a substantial
 ADK + agentic codebase. A focused walk through the synthesizer + predictor
 + runner trio (~30 min, zero LOC) builds the mental model needed to design
 the backtest replay layer well. Backtest will need to interact with the
@@ -143,10 +150,11 @@ then move to A.
 
 ## 🎯 Recommendation
 
-**Do A (backtest), but lead with a 30-min Option D walk-through** of the
-predict pipeline first to refresh the mental model. Backtest will need the
-predictor to be replay-shim-aware, and the cleanest insertion point only
-becomes obvious once you've re-traced predict() end-to-end.
+**Do A (backtest).** The multi-horizon refactor (Step 3.4.6) just put us
+in and out of every layer of the predict pipeline — horizon enum,
+trading-calendar math, predictor fan-out, guardrails, synthesizer
+prompt, grading. The mental model is fresh. Option D's old purpose was to
+rebuild that mental model before backtest; that's no longer needed.
 
 **Skip B until backtest reveals the real rate-limit pain.**
 **Skip C until v1 is backtest-validated.**
@@ -159,6 +167,15 @@ For full detail see `implementation_flow.md`.
 
 | When | What | Test delta |
 |---|---|---|
+| 2026-04-28 | **Step 3.4.6 / Commit C** — synthesizer prompt embeds per-horizon rules table read straight from `horizon_constants` (single SoT chain closed; LLM + guardrails cannot drift) | +15 (1006 → 1021) |
+| 2026-04-28 | **Step 3.4.6 / Commit B** — guardrails wired to per-horizon ATR bands + entry zones + new Tier 4 calibration cap | (≈30) |
+| 2026-04-28 | **Step 3.4.6 / Commit A** — `prediction/horizon_constants.py` as single source of truth (helpers `stop_atr_range`, `target_atr_range`, `entry_zone_pct`, `confidence_cap`, `neutral_tolerance_pct`); 100% covered | (+) |
+| 2026-04-28 | **Step 3.4.6** — research-grounded `docs/research/constants_dossier.md` (36 KB) + LMW chart-pattern alignment fix (`9efa283`) | (≈20) |
+| 2026-04-28 | **Step 3.4.6** — per-horizon NEUTRAL grading tolerance (sqrt-t scaled) so a 0.5% move doesn't grade the same at daily and at monthly (`3253d89`) | (+) |
+| 2026-04-28 | **Step 3.4.6** — `predict()` fans out across DAILY / WEEKLY / BIWEEKLY / MONTHLY in parallel (`ff037fc`) | (+) |
+| 2026-04-28 | **Step 3.4.6** — horizon enum renamed to DAILY/WEEKLY/BIWEEKLY/MONTHLY (`505cb4d`) | (+) |
+| 2026-04-28 | **Step 3.4.6** — NSE trading-calendar helper for honest horizon math (`0d5cdec`) | (+) |
+|  | *Step 3.4.6 net: 854 → 1021 (+167)* |  |
 | 2026-04-28 | **Step 3.5.3** — `grade` + `calibration` CLI commands (+ `--by` breakdown axes) | 871 → 854 (net*) |
 | 2026-04-28 | **Step 3.5.2** — `grade_many()` + `CalibrationReport` (Brier, 3 hit-rate variants, breakdowns) | 845 → 871 (+26) |
 | 2026-04-28 | **Step 3.5.1** — `grade_one()` + `GradedPrediction` + 6-outcome enum (incl. STOP_HIT_AMBIGUOUS) | 817 → 845 (+28) |
@@ -181,7 +198,8 @@ For full detail see `implementation_flow.md`.
 | Earlier | Steps A, B.1–B.4 | 289 → 394 (+105) |
 
 \*Step D + 3.5 per-substep test counts are reconstructed from commit log;
-the 854 figure is the actual current `pytest --collect-only` count.
+the 1021 figure is the actual current `pytest --collect-only` count
+(post Step 3.4.6).
 
 ---
 

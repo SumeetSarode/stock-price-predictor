@@ -5,8 +5,10 @@
 > combining technical analysis, news impact, and self-tracking calibration.
 
 > **Status**: 🚧 v1 in progress · `predict` + `grade` + `calibration`
-> shipped end-to-end · backtest replay + concurrency are next.
-> **Owner**: Sumeet · **Last updated**: 2026-04-28
+> shipped end-to-end · multi-horizon predictions (daily / weekly / biweekly
+> / monthly) hardened with research-grounded per-horizon rules · backtest
+> replay + concurrency are next.
+> **Owner**: Sumeet · **Last updated**: 2026-04-28 (post multi-horizon refactor)
 
 ---
 
@@ -18,12 +20,13 @@
 | Knowledge base (Nifty50 registry) | ✅ shipped | Wikipedia-sourced, fuzzy ticker resolution |
 | Analysis primitives (trend / momentum / volatility / levels / patterns) | ✅ shipped | pandas-ta backed; pure functions |
 | ADK agents (price / news / technical / synthesizer) | ✅ shipped | LiteLLM router (Groq → Gemini fallback) |
-| Prediction pipeline (predict / predict-many / store) | ✅ shipped | JSON-on-disk persistence |
-| Grading + Calibration (grade / calibration with breakdowns) | ✅ shipped | 6-outcome enum; 3 hit-rate variants; Brier score |
+| Prediction pipeline (predict / predict-many / store) | ✅ shipped | JSON-on-disk persistence; fans out across all 4 horizons in parallel |
+| Multi-horizon rules (per-horizon ATR bands, entry zones, confidence caps) | ✅ shipped | Single source of truth in `prediction/horizon_constants.py`; guardrails + LLM prompt both consult it |
+| Grading + Calibration (grade / calibration with breakdowns) | ✅ shipped | 6-outcome enum; 3 hit-rate variants; Brier score; sqrt-t scaled NEUTRAL band |
 | Backtest (replay / runner / evaluator) | ⏸️ not started | See `next_steps.md` |
 | Concurrency / scale (rate-limit-aware router) | ⏸️ not started | See `next_steps.md` |
 
-**Test count**: 854 unit tests passing (+ 7 integration tests run off-corp).
+**Test count**: 1021 unit tests passing, 1 skipped (+ 7 integration tests run off-corp).
 
 ---
 
@@ -136,6 +139,9 @@ uv run pytest -m integration             # integration tests (need network + off
   guardrails are pure functions; only the synthesis step calls an LLM.
 - **Honest > convenient** — same-bar T+S ambiguity surfaces as a
   first-class outcome; we report 3 hit-rate variants, not the prettiest one.
+- **Single source of truth for tunables** — per-horizon constants live in
+  exactly one module (`prediction/horizon_constants.py`) and are consulted
+  by both the runtime guardrails AND the LLM prompt. No drift possible.
 
 ---
 
@@ -175,7 +181,7 @@ uv run pytest -m integration             # integration tests (need network + off
 | Technicals | `pandas-ta` | Pure Python, comprehensive |
 | Storage | JSON-on-disk (predictions + grades) | Inspectable, no migration cost |
 | CLI | `typer` + `rich` | Modern Python CLI standard |
-| Tests | `pytest` + `pytest-asyncio` | 854 unit tests today |
+| Tests | `pytest` + `pytest-asyncio` | 1021 unit tests today |
 
 ---
 

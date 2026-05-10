@@ -1,7 +1,7 @@
 # 📈 Predictor — Project Description
 
 > **Status:** 🚧 v1 in progress — `predict` + `grade` + `calibration`
-> shipped end-to-end (854 unit tests passing). Backtest replay + concurrency
+> shipped end-to-end (1021 unit tests passing). Backtest replay + concurrency
 > still ahead.
 > **Owner:** Sumeet
 > **Codename:** *Predictor* (placeholder — final name TBD)
@@ -14,7 +14,7 @@
 
 ---
 
-## 0. 🟢 Current state (added 2026-04-28)
+## 0. 🟢 Current state (added 2026-04-28; refreshed post multi-horizon refactor)
 
 | Layer | Status |
 |---|---|
@@ -23,10 +23,20 @@
 | Analysis primitives (trend / momentum / volatility / levels / patterns) | ✅ shipped |
 | ADK agents (price / news / technical / synthesizer) | ✅ shipped |
 | Prediction pipeline (predict / predict-many / store) | ✅ shipped |
-| Grading + Calibration | ✅ shipped |
+| **Multi-horizon predictions** (daily / weekly / biweekly / monthly per ticker) | ✅ shipped |
+| Per-horizon rules (ATR bands, entry zones, confidence caps) — single source of truth in `prediction/horizon_constants.py` consulted by both guardrails and the LLM prompt | ✅ shipped |
+| Grading + Calibration (3 hit-rate variants · Brier · sqrt-t NEUTRAL band) | ✅ shipped |
 | Backtest replay / runner / evaluator | ⏸️ not started |
 | Concurrency / scale (rate-limit-aware router) | ⏸️ not started |
 | LightRAG knowledge layer (Phase 2) | ⏸️ not started |
+
+> **Note on §10 schema below**: the canonical spec shows
+> `predictions: { daily, weekly }` as one bundle. The shipped
+> implementation went with **one frozen `Prediction` per horizon**
+> (4 separate calls fanned out in parallel by `predict()`) so each is a
+> self-contained, gradeable unit. Same surface area, different shape; the
+> per-horizon files in `predictions_dir/<YYYY-MM-DD>/<TICKER>_<HHMMSS>_<horizon>.json`
+> can be re-bundled at the rendering layer if needed.
 
 ---
 
@@ -230,7 +240,7 @@ price_predictor/
 ├── scripts/
 │   └── bootstrap_indices.py       #    one-time index registry build
 │
-├── tests/                         # 854 unit tests + 7 integration
+├── tests/                         # 1021 unit tests + 7 integration
 │
 └── docs/
     └── project description.md     ← this file

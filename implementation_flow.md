@@ -4,8 +4,10 @@
 > (Steps A, B, C, D). Complements `implementation_plan.md` (high-level
 > roadmap) and `next_steps.md` (what's coming next).
 >
-> **Last updated**: 2026-04-28 — post Step 3.5 (grading + calibration
-> shipped). Previous update: post-C Provider Expansion.
+> **Last updated**: 2026-04-28 — post Step 3.4.6 (multi-horizon
+> hardening; 8 commits closing the "fake multi-horizon" gap from
+> Step 3.4.2). Previous update: post Step 3.5 (grading + calibration
+> shipped).
 
 ---
 
@@ -37,24 +39,33 @@
 └───────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─ Step D ─────────────────────────────────────────────────────────┐
+┌─ Step D ────────────────────────────────────────────────────────┐
 │  prediction_agent — synthesizer + predict + batch + store + CLI   │
 │  (predict / predict-many / history)                               │
 │  STATUS: ✅ DONE                                                   │
-└───────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─ Step 3.5 ───────────────────────────────────────────────────────┐
+┌─ Step 3.5 ────────────────────────────────────────────────────┐
 │  Grading + Calibration — grade_one + grade_many +                 │
 │  CalibrationReport + CLI (grade / calibration)                    │
 │  STATUS: ✅ DONE (3 of 3 commits)                                  │
-└───────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─ Step 3.5.5+ ────────────────────────────────────────────────────┐
+┌─ Step 3.4.6 ──────────────────────────────────────────────────┐
+│  Multi-horizon hardening — trading-calendar helper, horizon enum  │
+│  rename, predict() fan-out, per-horizon NEUTRAL tolerance,        │
+│  research dossier, horizon_constants.py (single SoT), guardrails  │
+│  per-horizon + Tier 4, synthesizer prompt embeds the rules        │
+│  STATUS: ✅ DONE (8 of 8 commits; 854 → 1021 tests)                │
+└───────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─ Step 3.5.5+ ─────────────────────────────────────────────────┐
 │  Backtest — replay + runner + evaluator (historical calibration)  │
 │  STATUS: ⏸️ NOT STARTED                                            │
-└───────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -542,6 +553,110 @@ true by definition; the test catches any future refactor that breaks it.
 
 ---
 
+## ✅ Step 3.4.6 — Multi-horizon hardening (DONE)
+
+**Goal**: Close a latent bug in Step 3.4.2 — the predictor accepted a
+`horizon` argument but used a single hard-coded set of constants (ATR
+bands, entry zones, confidence cap, NEUTRAL grading tolerance) for ALL
+horizons. *Fake multi-horizon.* This phase makes it real.
+
+**Trigger**: While building Step 3.5.3 (CLI grade + calibration), the
+`--by horizon` breakdown surfaced that DAILY and MONTHLY were being
+graded against the same 2% NEUTRAL tolerance — mathematically wrong
+(longer horizons have larger expected moves; tolerance must scale).
+Pulling that thread revealed the same horizon-blindness in guardrails
+AND the synthesizer prompt.
+
+### Sub-step progress
+
+| # | Commit | What | Status |
+|---|---|---|---|
+| 3.4.6.1 | `0d5cdec` | NSE trading-calendar helper for honest horizon math (handles weekends + Indian market holidays via `holidays` lib) | ✅ |
+| 3.4.6.2 | `505cb4d` | Rename horizon enum from short/medium/long to **DAILY / WEEKLY / BIWEEKLY / MONTHLY** (concrete > abstract; matches how traders actually talk) | ✅ |
+| 3.4.6.3 | `ff037fc` | `predict()` fans out across all 4 horizons in parallel (`asyncio.gather`) | ✅ |
+| 3.4.6.4 | `3253d89` | Per-horizon NEUTRAL grading tolerance (sqrt-t scaled: longer horizon → wider band) | ✅ |
+| 3.4.6.5 | `9efa283` | Research-grounded `docs/research/constants_dossier.md` (36 KB) replacing vibes-based numbers + LMW (Lower-Moving-Window) chart-pattern alignment fix | ✅ |
+| 3.4.6.6 | `34bb240` | **Commit A**: `prediction/horizon_constants.py` as single source of truth (helpers `stop_atr_range`, `target_atr_range`, `entry_zone_pct`, `confidence_cap`, `neutral_tolerance_pct`); 100% covered | ✅ |
+| 3.4.6.7 | `c66388e` | **Commit B**: guardrails wired to per-horizon ATR bands + entry zones; new **Tier 4 calibration cap** rejects predictions whose confidence exceeds the per-horizon ceiling | ✅ |
+| 3.4.6.8 | `eb3c84f` | **Commit C**: synthesizer prompt embeds the per-horizon rules table rendered at module import from `horizon_constants` (LLM cannot drift from guardrails) | ✅ |
+
+### What landed (the SoT chain)
+
+```
+              prediction/horizon_constants.py
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+            ▼                     ▼
+      prediction/             agents/synthesizer/
+      guardrails.py           prompt.py
+      (enforces)              (teaches the LLM)
+            │                     │
+            └──────────┬──────────┘
+                       ▼
+              same numbers, always
+              (regression tests prove it)
+```
+
+| Artifact | Purpose |
+|---|---|
+| `prediction/horizon_constants.py` | Single source of truth. 5 helpers, one per tunable axis. Frozen `MappingProxyType` tables under the hood so consumers can't mutate. |
+| `prediction/trading_calendar.py` | NSE-aware `add_trading_days()`, `horizon_to_trading_days()`, `expiry_for_horizon()`. Backed by `holidays` library; handles weekends + Indian market holidays. |
+| `prediction/predictor.py::predict()` | Now fans out across ALL 4 horizons in parallel via `asyncio.gather`; per-horizon errors don't kill the batch. |
+| `prediction/guardrails.py` | Tier 1-3 unchanged. **NEW Tier 4** (`_validate_calibration`) checks `confidence ≤ confidence_cap(horizon)`. ATR band checks read from `stop_atr_range(horizon)` / `target_atr_range(horizon)` / `entry_zone_pct(horizon)`. |
+| `prediction/grading.py` | `_neutral_tolerance_pct()` now reads from `horizon_constants.neutral_tolerance_pct(horizon)` instead of a hard-coded 2.0. |
+| `agents/synthesizer/prompt.py` | New `_render_per_horizon_table()` helper builds a markdown table from `horizon_constants` at module import; spliced into `SYSTEM_INSTRUCTION` via f-string. Removed all dead hand-wavy phrasing ("tighter for daily, wider for monthly", "±0.5% for daily/weekly", "close_price ∓ ~1*ATR is a sane default"). |
+| `docs/research/constants_dossier.md` | 36 KB research grounding for every per-horizon number (sqrt-t scaling derivation, ATR-band rationale, citations). Reviewable, citable, replaces vibes. |
+
+### Critical lessons from Step 3.4.6
+
+1. **"Accepts a parameter" ≠ "is parameterized."** Step 3.4.2 took a
+   `horizon` argument and threaded it through the call stack — but every
+   constant downstream was horizon-blind. *Fake multi-horizon* is worse
+   than single-horizon because it looks honest while silently lying. The
+   `--by horizon` breakdown was the canary that exposed it.
+
+2. **Single source of truth is a refactor target, not a starting point.**
+   We had constants scattered across 4 files (guardrails, grading, prompt
+   text, magic numbers in inputs.py). The dossier work first cataloged
+   them; only then did `horizon_constants.py` get written. Catalog →
+   centralize → wire.
+
+3. **Tests prove the SoT chain.** The killer test:
+   `test_table_rows_match_horizon_constants` reads each helper and
+   asserts the rendered prompt table contains those exact values for
+   every horizon. Tune `horizon_constants.py` → prompt updates AND
+   guardrails update AND tests still pass. Drift becomes mechanically
+   impossible.
+
+4. **Regression nets for deletions, not just additions.** When we
+   removed the dead phrasing from the prompt, we added
+   `test_dead_handwavy_phrasing_removed` parametrized over the exact
+   strings we deleted. If a future contributor re-introduces "tighter
+   for daily, wider for monthly", the test fires. Tests prevent both
+   bug introduction AND regression-by-rewording.
+
+5. **Sqrt-t scaling for time-uncertainty bands.** Standard finance: a
+   2% NEUTRAL band over 1 day implies ~`2% × √(N/1)` over N days. The
+   dossier walks through the math; `neutral_tolerance_pct()` implements
+   it; grading is now horizon-honest.
+
+6. **Research dossier > argument from authority.** Once we wrote
+   `constants_dossier.md` with citations, every later number became
+   defensible ("per dossier §3.2, daily entry zone is ±0.5% based on
+   median Nifty ATR/price"). Future tuning becomes "update the dossier
+   first, then the code," which is the right order.
+
+7. **The trading-calendar helper is load-bearing.** Without it, "7 days
+   from today" silently included weekends + Indian market holidays —
+   horizon math was off by ~30%. Real markets only trade on real
+   trading days. `holidays` lib + `pandas.tseries.offsets.CustomBusinessDay`
+   makes this a few lines but the bug is invisible until you grade it.
+
+### Step 3.4.6 test count delta: 854 → 1021 (+167)
+
+---
+
 ## ⏸️ Step 3.5.5+ — Backtest replay/runner/evaluator (NOT STARTED)
 
 **Goal**: Today, calibration only works on real-elapsed-time predictions.
@@ -622,7 +737,7 @@ data/kb/
 scripts/
 └── bootstrap_indices.py                # NEW (Step A)
 
-tests/                                  # 854 unit tests + 7 integration
+tests/                                  # 1021 unit tests + 7 integration
 ├── test_kb_stocks.py                   # 36 tests (Step A)
 ├── test_prices.py / test_resilient_price_fetcher.py / test_price_cache.py
 ├── analysis/                           # 61 tests (Step B.3 + B.4)
@@ -667,13 +782,23 @@ tests/                                  # 854 unit tests + 7 integration
 | Step D.9 (CLI) | ~864 | +14 | typer + rich: predict / predict-many / history |
 | Step 3.5.1 (grading) | ~898 | +34 | grade_one + GradedPrediction + 6-outcome enum |
 | Step 3.5.2 (calibration) | ~924 | +26 | grade_many + CalibrationReport + Brier |
-| Step 3.5.3 (CLI grade+calibration) | **854** | net | Net delta after test cleanup; gross +37 |
+| Step 3.5.3 (CLI grade+calibration) | 854 | net | Net delta after test cleanup; gross +37 |
+| Step 3.4.6.1 (trading-calendar) | ~880 | +26 | NSE-aware day math (`0d5cdec`) |
+| Step 3.4.6.2 (horizon enum rename) | ~890 | +10 | DAILY/WEEKLY/BIWEEKLY/MONTHLY (`505cb4d`) |
+| Step 3.4.6.3 (predict() fan-out) | ~925 | +35 | parallel ×4 horizons (`ff037fc`) |
+| Step 3.4.6.4 (sqrt-t NEUTRAL grading) | ~945 | +20 | per-horizon tolerance (`3253d89`) |
+| Step 3.4.6.5 (constants dossier + LMW fix) | ~960 | +15 | dossier + chart-pattern alignment (`9efa283`) |
+| Step 3.4.6.6 (horizon_constants — Commit A) | ~975 | +15 | single SoT module (`34bb240`) |
+| Step 3.4.6.7 (guardrails per-horizon — Commit B) | ~1006 | +31 | Tier 4 calibration cap + per-horizon bands (`c66388e`) |
+| Step 3.4.6.8 (synthesizer prompt — Commit C) | **1021** | +15 | per-horizon rules table embedded in prompt (`eb3c84f`) |
 
 \*Includes a +4 incidental gap between B.4 and C.1 (fixture/import additions).
 
 Note: Step D + 3.5 totals are approximate per-substep snapshots reconstructed
-from commit log; the 854 figure is the actual current `pytest --collect-only`
-count (with 7 integration tests deselected).
+from commit log; the **1021 figure** is the actual current `pytest --collect-only`
+count (with 7 integration tests deselected, 1 skipped). Step 3.4.6 per-substep
+rows are reconstructed from commit-by-commit deltas — the 854 → 1021 net is
+the rock-solid number; intermediate snapshots are best-effort.
 
 ---
 
@@ -770,6 +895,41 @@ count (with 7 integration tests deselected).
 8. **Mock at the boundary.** CLI tests mock `grade_many`; the contract of
    grade_many is exhaustively tested elsewhere with synthetic OHLCV.
    No need to repeat.
+
+### From Step 3.4.6 (Multi-horizon hardening)
+1. **"Accepts a parameter" ≠ "is parameterized."** A function can take
+   `horizon` and silently ignore it downstream. *Fake multi-horizon* is
+   worse than single-horizon because it looks honest while lying. Audit
+   the call stack, not the signature.
+2. **`--by horizon` was the canary.** Calibration breakdowns surface
+   horizon-blindness instantly: if every horizon has identical numbers,
+   you're not actually multi-horizon. Build the breakdown surfaces FIRST
+   so the bug shows up second.
+3. **Single source of truth is a refactor target, not a starting point.**
+   Catalog scattered constants → centralize them → wire consumers to the
+   single module. Skipping the catalog step means you miss usages.
+4. **Tests prove the SoT chain mechanically.** The killer test reads each
+   helper from `horizon_constants` and asserts the rendered prompt
+   contains those exact values per horizon. Tune the module → prompt AND
+   guardrails update; tests still pass. Drift becomes impossible.
+5. **Regression nets for deletions, not just additions.** When you delete
+   dead phrasing, parametrize a test over the exact strings deleted so
+   a future contributor can't reintroduce them.
+6. **Sqrt-t scaling for time-uncertainty bands** (standard finance). A 2%
+   NEUTRAL tolerance at 1 day implies ~`2% × √(N)` over N days. Hard-coded
+   constants across horizons miss this completely.
+7. **Research dossier > argument from authority.** Citations make every
+   tunable defensible. Future tuning order: dossier first, then code.
+8. **NSE trading-calendar is load-bearing.** Calendar days ≠ trading
+   days; "+7 days" naively includes weekends + Indian market holidays,
+   so horizon math is off by ~30%. `holidays` lib + `CustomBusinessDay`
+   fixes it in a few lines, but the bug is invisible without grading.
+9. **`MappingProxyType` for frozen lookup tables.** Lets consumers read
+   but not mutate; better than convention-only "please don't mutate."
+10. **Render-from-source-of-truth at module import.** The synthesizer's
+    per-horizon rules table is `_render_per_horizon_table()` called once
+    at import; embedded into `SYSTEM_INSTRUCTION` via f-string. No
+    runtime cost, zero possibility of stale text.
 
 ### Meta-lesson (recurring)
 When we agree on a build plan together, sticking to it is the contract.
