@@ -26,6 +26,7 @@ from price_predictor.prediction.inputs import (
 from price_predictor.prediction.guardrails import (
     HallucinationError,
     validate_all,
+    validate_calibration,
     validate_citations,
     validate_consistency,
     validate_grounding,
@@ -92,6 +93,7 @@ __all__ = [
     "run_synthesizer_agent",
     "synthesize_with_guardrails",
     "validate_all",
+    "validate_calibration",
     "validate_citations",
     "validate_consistency",
     "validate_grounding",

@@ -13,15 +13,26 @@ What they DON'T guarantee:
     ('RSI=72',) when no cluster mentions RSI=72 anywhere).
   - The direction matches the evidence (LLM could call BULLISH against
     3 bearish clusters and neutral news).
+  - The confidence is humble for the horizon (LLM could claim 0.95
+    on a monthly call, where nobody can be that sure).
 
 This module catches those failures BEFORE the prediction ships.
 
-THREE TIERS
-===========
-Tier 1 - validate_grounding   : numbers must trace to real input values
-Tier 2 - validate_citations   : evidence strings must reference real input
-Tier 3 - validate_consistency : direction must match cluster majority
-                                or be backed by news
+FOUR TIERS
+==========
+Tier 1 - validate_grounding    : numbers must trace to real input values
+Tier 2 - validate_citations    : evidence strings must reference real input
+Tier 3 - validate_consistency  : direction must match cluster majority
+                                 or be backed by news
+Tier 4 - validate_calibration  : confidence must respect per-horizon cap
+
+PER-HORIZON BEHAVIOR (added in multi-horizon refactor commit B)
+===============================================================
+Stops, target ATR distances, entry-zone widths, and confidence caps
+are per-horizon. The actual numbers live in `horizon_constants.py`
+(single source of truth, also consumed by the synthesizer prompt in
+commit C). Tier 1 reads stops + entry-zone + ATR-derived target
+anchors per horizon. Tier 4 reads the confidence cap per horizon.
 
 FAILURE FLOW
 ============
@@ -42,18 +53,34 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
+from price_predictor.prediction.horizon_constants import (
+    confidence_cap,
+    entry_zone_pct,
+    stop_atr_range,
+    target_atr_range,
+)
 from price_predictor.prediction.inputs import ClusterView, SynthesisInput
-from price_predictor.prediction.schema import Prediction, PredictionDirection
+from price_predictor.prediction.schema import (
+    Prediction,
+    PredictionDirection,
+    PredictionHorizon,
+)
 
-# Tunable thresholds — strict by design (commit 5 is "max guardrails" mode).
-# If real-world calibration shows these are too tight, loosen here, NOT
-# in the validators (keep the policy in one place).
+# Anchor-match precision tolerance — flat across horizons. This is
+# "how close to an anchor counts as a match," which is a precision
+# question (rounding tolerance), NOT a horizon question. See the
+# horizon-specific knobs in horizon_constants.py for the per-horizon
+# stop / target / entry-zone / confidence rules.
 TARGET_ANCHOR_TOLERANCE_PCT = 0.005   # 0.5% — target must be within this
                                        # of a known anchor value
-STOP_MIN_ATR = 0.7                     # stop must be ≥ 0.7×ATR from close
-STOP_MAX_ATR = 1.8                     # stop must be ≤ 1.8×ATR from close
-ENTRY_ZONE_TOLERANCE_PCT = 0.01        # entry zone must be within 1% of close
-ATR_MULTIPLIERS = (1.0, 1.5, 2.0, 2.5, 3.0)  # close ± k×ATR are valid targets
+
+# Number of ATR-derived target anchors generated per horizon. Three
+# evenly-spaced points across the per-horizon target_atr_range
+# (endpoints + midpoint) — dense enough to pin a reasonable target
+# without flooding the anchor list. Compare to pre-commit-B behavior
+# of 5 flat multipliers (1.0, 1.5, 2.0, 2.5, 3.0) used for ALL
+# horizons.
+_ATR_ANCHOR_COUNT = 3
 
 # Tokens too short or too generic to count as "real evidence" in
 # citation checks. Lowercased.
@@ -101,29 +128,57 @@ def _atr_from_input(si: SynthesisInput) -> float:
     )
 
 
-def _bullish_anchors(si: SynthesisInput, close: float, atr: float) -> list[float]:
+def _atr_anchors_for_horizon(horizon: PredictionHorizon) -> tuple[float, ...]:
+    """Per-horizon ATR multipliers used to derive target anchor candidates.
+
+    Returns three evenly-spaced points across the horizon's
+    target_atr_range: (min, midpoint, max). Three is the smallest count
+    that covers both endpoints AND the interior of the band, mirroring
+    the density of the pre-commit-B flat 5-tuple while keeping the band
+    horizon-specific.
+
+    Example: for WEEKLY where target_atr_range = (1.0, 2.0), returns
+    (1.0, 1.5, 2.0) — anchors at close + 1×ATR, +1.5×ATR, +2×ATR.
+    """
+    lo, hi = target_atr_range(horizon)
+    mid = (lo + hi) / 2.0
+    return (lo, mid, hi)
+
+
+def _bullish_anchors(
+    si: SynthesisInput, close: float, atr: float, horizon: PredictionHorizon,
+) -> list[float]:
     """Valid target anchors for a BULLISH prediction.
 
     A bullish target should reach for resistance: swing high, pivot
-    resistances, 52w high, or 1-3 ATRs above close.
+    resistances, 52w high, or per-horizon ATR multiples above close.
+
+    Real-level anchors (swing_high, r1, r2, high_52w) are NOT filtered
+    by horizon — if the LLM picks a swing high for a daily call that's
+    actually too far, the per-horizon stop check will catch the
+    impossible R:R. Filtering real levels by horizon would require a
+    judgment call ("how far is too far for daily?") not captured in
+    the dossier; YAGNI for v1.
     """
     keys = ("swing_high", "r1", "r2", "high_52w")
     anchors = [
         v for v in (si.technical_view.levels.indicators.get(k) for k in keys)
         if isinstance(v, (int, float)) and v > 0
     ]
-    anchors.extend(close + k * atr for k in ATR_MULTIPLIERS)
+    anchors.extend(close + k * atr for k in _atr_anchors_for_horizon(horizon))
     return anchors
 
 
-def _bearish_anchors(si: SynthesisInput, close: float, atr: float) -> list[float]:
+def _bearish_anchors(
+    si: SynthesisInput, close: float, atr: float, horizon: PredictionHorizon,
+) -> list[float]:
     """Mirror of _bullish_anchors for BEARISH predictions."""
     keys = ("swing_low", "s1", "s2", "low_52w")
     anchors = [
         v for v in (si.technical_view.levels.indicators.get(k) for k in keys)
         if isinstance(v, (int, float)) and v > 0
     ]
-    anchors.extend(close - k * atr for k in ATR_MULTIPLIERS)
+    anchors.extend(close - k * atr for k in _atr_anchors_for_horizon(horizon))
     # Filter out non-positive (a stock can't have a negative price target)
     return [a for a in anchors if a > 0]
 
@@ -157,38 +212,50 @@ def validate_grounding(pred: Prediction, si: SynthesisInput) -> None:
     """
     close = si.technical_view.close_price
     atr = _atr_from_input(si)
+    horizon = pred.horizon
 
-    # ── Entry zone: must hug close_price ────────────────────
+    # ── Entry zone: must hug close_price (per-horizon width) ──
+    entry_tol = entry_zone_pct(horizon)
     for tag, val in (("entry_low", pred.entry_zone[0]),
                      ("entry_high", pred.entry_zone[1])):
-        if abs(val - close) / close > ENTRY_ZONE_TOLERANCE_PCT:
+        if abs(val - close) / close > entry_tol:
             raise HallucinationError(
                 "grounding",
                 f"{tag}={val:.2f} drifted from close={close:.2f} "
-                f"by more than {ENTRY_ZONE_TOLERANCE_PCT*100:.1f}%. "
+                f"by more than {entry_tol*100:.1f}% (horizon={horizon.value}). "
                 f"Entry zones MUST hug close price.",
             )
 
-    # ── Stop loss: distance must be in valid ATR multiple ───
+    # ── Stop loss: distance must be in per-horizon ATR multiple band ──
+    stop_min, stop_max = stop_atr_range(horizon)
     stop_dist = abs(pred.stop_loss.value - close)
-    if not (STOP_MIN_ATR * atr <= stop_dist <= STOP_MAX_ATR * atr):
+    if not (stop_min * atr <= stop_dist <= stop_max * atr):
         raise HallucinationError(
             "grounding",
             f"stop_loss={pred.stop_loss.value:.2f} is "
             f"{stop_dist/atr:.2f}×ATR from close={close:.2f}. "
-            f"Must be in [{STOP_MIN_ATR}, {STOP_MAX_ATR}]×ATR (ATR={atr:.2f}).",
+            f"Must be in [{stop_min}, {stop_max}]×ATR for horizon={horizon.value} "
+            f"(ATR={atr:.2f}).",
         )
 
-    # ── Target: must be near a real anchor ──────────────────
+    # ── Target: must be near a real anchor (per-horizon ATR distances) ──
     if pred.direction == PredictionDirection.BULLISH:
-        anchors = _bullish_anchors(si, close, atr)
-        anchor_desc = "swing_high / r1 / r2 / high_52w / close+(1-3)×ATR"
+        anchors = _bullish_anchors(si, close, atr, horizon)
+        atr_lo, atr_hi = target_atr_range(horizon)
+        anchor_desc = (
+            f"swing_high / r1 / r2 / high_52w / close+({atr_lo}-{atr_hi})×ATR"
+        )
     elif pred.direction == PredictionDirection.BEARISH:
-        anchors = _bearish_anchors(si, close, atr)
-        anchor_desc = "swing_low / s1 / s2 / low_52w / close-(1-3)×ATR"
+        anchors = _bearish_anchors(si, close, atr, horizon)
+        atr_lo, atr_hi = target_atr_range(horizon)
+        anchor_desc = (
+            f"swing_low / s1 / s2 / low_52w / close-({atr_lo}-{atr_hi})×ATR"
+        )
     else:  # NEUTRAL
         # For neutral, target should be near close (range-bound). Allow
-        # ±1×ATR around close as the "neutral target zone."
+        # ±1×ATR around close as the "neutral target zone." This band is
+        # NOT per-horizon — NEUTRAL by definition means "not really
+        # moving," so the same tight band applies regardless of horizon.
         anchors = [close + k * atr for k in (-1.0, -0.5, 0.0, 0.5, 1.0)]
         anchor_desc = "close ± 0-1×ATR"
 
@@ -322,15 +389,56 @@ def validate_consistency(pred: Prediction, si: SynthesisInput) -> None:
     # NEUTRAL: no constraint — neutral is always defensible.
 
 
-# ─────────────────────────────────────────────────────────────
-# Public: run all three
-# ─────────────────────────────────────────────────────────────
-def validate_all(pred: Prediction, si: SynthesisInput) -> None:
-    """Run all three guardrails. Raises HallucinationError on first fail.
+# ────────────────────────────────────────────
+# Tier 4: per-horizon confidence cap (the humility check)
+# ────────────────────────────────────────────
+def validate_calibration(pred: Prediction, si: SynthesisInput) -> None:
+    """Confidence must respect the per-horizon cap.
 
-    Order matters: grounding (cheapest) first, then citations, then
-    consistency. Earlier tiers catch the most common failures.
+    Long-horizon predictions are inherently more uncertain (more events
+    can intervene between as_of and target_datetime). The LLM should
+    not be allowed to claim 0.95 confidence on a monthly call. The
+    synthesizer prompt (commit C) tells the LLM about these caps;
+    this is the enforcement.
+
+    Caps are defined per horizon in `horizon_constants.py`:
+      DAILY    ≤ 0.90
+      WEEKLY   ≤ 0.85
+      BIWEEKLY ≤ 0.80
+      MONTHLY  ≤ 0.75
+
+    The `si` argument is unused today (cap depends only on horizon),
+    but kept for signature consistency with the other validators — a
+    future calibration that depends on input richness (e.g. "only allow
+    high confidence when news + technicals both confirm") would need it.
+
+    Raises:
+        HallucinationError(tier='calibration')
+    """
+    cap = confidence_cap(pred.horizon)
+    if pred.confidence > cap:
+        raise HallucinationError(
+            "calibration",
+            f"confidence {pred.confidence:.2f} exceeds cap {cap:.2f} "
+            f"for horizon={pred.horizon.value}. Long-horizon predictions "
+            f"are inherently more uncertain; lower confidence required.",
+        )
+
+
+# ────────────────────────────────────────────
+# Public: run all four
+# ────────────────────────────────────────────
+def validate_all(pred: Prediction, si: SynthesisInput) -> None:
+    """Run all four guardrails. Raises HallucinationError on first fail.
+
+    Order matters: grounding (cheapest, catches the most common
+    failures) first, then citations, then consistency, then
+    calibration last. Calibration is cheap but rarely fails for a
+    well-calibrated model; running it after the substantive checks
+    means we don't reject for over-confidence on an already-broken
+    prediction (the substantive error is more useful feedback).
     """
     validate_grounding(pred, si)
     validate_citations(pred, si)
     validate_consistency(pred, si)
+    validate_calibration(pred, si)

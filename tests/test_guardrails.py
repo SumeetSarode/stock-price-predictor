@@ -24,11 +24,16 @@ from price_predictor.prediction import (
     SynthesisInput,
     synthesize_with_guardrails,
     validate_all,
+    validate_calibration,
     validate_citations,
     validate_consistency,
     validate_grounding,
 )
 from price_predictor.prediction.guardrails import _build_input_vocabulary
+from price_predictor.prediction.horizon_constants import (
+    confidence_cap,
+    stop_atr_range,
+)
 from price_predictor.prediction.inputs import ClusterView, TechnicalView
 from price_predictor.prediction.schema import (
     AnalysisBasis,
@@ -67,6 +72,7 @@ def _make_si(
     volatility="neutral", levels="bullish",
     news_sentiment="bullish",
     catalyst_desc="Q3 earnings beat consensus by 12% YoY",
+    horizon="weekly",
 ):
     """Build a SynthesisInput with sensible bullish-by-default defaults."""
     tv = TechnicalView(
@@ -108,7 +114,7 @@ def _make_si(
     )
     return SynthesisInput(
         ticker="RELIANCE.NS",
-        horizon="weekly",
+        horizon=horizon,
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
         technical_view=tv,
         impact_assessment=ia,
@@ -122,6 +128,8 @@ def _make_pred(
     target_value=SWING_HIGH,
     stop_value=CLOSE - ATR,
     entry=(CLOSE - 2.0, CLOSE + 2.0),
+    confidence=0.72,
+    horizon=PredictionHorizon.WEEKLY,
     contributing=("trend bullish across smas", "momentum rsi 65 healthy",
                   "Q3 earnings beat consensus"),
     conflicting=("volatility neutral atr stable",),
@@ -129,10 +137,10 @@ def _make_pred(
     return Prediction(
         ticker="RELIANCE.NS",
         as_of=datetime(2026, 4, 28, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
-        horizon=PredictionHorizon.WEEKLY,
+        horizon=horizon,
         model_chain=("news_impact:agentic",),
         direction=direction,
-        confidence=0.72,
+        confidence=confidence,
         entry_zone=entry,
         target=PriceLevel(value=target_value, rationale="swing_high resistance"),
         stop_loss=PriceLevel(value=stop_value, rationale="below recent low"),
@@ -366,3 +374,147 @@ class TestSynthesizeWithGuardrails:
         with pytest.raises(PredictionError, match="twice"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
         assert mock_synth.await_count == 2  # tried twice, then gave up
+
+
+# ────────────────────────────────────────────
+# 6. Tier 4 — calibration (per-horizon confidence cap)
+# ────────────────────────────────────────────
+class TestValidateCalibration:
+    """Tier 4 — the humility check.
+
+    Long-horizon predictions are inherently more uncertain. The cap
+    enforces "a monthly call cannot claim 0.95 confidence." Caps live
+    in horizon_constants.CONFIDENCE_CAP_BY_HORIZON; tests reference the
+    helper rather than hard-coding numbers so future tuning doesn't
+    silently break here.
+    """
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_passes_below_cap(self, horizon: PredictionHorizon):
+        cap = confidence_cap(horizon)
+        # confidence comfortably below cap
+        pred = _make_pred(horizon=horizon, confidence=cap - 0.05)
+        validate_calibration(pred, _make_si(horizon=horizon.value))
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_passes_at_cap(self, horizon: PredictionHorizon):
+        # confidence == cap is the boundary; spec says "exceeds cap"
+        # is rejected, so equal-to-cap must pass.
+        cap = confidence_cap(horizon)
+        pred = _make_pred(horizon=horizon, confidence=cap)
+        validate_calibration(pred, _make_si(horizon=horizon.value))
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_rejects_above_cap(self, horizon: PredictionHorizon):
+        cap = confidence_cap(horizon)
+        # cap + 0.001 to test boundary; cap + 0.05 to test obvious case
+        for over in (cap + 0.001, min(cap + 0.05, 0.99)):
+            if over <= cap:
+                continue  # cap was already 0.99+
+            pred = _make_pred(horizon=horizon, confidence=over)
+            with pytest.raises(HallucinationError, match="calibration") as ex:
+                validate_calibration(pred, _make_si(horizon=horizon.value))
+            assert ex.value.tier == "calibration"
+            assert horizon.value in str(ex.value)
+
+    def test_validate_all_chain_includes_calibration(self):
+        """validate_all runs calibration after the substantive tiers.
+
+        A prediction that passes grounding/citations/consistency but
+        has confidence above the horizon cap must be caught by the
+        calibration tier inside validate_all.
+        """
+        # Default fixture is WEEKLY (cap=0.85). Set confidence > cap.
+        pred = _make_pred(confidence=0.95)  # weekly cap is 0.85
+        with pytest.raises(HallucinationError) as ex:
+            validate_all(pred, _make_si())
+        assert ex.value.tier == "calibration"
+
+
+# ────────────────────────────────────────────
+# 7. Per-horizon stop bounds (Tier 1 grounding, parametrized)
+# ────────────────────────────────────────
+class TestPerHorizonStopBounds:
+    """Confirm stop bounds are pulled per-horizon (commit B integration).
+
+    Same prediction shape, varying horizon — the same stop ATR multiple
+    can be valid for one horizon and invalid for another. This is the
+    single most important behavioral change in commit B.
+    """
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_stop_at_min_passes(self, horizon: PredictionHorizon):
+        """Stop exactly at horizon's min ATR multiple should pass."""
+        stop_min, _ = stop_atr_range(horizon)
+        # Stop at exactly stop_min * ATR (boundary inclusive)
+        pred = _make_pred(
+            horizon=horizon,
+            stop_value=CLOSE - stop_min * ATR,
+            # confidence must respect the per-horizon cap too
+            confidence=min(0.70, confidence_cap(horizon)),
+        )
+        validate_grounding(pred, _make_si(horizon=horizon.value))
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_stop_at_max_passes(self, horizon: PredictionHorizon):
+        """Stop exactly at horizon's max ATR multiple should pass."""
+        _, stop_max = stop_atr_range(horizon)
+        pred = _make_pred(
+            horizon=horizon,
+            stop_value=CLOSE - stop_max * ATR,
+            confidence=min(0.70, confidence_cap(horizon)),
+        )
+        validate_grounding(pred, _make_si(horizon=horizon.value))
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_stop_below_min_rejected(self, horizon: PredictionHorizon):
+        """Stop tighter than horizon's minimum should be rejected."""
+        stop_min, _ = stop_atr_range(horizon)
+        # Cut min in half — unambiguously too tight
+        pred = _make_pred(
+            horizon=horizon,
+            stop_value=CLOSE - (stop_min / 2.0) * ATR,
+            confidence=min(0.70, confidence_cap(horizon)),
+        )
+        with pytest.raises(HallucinationError, match="stop_loss"):
+            validate_grounding(pred, _make_si(horizon=horizon.value))
+
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    def test_stop_above_max_rejected(self, horizon: PredictionHorizon):
+        """Stop wider than horizon's maximum should be rejected."""
+        _, stop_max = stop_atr_range(horizon)
+        # 1.5× the max — unambiguously too wide
+        pred = _make_pred(
+            horizon=horizon,
+            stop_value=CLOSE - (stop_max * 1.5) * ATR,
+            confidence=min(0.70, confidence_cap(horizon)),
+        )
+        with pytest.raises(HallucinationError, match="stop_loss"):
+            validate_grounding(pred, _make_si(horizon=horizon.value))
+
+    def test_daily_stop_too_wide_for_daily_but_ok_for_monthly(self):
+        """The headline test: same stop value, different verdicts.
+
+        Stop at 1.8×ATR is OUTSIDE daily's (0.5, 1.0) but INSIDE
+        monthly's (1.5, 2.5). Same prediction shape, the per-horizon
+        rulebook gives opposite answers — exactly the bug commit B
+        was built to fix.
+        """
+        stop_value = CLOSE - 1.8 * ATR
+
+        # DAILY: 1.8×ATR > daily max (1.0) → reject
+        daily_pred = _make_pred(
+            horizon=PredictionHorizon.DAILY,
+            stop_value=stop_value,
+            confidence=0.70,  # under daily cap (0.90)
+        )
+        with pytest.raises(HallucinationError, match="stop_loss"):
+            validate_grounding(daily_pred, _make_si(horizon="daily"))
+
+        # MONTHLY: 1.8×ATR ∈ (1.5, 2.5) → accept
+        monthly_pred = _make_pred(
+            horizon=PredictionHorizon.MONTHLY,
+            stop_value=stop_value,
+            confidence=0.70,  # under monthly cap (0.75)
+        )
+        validate_grounding(monthly_pred, _make_si(horizon="monthly"))
