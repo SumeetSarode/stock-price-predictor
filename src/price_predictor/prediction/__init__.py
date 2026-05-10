@@ -30,6 +30,16 @@ from price_predictor.prediction.guardrails import (
     validate_consistency,
     validate_grounding,
 )
+from price_predictor.prediction.horizon_constants import (
+    CONFIDENCE_CAP_BY_HORIZON,
+    ENTRY_ZONE_PCT_BY_HORIZON,
+    STOP_ATR_RANGE_BY_HORIZON,
+    TARGET_ATR_RANGE_BY_HORIZON,
+    confidence_cap,
+    entry_zone_pct,
+    stop_atr_range,
+    target_atr_range,
+)
 from price_predictor.prediction.predictor import (
     PredictionError,
     predict,
@@ -85,6 +95,15 @@ __all__ = [
     "validate_citations",
     "validate_consistency",
     "validate_grounding",
+    # horizon constants (multi-horizon refactor commit A)
+    "CONFIDENCE_CAP_BY_HORIZON",
+    "ENTRY_ZONE_PCT_BY_HORIZON",
+    "STOP_ATR_RANGE_BY_HORIZON",
+    "TARGET_ATR_RANGE_BY_HORIZON",
+    "confidence_cap",
+    "entry_zone_pct",
+    "stop_atr_range",
+    "target_atr_range",
     # batch (3.4.3 commit 1)
     "BatchError",
     "BatchResult",
