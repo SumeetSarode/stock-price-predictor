@@ -42,15 +42,28 @@ For a single NSE-listed stock, at four time horizons, we predict
 | Stop-loss      | A single price level                                    |
 | Confidence     | A number in `[0, 1]`                                    |
 
-**Risk-reward terminology.** The `risk_reward` field surfaced on every
-BULLISH/BEARISH prediction is computed using the **worst-fill anchor**
-of the entry zone (zone-high for longs, zone-low for shorts). We call
-this "worst-fill RR" rather than the previously-used "worst-case RR":
-it's the single-trade RR a trader would book if they got the worst
-possible fill within the entry band, not a worst-case-scenario over
-all possible adverse paths. Mainstream RR formulae use a single entry
-price; we use the worst-end of the band so a wider entry zone is
-penalized for its own ambiguity.
+**Risk-reward terminology (M4).** Every BULLISH/BEARISH prediction
+surfaces **two** RR fields, both computed (never user-supplied), so
+the entire schema stays consistent with the underlying levels.
+
+- **`risk_reward`** — the **worst-fill anchor** of the entry zone
+  (zone-high for longs, zone-low for shorts). This is the single-trade
+  RR a trader would book if they got the worst possible fill within
+  the entry band. We use it as the **conservative sizing filter**:
+  rules like `risk_reward ≥ 1.5` then read as "even at the worst
+  fill, RR is still acceptable". Renamed from "worst-case RR" — it's
+  worst-fill within the band, not worst-case over all adverse paths.
+- **`midpoint_rr`** — the **midpoint anchor** of the entry zone
+  (entry assumed at `(zone_low + zone_high) / 2`). This matches the
+  convention used in published edge studies (Bulkowski's pattern
+  catalogues, the Edwards & Magee tradition, broker calculators that
+  quote single-entry RR). Surfaced for **literature-comparison** only;
+  not used for sizing.
+- For any zone of nonzero width, `midpoint_rr ≥ risk_reward` (the
+  midpoint fill is unambiguously better than the worst-end fill). They
+  coincide when the zone collapses to a single price, which also
+  matches the textbook single-entry formula
+  `RR = (target − entry) / (entry − stop)`.
 
 The four horizons:
 
@@ -200,8 +213,12 @@ process-wide in-memory cache.
   parallel calls for the same ticker share one fetch; calls for
   different tickers fetch in parallel.
 - **Proactive fetch window:** when a fetch happens, we proactively
-  grab **365 calendar days** so subsequent calls for narrower windows
-  are pure cache slices.
+  grab **750 calendar days** (≈ 520 NSE trading bars, ~2 calendar
+  years). Bumped from 365 in the H7 indicator-math accuracy fix —
+  see §3.2 ADX and §3.3 RSI: after the Wilder warmup discard
+  (10×ADX-length = 140 bars + 200 SMA cushion + 60-bar squeeze
+  lookback) we still want ≥ 180 usable bars. Subsequent calls for
+  narrower windows are pure cache slices.
 - **Eviction:** none. 50 stocks × ~50 KB ≈ 2.5 MB; trivial.
 - **Copy-on-return:** slicing returns a defensive copy, so callers
   can mutate freely without poisoning the cache.
@@ -339,19 +356,38 @@ otherwise noted.
   −DI measure the *direction* of that trend.
 - **Length used:** 14.
 - **Source.** Wilder (1978), original definition.
-- **Strength threshold attribution.** Wilder's original threshold for
-  "strong trend present" was **25**. The lower **20** floor used
-  elsewhere in this doc (§4.1 trend signal) is a *modern practical
-  convention* (StockCharts ChartSchool reference), NOT Wilder's number.
-  Both are documented; we picked 20 to encourage neutral verdicts in
-  marginal trends.
+- **Strength threshold attribution.** The trend-signal classifier
+  (§4.1) gates on **ADX < 20 → neutral**. Two sourced anchors and one
+  unsourced choice are involved here, and they should not be confused:
+  - **Wilder (1978), *New Concepts in Technical Trading Systems*,
+    Ch. VII**, proposed **25** as the threshold for "a strong trend is
+    present". Wilder did not publish a 20-floor.
+  - **The 20 floor is a modern convention**, popularised by StockCharts
+    ChartSchool: "Wilder suggests that a strong trend is present when
+    ADX is above 25 and no trend is present when ADX is below 20.
+    There appears to be a gray zone between 20 and 25."
+  - **The 0.5 / 0.7 / 0.85 confidence anchors at ADX 20 / 30 / 40
+    (§4.1) are our own design choice**, not Wilder's and not
+    StockCharts'. Deliberately conservative — we never claim
+    near-certainty from a single indicator. 🔬 **NEEDS BACKTEST**
+    against a 25-floor variant before being treated as final.
+  Earlier prose in this doc said "Wilder's threshold for trending
+  market is 20–25" — that conflated Wilder's 25 with the modern 20
+  and is now retracted (see pred_logic_review §H1).
 - **Convergence guard.** ADX is published only when at least
-  `2 × length = 28` bars are available; otherwise null. **NB:** Wilder
-  smoothing is an EWMA with α = 1/N and never fully converges; 28 bars
-  is the *minimum publishable* value, not the *fully reliable* value.
-  The full warmup-bias fix (5N ≈ 70 bars for RSI/ATR, 10N ≈ 140 bars
-  for ADX) is tracked separately and addressed in the indicator math
-  accuracy chunk.
+  `10 × length = 140` bars are available; otherwise null. The reason
+  is mathematical: ADX is **doubly** Wilder-smoothed (first the True
+  Range and Directional Movement get RMA(N) applied; then DX gets
+  RMA(N) applied again to give ADX). Wilder smoothing is an EWMA with
+  α = 1/N; the seed-value bias decays as `(1 − 1/N)^k` and only falls
+  below 1% by ~5N bars. Because the smoothing is applied twice, ADX
+  needs ~5N bars *past* its first-valid bar (which is itself at 2N per
+  Wilder 1978), i.e. ~10N total. The previous `2 × length = 28`-bar
+  guard left ~36% seed bias on the second smoothing pass — the largest
+  single accuracy gap that existed in the trend cluster. Source for
+  the convergence math: Skoglund (2017); Kirkpatrick & Dahlquist,
+  *Technical Analysis* 3e (FT Press 2016). See also §3.3 RSI for the
+  one-pass case (5N) and §3.3 MACD for EMA-of-EMA (5×slow).
 
 ### 3.3 Momentum cluster
 
@@ -369,9 +405,12 @@ otherwise noted.
   (40 acts as support); in downtrends 20–60 (60 acts as resistance).
   See Brown, *Technical Analysis for the Trading Professional* 2e
   (McGraw-Hill 2011) which credits Cardwell directly.
-- **Convergence guard.** Require `2 × length = 28` bars. (Same
-  caveat as ADX about Wilder smoothing: 28 is publishable, not fully
-  reliable. Full 5N=70-bar warmup fix is in the indicator-math chunk.)
+- **Convergence guard.** Require `5 × length = 70` bars. RSI uses
+  Wilder's RMA, an EWMA with α = 1/N; seed bias decays as
+  `(1 − 1/N)^k` and only falls below 1% by ~5N bars. The previous
+  `2 × length = 28` minimum left ~36% seed bias — enough to flip
+  RSI from 58 to 65 (false bullish vote per the Cardwell 60/40
+  thresholds). See §3.2 ADX for the doubly-smoothed case (10N).
 
 #### MACD
 
@@ -388,6 +427,14 @@ otherwise noted.
   bars. If it changed sign from negative-or-zero to positive, we
   report `cross = "bullish"`. From positive-or-zero to negative →
   `cross = "bearish"`. Otherwise `cross = None`.
+- **Convergence guard.** Require `5 × slow = 130` bars. MACD is
+  EMA-of-EMA (the signal line is an EMA of the MACD line, which is
+  itself a difference of two EMAs); seed bias compounds across both
+  passes. The previous `slow + signal = 35`-bar guard left ~30%
+  seed bias in the signal line, which made the discrete `cross`
+  field essentially noise on small histories. Source: pred_logic
+  review/solutions §H8 derivation following the same EWMA-bias
+  argument as ADX/RSI.
 
 #### Stochastic Oscillator
 
@@ -422,6 +469,12 @@ otherwise noted.
   captures gap risk too, not just intra-bar range.
 - **Length used:** 14.
 - **Source.** Wilder (1978).
+- **Convergence guard.** Require `5 × length = 70` bars. ATR uses
+  Wilder's RMA (same EWMA derivation as RSI — see §3.3). The
+  previous `2 × length = 28`-bar guard left ~36% seed bias, which
+  fed directly into Step D's stop-loss sizing (`2 × ATR`). Stops
+  could be ~25% off purely from warmup noise. Now: ATR is `null`
+  until 70 bars exist, and the synthesizer refuses to size off `null`.
 - **Why it matters more than anything else.** ATR is the **single
   most important number** in the whole pipeline. It is the *unit* in
   which stop-loss distance and target distance are expressed (see §6).
@@ -431,11 +484,15 @@ otherwise noted.
 - **Definition.** middle = SMA of close over `N`; upper = middle +
   `k × stdev(close, N)`; lower = middle − `k × stdev(...)`.
 - **Parameters used:** `length = 20`, `k = 2.0`.
-- **Source.** John Bollinger, **early 1980s** (introduced on FNN's
-  *Financial News Network*, formally documented in his book *Bollinger
-  on Bollinger Bands*, McGraw-Hill 2001). "Bollinger (1980s)" was
-  vague; the verifiable claim is "early 1980s, FNN broadcasts; book
-  2001".
+- **Source.** John Bollinger — developed in the **early 1980s**
+  while he was active in markets full-time (1980 onward), and **named
+  on Financial News Network c. 1983** when an on-air host asked
+  what he called them. Formally documented in his book *Bollinger
+  on Bollinger Bands* (McGraw-Hill 2001). Source: Bollinger's own
+  narrative at https://www.bollingerbands.com/bollinger-bands. The
+  earlier wording "Bollinger (1980s)" was vague; the verifiable
+  attribution is "early 1980s, named c. 1983 on FNN, formalized
+  in book 2001" (M1).
 - **Derived fields:**
   - **`%B`** = `(close − lower) / (upper − lower)`. `0` = at lower
     band, `1` = at upper band, `> 1` = above upper, `< 0` = below
@@ -445,13 +502,59 @@ otherwise noted.
     territory.
   - **Bandwidth** = `(upper − lower) / middle × 100` (a percent).
 
-#### Bollinger-Band Squeeze
+#### Two distinct "squeeze" indicators (DO NOT CONFLATE)
 
-- **Definition.** Boolean. The current bandwidth is in the **lowest
-  20%** of its values over the past **60 bars**.
-- **Source.** Bollinger's own definition for "compression precedes
-  breakout".
+The trading literature uses the word "squeeze" for two genuinely
+different constructs that we now expose under separate names. Earlier
+versions of this doc had a single ambiguous `bb_squeeze` field that
+conflated them; the H2 fix split them.
 
+**1. Bollinger bandwidth-percentile squeeze — `bollinger_squeeze`**
+
+- **Definition.** Boolean. Current Bollinger bandwidth is in the
+  **lowest 20%** of its values over the past **60 bars**.
+- **Source.** John Bollinger himself, *Bollinger on Bollinger Bands*
+  (Wiley 2001), Ch. 11 "The Squeeze", p. 121–127. Bollinger's own
+  text says "a six-month low in bandwidth is a Squeeze" (~125 trading
+  days); we use a 60-bar / 20%-quantile relaxation that shows up in
+  nearly every modern broker platform.
+- **What it tells you.** "Volatility is currently compressed *relative
+  to its own past*." Wide net, prone to false positives in steady
+  trending markets where bandwidth is calm because the trend is
+  steady (not because a breakout is coiled).
+- **Role downstream.** Diagnostic only. Surfaced in the rationale
+  string so the synthesizer can see when it disagrees with TTM
+  ("Bollinger bandwidth in lowest 20% historically (no TTM squeeze)"),
+  but does **not** drive the strength bump.
+
+**2. TTM Squeeze — `ttm_squeeze` (the actionable trigger)**
+
+- **Definition.** Three-field dict: `{on, fire, bars_in_squeeze}`.
+  - `on` is **True** when the upper Bollinger Band sits **inside** the
+    upper Keltner Channel **AND** the lower BB sits **inside** the
+    lower KC. I.e. normal-distribution-implied vol (BB) is *lower
+    than* ATR-implied vol (Keltner) — the spring is coiled.
+  - `fire` is **True** on the bar where BBs pop back **outside** KCs
+    (squeeze just released). This is Carter's recommended trade
+    trigger.
+  - `bars_in_squeeze` is the consecutive-on count (longer compression
+    → more violent breakout, per Carter's empirical observation).
+- **Parameters used.** BB(20, 2.0) and Keltner(20, 1.5×ATR). Carter's
+  defaults.
+- **Source.** John Carter, *Mastering the Trade* (McGraw-Hill 2009),
+  Ch. 11. Cross-reference: StockCharts ChartSchool, "TTM Squeeze":
+  https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze
+- **What it tells you.** "Both volatility measures (price-stdev *and*
+  ATR-channel) are compressed." Stricter AND-gate than Bollinger
+  alone, far fewer false positives in trending markets.
+- **Role downstream.** Drives the strength bump in the volatility
+  cluster classifier: `ttm_squeeze.on=True` or `ttm_squeeze.fire=True`
+  forces strength to `"strong"` regardless of current direction.
+
+**Why two and not one.** They answer different questions and disagree
+in distinguishable cases (steady calm uptrend: Bollinger ON, TTM OFF).
+Keeping them separate preserves both signals for the synthesizer
+instead of collapsing the disagreement into a single ambiguous flag.
 ### 3.5 Levels cluster
 
 #### Swing high / swing low
@@ -537,9 +640,16 @@ Meaning: bearish reversal at resistance.
 - Today is a bullish bar.
 - Today's body **fully engulfs** yesterday's: `today.open ≤ yesterday.close`
   AND `today.close ≥ yesterday.open`.
+- **Real-body guard (M5).** Yesterday's body must be ≥ **10%** of
+  yesterday's range. Source: Nison 1991, ch. 4 — "the second day's
+  real body must engulf the first day's REAL BODY". Without this
+  guard, a (near-)doji prior bar trivially satisfies the open/close
+  inequalities (it has no body to fail on). The 10% floor mirrors
+  our doji cutoff (`body / range < 0.1` is a doji), so anything
+  ≥ 0.1 is by definition "not a doji".
 
 **5. Bearish engulfing.** Mirror. Yesterday bullish, today bearish,
-today's body engulfs yesterday's.
+today's body engulfs yesterday's. **Same real-body guard applies.**
 
 #### Three-bar patterns
 
@@ -603,6 +713,21 @@ that paper.
 **Pivot detection.** We use SciPy's `find_peaks` with a
 minimum-distance parameter of 5 bars to identify swing highs/lows.
 Anything closer than 5 bars apart isn't treated as a real pivot.
+
+**M6 disclaimer (LMW deviation).** Lo, Mamaysky & Wang (2000) do
+NOT use raw `find_peaks` on observed prices. They first apply a
+**Nadaraya–Watson kernel-regression smoother** to the price series,
+then identify extrema in the smoothed series, then enforce the
+geometric definitions on those smoothed pivots. Our implementation
+uses LMW's *geometric tolerances* (1.5%, 0.75%, 22-bar separation)
+but applies them to `find_peaks`-detected pivots on raw OHLC data
+— a faster, simpler approximation. Trade-offs: cheaper compute and
+no bandwidth-tuning knob, but more sensitivity to single-bar wicks
+that the kernel smoother would have washed out. See
+`analysis/chart_patterns.py` module header for the same disclaimer
+at call-site. 🔬 Phase 2 backtest should compare both pivot-detection
+strategies; the kernel smoother is ~20 lines of additional code if
+the gap is material.
 
 **Confidence floor.** Any detected pattern with confidence `< 0.7` is
 **dropped** before reaching the LLM. Below this floor the
@@ -719,12 +844,13 @@ Each classifier returns a `ClusterAssessment` with three fields:
    the close is above. 2 or 3 above → bullish lean. 0 or 1 above →
    bearish lean.
 2. **ADX strength gate.** If ADX is missing or < **20**, the verdict
-   is **neutral** regardless of the SMA stack. Wilder's *original*
-   threshold for "strong trend" was **25**; the **20** floor we use
-   here is the modern practical convention (StockCharts ChartSchool).
-   The 0.5/0.7/0.85 confidence anchors at ADX 20/30/40 below are our
+   is **neutral** regardless of the SMA stack. **Wilder (1978, Ch.
+   VII) used 25** as the strong-trend threshold; **20 is the modern
+   StockCharts-popularised practical floor**, not Wilder's. The
+   0.5/0.7/0.85 confidence anchors at ADX 20/30/40 below are our
    own design picks — deliberately conservative to encourage neutral
-   verdicts in marginal trends.
+   verdicts in marginal trends. 🔬 **NEEDS BACKTEST against a 25-floor
+   variant.** See §3.2 ADX for the full attribution.
 3. **DI confirmation.** When ADX ≥ 20:
    - If `+DI > −DI` AND SMA stack is bullish → final verdict
      **bullish**.
@@ -780,30 +906,76 @@ the same way) gives ~0.83, capped at 0.85.
 ### 4.3 Volatility classifier
 
 **Inputs:** volatility cluster (ATR + %ATR-of-price, BB %B, BB
-bandwidth, BB squeeze flag).
+bandwidth, **`bollinger_squeeze`** flag, **`ttm_squeeze`** dict
+(`{on, fire, bars_in_squeeze}`)). See §3.4 for why two squeeze
+definitions are surfaced separately.
 
-This classifier's verdict vocabulary is deliberately **not**
-bullish/bearish/neutral. Volatility is direction-agnostic. It returns
-one of:
+Unlike trend / momentum / levels, the volatility classifier emits
+**three orthogonal fields** rather than one verdict, because
+volatility carries multiple independent pieces of information:
 
-- **`expanding`** — bandwidth above its 60-bar median AND %B near
-  either band edge (`<0.1` or `>0.9`).
-- **`contracting`** — squeeze flag is true (bandwidth in lowest 20%
-  of its 60-bar history).
-- **`normal`** — neither.
+#### (a) Direction signal: `bullish` / `neutral` / `bearish`
 
-**Why this matters to the synthesizer.** It doesn't change direction;
-it changes the **target distance and stop distance**. A contracting
-(squeeze) regime tells the synthesizer "expect a breakout; widen the
-target multiplier slightly." An expanding regime tells it "stops
-need more room or you'll get knocked out by noise."
+From the location of price *within* the Bollinger band, via %B:
+- `%B > 0.55` → **bullish** (price in upper half of band).
+- `%B < 0.45` → **bearish** (price in lower half of band).
+- Else → **neutral** (price near middle band).
 
-**Confidence:** confidence in the *regime label*, not in any
-direction. Formula: distance of bandwidth percentile from the median,
-mapped to `[0.5, 0.85]`.
+🔬 **NEEDS BACKTEST.** The 0.55 / 0.45 cutoffs are our own design
+choice. They form a *5-percentage-point dead zone* around the median
+to avoid flipping direction on every bar that grazes 0.50. Bollinger
+(2001) himself uses 0.0 / 1.0 (band touches) as the only threshold
+pair he labels; the 0.55 / 0.45 inner pair is an editorialization
+for a softer "is the bar leaning bullish or bearish?" classification.
+
+#### (b) Strength: `weak` / `moderate` / `strong`
+
+- **`strong`** — **TTM Squeeze on or fired** (Carter 2009 trigger).
+  See §3.4. This is the only "strong" path; nothing else escalates
+  to strong because TTM is the only volatility signal with documented
+  predictive edge in the literature.
+- **`weak`** — ATR-percent of price is in the dead-quiet (< 1.0%) or
+  manic (> 6.0%) tail. Neither is tradeable: dead-quiet means no
+  movement to capture; manic means stops will be eaten by noise.
+- **`moderate`** — normal regime (default).
+
+#### (c) Regime label: `low` / `normal` / `high` / `unknown`
+
+A separate, ATR-percent-only categorical (computed by
+`classify_volatility_regime`) surfaced for the LLM to quote without
+re-deriving:
+- `atr_pct_of_price < 1.0%` → **`low`**
+- `atr_pct_of_price > 4.0%` → **`high`**
+- otherwise → **`normal`**
+- `atr_pct_of_price is None` → **`unknown`**
+
+🔬 **NEEDS BACKTEST.** The 1.0% / 4.0% / 6.0% ATR-percent thresholds
+are our own design choice. Anchored loosely to the empirical
+observation that NSE large-caps spend most days in the 1–3% ATR‑%
+range; sub-1% is statistically unusual ("dead") and over-4% indicates
+an event-day or systemic stress. **No published source** for the
+specific cutoffs; reasonable variants to test in Phase 2 backtest:
+0.8 / 3.5 / 5.0 (tighter), 1.5 / 5.0 / 7.0 (looser), or per-stock
+percentile-rank (e.g. "low = bottom 10% of own 252-bar history").
+
+**Why this matters to the synthesizer.** Direction (a) feeds the
+cross-cluster verdict aggregator. Strength (b) drives stop-loss
+sizing weight (`strong` says "breakout incoming — set wider
+target"; `weak` says "don't trade"). Regime (c) is purely a label
+the LLM can quote in its rationale.
+
+**Note on prior doc wording.** Earlier versions of this doc described
+§4.3 as emitting `expanding` / `contracting` / `normal` with
+`%B` near `<0.1` or `>0.9` as the trigger. That was the *original
+design intent* but was never implemented; the actual code returns
+the three orthogonal fields above. The 0.1 / 0.9 numbers had no
+source. This section now describes the implemented behavior
+(verifiable via `_volatility_signal.py` + `get_volatility.py`).
 
 **Signals emitted (examples):**
-- `"BB squeeze active (bandwidth in 12th percentile over 60 bars)"`
+- `"⚡ TTM SQUEEZE FIRED this bar after 12 bars of compression"`
+- `"⚡ TTM SQUEEZE active (8 bars): BB inside Keltner channels"`
+- `"Bollinger bandwidth in lowest 20% historically (no TTM squeeze)"`
 - `"%B 0.94 – touching upper band"`
 - `"ATR 2.3% of price – elevated"`
 
@@ -1086,6 +1258,17 @@ grader cares about *actual realized return* in % terms.
   (2007) 2–3×ATR positional sits in MONTHLY band; target midpoint
   ≈ 1.4 × stop midpoint per Murphy/Pring/Tharp consensus on positive
   expectancy (R:R > 1). Exact picks are 🔬 NEEDS BACKTEST.
+  - **M10 explicit backtest variants.** The stop-ATR band is the
+    single most load-bearing parameter for the system's win rate;
+    Phase 2 backtest **must** test at minimum: (a) the current band,
+    (b) a doubled band (1.0–2.0 daily … 3.0–5.0 monthly) — does
+    win rate improve enough to justify the wider risk?, (c) a halved
+    band (0.25–0.5 daily … 0.75–1.25 monthly) — does noise destroy
+    win rate?, and (d) a flat ATR-multiplier across all horizons
+    (e.g. constant 1.0×ATR) — does the per-horizon ladder structure
+    actually matter, or is a single number good enough? If (d) is
+    statistically indistinguishable from the ladder, simplifying
+    removes a tunable knob.
 - The confidence ceiling (0.90 → 0.75) reflects that further-out
   predictions are inherently harder to justify with high conviction.
   This is a design pick, not a literature value — to be recalibrated
@@ -1122,6 +1305,26 @@ overwhelmingly news-driven. Longer-horizon moves are dominated by
 trend regimes that show up in technicals. The exact weights are 🔬
 NEEDS BACKTEST. They are explicit in the prompt so the LLM can't
 silently pick its own.
+
+**M8: the directional asymmetry is a hypothesis, not a fact.** The
+shape of the table above (technicals dominate as horizon lengthens)
+is itself a testable claim, not just the magnitudes. Counter-evidence
+worth comparing against in Phase 2 backtest:
+- **Tetlock (2007)**, *"Giving Content to Investor Sentiment: The
+  Role of Media in the Stock Market"*, *J. Finance* 62(3) — finds
+  newspaper sentiment predicts daily-horizon returns with subsequent
+  mean-reversion. Implication: news may matter MORE at daily horizon
+  than the table assumes, not less.
+- **Da, Engelberg & Gao (2011)**, *"In Search of Attention"*,
+  *J. Finance* 66(5) — Google search-attention measures predict
+  next-2-week returns specifically. Implication: WEEKLY/BIWEEKLY
+  news weight may be too low.
+
+The asymmetric direction is defensible but not unique. Plausible
+backtest variants: flat 50/50 across all horizons; or even
+news-dominant at short horizons and tapering (e.g. 70/30 daily
+news, 50/50 weekly, 30/70 monthly). Surface as a tunable knob,
+not a buried constant.
 
 **Disagreement protocol.** "If technical and news disagree:
 - For DAILY/WEEKLY: news wins, but cap confidence at 0.55.
@@ -1355,6 +1558,24 @@ near, above, below, over, under, by, from, as, it, its.`
 🔬 The 80% / 70% thresholds are starting points; **NEEDS BACKTEST**
 once we have a corpus of human-graded predictions.
 
+**M9: specific concerns to test against.**
+
+1. **80% rationale-token grounding is very strict.** A 5-token noun
+   phrase needs ~4 tokens to come from vocabulary. That's
+   "no-creativity" territory — the LLM cannot rephrase "ADX 32" as
+   "strong ADX reading" because "reading" isn't in the vocab. Suggest
+   starting at **60%** and tightening with data, rather than starting
+   strict and loosening (false negatives are silent; false positives
+   are loud).
+2. **The OR-of-two-checks (substring-equal OR ≥70% tokens) is hard
+   to reason about.** When `contributing_signals` includes
+   `"strong ADX trend with bullish DI cross"`, did it pass because
+   of substring match on "ADX" or because 4/5 tokens overlap? The
+   logs don't say. Suggest collapsing both into a single token-overlap
+   ratio (e.g. ≥60%) for cleaner explainability; the substring
+   special-case is a strict subset of the token-overlap condition
+   anyway.
+
 ### 7.3 Tier 3 — Consistency
 
 **Question:** "Does the prediction internally hang together?"
@@ -1494,9 +1715,9 @@ Three reasons:
   by tests; any change that breaks round-trip is a breaking change to
   consumers (logs, UIs, backtest replay).
 - **`@computed_field` handling.** The schema's computed fields
-  (`risk_reward`, `target_datetime`) are emitted in the JSON dump
-  (audit trail) but stripped before re-validation (so `extra=forbid`
-  doesn't reject them on round-trip).
+  (`risk_reward`, `midpoint_rr`, `target_datetime`) are emitted in
+  the JSON dump (audit trail) but stripped before re-validation (so
+  `extra=forbid` doesn't reject them on round-trip).
 
 ### 8.3 The grading question
 
@@ -1590,6 +1811,21 @@ direction, date range), the calibration layer computes:
   1.0 if Mode-A correct, else 0.0. Lower is better; 0.25 is the
   random baseline (always-predict-0.5). Below 0.20 is "decent",
   below 0.15 is "good".
+  - **M11 caveat.** 0.25 is the worst-case random baseline (highest
+    variance for a 50/50 outcome prior). The "always predict the
+    base rate" baseline is `p × (1 − p)` where `p` is the empirical
+    Mode-A hit rate. So if our hit rate ends up at 0.40 the naive
+    baseline is 0.24, not 0.25; if it ends up at 0.30 the baseline
+    drops to 0.21. Comparing raw Brier to a fixed 0.25 will look
+    falsely impressive at base rates far from 0.50.
+  - **Use Brier-skill score (BSS) for the apples-to-apples
+    comparison:** `BSS = 1 − BS / BS_baseline` where `BS_baseline`
+    uses the empirical base rate `p × (1 − p)`. `BSS > 0` → real
+    skill above the base rate; `BSS = 0` → no skill (equivalent to
+    just guessing the base rate every time); `BSS < 0` → worse than
+    guessing the base rate. Report both raw BS and BSS in the
+    calibration dashboard so future readers don't anchor on the
+    misleading 0.25 number.
 - **Calibration slices / breakdowns.** All metrics above are also
   computed per breakdown dimension: per-ticker, per-horizon,
   per-direction, per-confidence-bucket (deciles 0.0–0.1, 0.1–0.2,
@@ -1776,7 +2012,7 @@ src/price_predictor/
 │   ├── indicators/
 │   │   ├── trend.py           # SMA, EMA, ADX (§3.2)
 │   │   ├── momentum.py        # RSI, MACD, Stoch, OBV (§3.3)
-│   │   ├── volatility.py      # ATR, BB, squeeze (§3.4)
+│   │   ├── volatility.py      # ATR, BB, bollinger_squeeze + ttm_squeeze (§3.4)
 │   │   └── levels.py          # swings, 52w, pivots (§3.5)
 │   ├── candlestick.py         # 7 patterns + gating (§3.6)
 │   ├── chart.py               # 5 chart patterns (§3.7)
