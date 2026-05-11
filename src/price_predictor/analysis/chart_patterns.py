@@ -24,9 +24,11 @@ CANONICAL THRESHOLDS
 ====================
 Geometric tolerances follow Lo, Mamaysky, Wang (2000), "Foundations of
 Technical Analysis", Journal of Finance 55(4), NBER WP #7613, Sec. II.A,
-Definitions 1-5. The 22-trading-day double-top separation is from
-Edwards & Magee (1966), "Technical Analysis of Stock Trends", 5th Ed.,
-cited by LMW. See docs/research/constants_dossier.md.
+Definitions 1-5. The 22-trading-day double-top separation is LMW's
+own operational discretization ("...the two tops occur at least a month,
+or 22 trading days, apart") of Edwards & Magee's qualitative "~one month
+/ several weeks" guidance — NOT a number that appears directly in E&M.
+See docs/research/constants_dossier.md.
 """
 from __future__ import annotations
 
@@ -45,7 +47,7 @@ DEFAULT_CONFIDENCE_THRESHOLD = 0.7
 _HS_SHOULDER_TOLERANCE = 0.015        # LMW Def 1: E1, E5 within 1.5% of avg
 _HS_NECKLINE_TOLERANCE = 0.015        # LMW Def 1: E2, E4 within 1.5% of avg
 _DOUBLE_TOP_PEAK_TOLERANCE = 0.015    # LMW Def 5: two tops within 1.5% of avg
-_DOUBLE_TOP_MIN_SEPARATION_BARS = 22  # Edwards & Magee (1966), via LMW Def 5
+_DOUBLE_TOP_MIN_SEPARATION_BARS = 22  # LMW (2000) Def 5 — LMW's own discretization
 
 # LMW Def 4 (Rectangle): pivot prices on a "flat" trendline must lie within
 # 0.75% of their average. We reuse this for ascending/descending triangle's
@@ -107,7 +109,10 @@ def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
     """Two consecutive swing highs at similar price, separated by a trough.
 
     Implements LMW (2000) Definition 5: two tops within 1.5% of their
-    average, separated by at least 22 trading days (Edwards & Magee 1966).
+    average, separated by at least 22 trading days. The 22-day figure is
+    LMW's own operationalization ("...the two tops occur at least a month,
+    or 22 trading days, apart") — NOT a direct Edwards & Magee number;
+    E&M only gave qualitative "~one month / several weeks" guidance.
     """
     highs = _find_swing_highs(df)
     if len(highs) < 2:
@@ -116,7 +121,8 @@ def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
     # Use the two most recent swing highs
     h1_idx, h2_idx = highs[-2], highs[-1]
 
-    # LMW Def 5 / Edwards & Magee: tops must be at least ~1 month apart
+    # LMW Def 5: tops must be at least ~1 month apart. The 22-day figure
+    # is LMW's own discretization, not a direct Edwards & Magee number.
     if (h2_idx - h1_idx) < _DOUBLE_TOP_MIN_SEPARATION_BARS:
         return None
 
@@ -158,7 +164,8 @@ def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
         return None
     l1_idx, l2_idx = lows[-2], lows[-1]
 
-    # LMW Def 5 / Edwards & Magee: bottoms must be at least ~1 month apart
+    # LMW Def 5 (mirror): bottoms must be at least ~1 month apart. 22 is
+    # LMW's discretization of E&M's qualitative "several weeks" guidance.
     if (l2_idx - l1_idx) < _DOUBLE_TOP_MIN_SEPARATION_BARS:
         return None
 

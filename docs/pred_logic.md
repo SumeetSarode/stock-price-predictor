@@ -42,6 +42,16 @@ For a single NSE-listed stock, at four time horizons, we predict
 | Stop-loss      | A single price level                                    |
 | Confidence     | A number in `[0, 1]`                                    |
 
+**Risk-reward terminology.** The `risk_reward` field surfaced on every
+BULLISH/BEARISH prediction is computed using the **worst-fill anchor**
+of the entry zone (zone-high for longs, zone-low for shorts). We call
+this "worst-fill RR" rather than the previously-used "worst-case RR":
+it's the single-trade RR a trader would book if they got the worst
+possible fill within the entry band, not a worst-case-scenario over
+all possible adverse paths. Mainstream RR formulae use a single entry
+price; we use the worst-end of the band so a wider entry zone is
+penalized for its own ambiguity.
+
 The four horizons:
 
 | Horizon  | Trading days | What it means                                     |
@@ -303,8 +313,19 @@ otherwise noted.
   −DI measure the *direction* of that trend.
 - **Length used:** 14.
 - **Source.** Wilder (1978), original definition.
+- **Strength threshold attribution.** Wilder's original threshold for
+  "strong trend present" was **25**. The lower **20** floor used
+  elsewhere in this doc (§4.1 trend signal) is a *modern practical
+  convention* (StockCharts ChartSchool reference), NOT Wilder's number.
+  Both are documented; we picked 20 to encourage neutral verdicts in
+  marginal trends.
 - **Convergence guard.** ADX is published only when at least
-  `2 × length = 28` bars are available; otherwise null.
+  `2 × length = 28` bars are available; otherwise null. **NB:** Wilder
+  smoothing is an EWMA with α = 1/N and never fully converges; 28 bars
+  is the *minimum publishable* value, not the *fully reliable* value.
+  The full warmup-bias fix (5N ≈ 70 bars for RSI/ATR, 10N ≈ 140 bars
+  for ADX) is tracked separately and addressed in the indicator math
+  accuracy chunk.
 
 ### 3.3 Momentum cluster
 
@@ -313,8 +334,18 @@ otherwise noted.
 - **Definition.** Wilder's RSI. Ratio of average up-moves to average
   down-moves over `N` bars, normalized to `[0, 100]`.
 - **Length used:** 14.
-- **Convention.** `> 70` overbought, `< 30` oversold (Wilder).
-- **Convergence guard.** Require `2 × length = 28` bars.
+- **Convention.** `> 70` overbought, `< 30` oversold (Wilder 1978,
+  *New Concepts in Technical Trading Systems*, ch. 6).
+- **Trend-RSI 60/40 thresholds.** When we use 60/40 as bull/bear vote
+  thresholds elsewhere in this doc (§4.2 momentum signal), that is
+  the **Andrew Cardwell / Constance Brown** trend-RSI school, NOT
+  Wilder's. Cardwell observed that in uptrends RSI oscillates 40–80
+  (40 acts as support); in downtrends 20–60 (60 acts as resistance).
+  See Brown, *Technical Analysis for the Trading Professional* 2e
+  (McGraw-Hill 2011) which credits Cardwell directly.
+- **Convergence guard.** Require `2 × length = 28` bars. (Same
+  caveat as ADX about Wilder smoothing: 28 is publishable, not fully
+  reliable. Full 5N=70-bar warmup fix is in the indicator-math chunk.)
 
 #### MACD
 
@@ -322,7 +353,11 @@ otherwise noted.
   a signal line that is itself an EMA of the difference. Histogram is
   `MACD line − signal line`.
 - **Parameters used:** fast = 12, slow = 26, signal = 9.
-- **Source.** Appel (1979).
+- **Source.** **Gerald Appel, late 1970s** (Signalert newsletters);
+  later compiled in Appel, *Technical Analysis: Power Tools for Active
+  Investors* (FT Press 2005). There is no single canonical 1979
+  publication — prior versions of this doc said "Appel 1979" which is
+  unsourced; the late-1970s Signalert origin is the verifiable claim.
 - **"Cross" detection.** We check the histogram on the latest two
   bars. If it changed sign from negative-or-zero to positive, we
   report `cross = "bullish"`. From positive-or-zero to negative →
@@ -345,7 +380,11 @@ otherwise noted.
   `(OBV_today − OBV_20_bars_ago) / |OBV_20_bars_ago| × 100`. A
   rate-of-change-style measure of whether volume has been building or
   fading over the past month.
-- **Source.** Granville (1963).
+- **Source.** Granville, *Granville's New Key to Stock Market Profits*
+  (Prentice-Hall 1963), building on earlier "continuous volume" work
+  by **Woods and Vignola** in the 1940s–50s. Granville named and
+  popularized the indicator; he did not invent the cumulative-signed-
+  volume concept itself.
 
 ### 3.4 Volatility cluster
 
@@ -366,11 +405,18 @@ otherwise noted.
 - **Definition.** middle = SMA of close over `N`; upper = middle +
   `k × stdev(close, N)`; lower = middle − `k × stdev(...)`.
 - **Parameters used:** `length = 20`, `k = 2.0`.
-- **Source.** Bollinger (1980s).
+- **Source.** John Bollinger, **early 1980s** (introduced on FNN's
+  *Financial News Network*, formally documented in his book *Bollinger
+  on Bollinger Bands*, McGraw-Hill 2001). "Bollinger (1980s)" was
+  vague; the verifiable claim is "early 1980s, FNN broadcasts; book
+  2001".
 - **Derived fields:**
   - **`%B`** = `(close − lower) / (upper − lower)`. `0` = at lower
     band, `1` = at upper band, `> 1` = above upper, `< 0` = below
-    lower.
+    lower. The 0.1 / 0.9 "oversold/overbought" thresholds we use
+    downstream (§4.4 volatility signal) come from Bollinger's own
+    book ch. 8 — he calls these "the bands as relative high/low"
+    territory.
   - **Bandwidth** = `(upper − lower) / middle × 100` (a percent).
 
 #### Bollinger-Band Squeeze
@@ -543,8 +589,11 @@ noise-to-signal ratio is too high to help.
 - **Tolerances.**
   - The two peaks must be within **1.5% of their average** (LMW
     Definition 5).
-  - The peaks must be at least **22 trading days apart** (Edwards &
-    Magee, 1966 — cited by LMW).
+  - The peaks must be at least **22 trading days apart** — LMW (2000)
+    Definition 5's own operationalization ("...the two tops occur at
+    least a month, or 22 trading days, apart") of Edwards & Magee's
+    qualitative "~one month / several weeks" guidance. The 22-day
+    figure does NOT appear in E&M directly.
   - There must be a trough strictly between them (`between.empty`
     rejects).
 - **Confidence formula:** `peak_similarity × depth_score`, where:
@@ -644,9 +693,12 @@ Each classifier returns a `ClusterAssessment` with three fields:
    the close is above. 2 or 3 above → bullish lean. 0 or 1 above →
    bearish lean.
 2. **ADX strength gate.** If ADX is missing or < **20**, the verdict
-   is **neutral** regardless of the SMA stack. Wilder's threshold for
-   "this is a trending market" is 20–25; below 20 we treat trends as
-   noise.
+   is **neutral** regardless of the SMA stack. Wilder's *original*
+   threshold for "strong trend" was **25**; the **20** floor we use
+   here is the modern practical convention (StockCharts ChartSchool).
+   The 0.5/0.7/0.85 confidence anchors at ADX 20/30/40 below are our
+   own design picks — deliberately conservative to encourage neutral
+   verdicts in marginal trends.
 3. **DI confirmation.** When ADX ≥ 20:
    - If `+DI > −DI` AND SMA stack is bullish → final verdict
      **bullish**.
@@ -1028,8 +1080,8 @@ silently pick its own.
 - BEARISH: `[close − 0.25 ATR, close]`
 - NEUTRAL: `[close − 0.10 ATR, close + 0.10 ATR]`
 
-These are the *worst-case fill* anchors for risk math (see §1.1
-"worst-case RR" semantics)."
+These are the *worst-fill* anchors for risk math (see §1.1
+"worst-fill RR" semantics)."
 
 **Target placement.** "Set the target as follows, in this priority
 order:
@@ -1056,7 +1108,7 @@ order:
 3. State the rationale explicitly."
 
 **Risk-reward floor.** "After computing target and stop, verify the
-worst-case risk-reward (per §1.1) is **≥ 1.5**. If it isn't:
+worst-fill risk-reward (per §1.1) is **≥ 1.5**. If it isn't:
 - First, try moving the stop tighter (without violating the stop-pad
   rule). If that fixes RR, accept it.
 - Otherwise, **switch the prediction to NEUTRAL** with a rationale
@@ -1164,7 +1216,7 @@ consistent with their inputs?"
    (`zone_high − zone_low`) must be `≤ 0.5 × ATR`. The synthesizer
    prompt asks for `0.25 ATR` widths; we allow up to `0.5 ATR` as
    slack. Catches the LLM emitting a "zone" that's actually a 5%
-   range (which would make worst-case RR meaningless).
+   range (which would make worst-fill RR meaningless).
 
 4. **Entry zone touches close.** The current close must lie within
    `[zone_low − 0.10 ATR, zone_high + 0.10 ATR]`. Catches the LLM
@@ -1439,7 +1491,7 @@ or *low* (for bearish):
 - **`STOP_HIT_AMBIGUOUS`** — on the same bar, both target and stop
   were touched. We CANNOT know from daily bars whether stop was hit
   before target; **we conservatively count this as a stop hit**
-  (worst-case-for-trader assumption — same spirit as worst-case RR).
+  (worst-case-for-trader assumption — same spirit as worst-fill RR).
 - **`OPEN`** — neither touched by `target_datetime`. Realized =
   `(target_close − entry) / entry × 100`. The trade is "open" at
   evaluation; we mark-to-market.
@@ -1708,7 +1760,7 @@ A reviewer who wants to spot-check a single prediction should:
 3. **Check direction-level math.** For BULLISH: `target.value >
    entry_zone[1]` AND `stop_loss.value < entry_zone[1]`. (Schema +
    Tier 1.)
-4. **Check `risk_reward`** — recompute by hand using the worst-case
+4. **Check `risk_reward`** — recompute by hand using the worst-fill
    formula in §1.1. Should be ≥ 1.5.
 5. **Check `confidence`** — should not exceed the horizon ceiling
    (§6.1), should not exceed `news_assessment.confidence + 0.10/0.15`

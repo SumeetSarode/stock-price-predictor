@@ -357,18 +357,22 @@ Slower periods to filter out noise (fewer signals, more reliable):
   shoulders and 19% for even shoulders"*. Justifies tight symmetry tolerance.
 - **Verdict**: Match LMW academic standard.
 
-### 7.3 Double-top/bottom peak similarity = 1.5% + min separation = 22 bars 🟢 (LMW Def 5 + Edwards & Magee)
+### 7.3 Double-top/bottom peak similarity = 1.5% + min separation = 22 bars 🟢 (LMW Def 5)
 - **Source**: LMW (2000), Section II.A, Definition 5. Double top is defined
   as two tops Ea, Eb satisfying:
   > Ea and Eb within **1.5% of their average**, AND
-  > separated by at least **22 trading days** (~1 calendar month) per
-  > Edwards & Magee (1966), *Technical Analysis of Stock Trends*, 5th Ed.
+  > separated by at least **22 trading days**.
+- **22-day attribution.** This is LMW's OWN operationalization, not a
+  direct Edwards & Magee number. From LMW §II.A: *"...the two tops
+  occur at least a month, or 22 trading days, apart. Therefore, we have
+  the following Definition 5..."* E&M (1966) only gave qualitative
+  "~one month / several weeks" guidance.
 - **What changed**: Pre-research the code used 3% peak tolerance and had no
   minimum-separation requirement. Both fixed in this round.
 - **Our values** (`chart_patterns.py`):
   - `_DOUBLE_TOP_PEAK_TOLERANCE = 0.015` (1.5%, LMW Def 5)
-  - `_DOUBLE_TOP_MIN_SEPARATION_BARS = 22` (Edwards & Magee 1966) ← NEW
-- **Verdict**: Match LMW + Edwards & Magee academic standard.
+  - `_DOUBLE_TOP_MIN_SEPARATION_BARS = 22` (LMW Def 5 — NOT direct E&M)
+- **Verdict**: Match LMW academic standard, with attribution corrected.
 
 ### 7.4 Trough depth threshold = 5% 🟡
 - **Context**: For a double-bottom (or double-top trough between peaks), the

@@ -64,7 +64,14 @@ def is_doji(row: pd.Series, body_ratio: float = 0.10) -> bool:
 
 def is_hammer(row: pd.Series) -> bool:
     """Small body at top of range, long lower shadow (>=2x body),
-    little/no upper shadow. Bullish reversal at support."""
+    little/no upper shadow. Bullish reversal at support.
+
+    Numeric ratios: Nison (1991, ch. 4) gives ONLY the qualitative
+    "lower shadow at least twice the height of the real body" rule.
+    The body<=35%-of-range and upper-shadow<=30%-of-body ratios are
+    operationalizations from Bulkowski's *Encyclopedia of Candlestick
+    Charts* (Wiley 2008) and TA-Lib's CDLHAMMER — NOT directly from Nison.
+    """
     m = _bar_metrics(row)
     if not _is_small_body(m, ratio=0.35):
         return False
@@ -75,7 +82,12 @@ def is_hammer(row: pd.Series) -> bool:
 
 def is_shooting_star(row: pd.Series) -> bool:
     """Mirror of hammer. Small body at bottom, long upper shadow.
-    Bearish reversal at resistance."""
+    Bearish reversal at resistance.
+
+    Numeric ratios: see is_hammer() docstring — the 2:1 shadow:body
+    ratio is Nison; the body<=35%-of-range and lower-shadow<=30%-of-body
+    are Bulkowski/TA-Lib operationalizations.
+    """
     m = _bar_metrics(row)
     if not _is_small_body(m, ratio=0.35):
         return False
