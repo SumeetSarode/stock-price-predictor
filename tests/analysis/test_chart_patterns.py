@@ -6,10 +6,14 @@ import pandas as pd
 
 from price_predictor.analysis.chart_patterns import (
     detect_all_patterns,
+    detect_broadening_bottom,
+    detect_broadening_top,
     detect_double_bottom,
     detect_double_top,
     detect_head_shoulders,
     detect_inverse_head_shoulders,
+    detect_rectangle_bottom,
+    detect_rectangle_top,
     detect_triangle,
 )
 
@@ -150,3 +154,94 @@ class TestDetectAllPatterns:
         df = _build_df([100, 101, 102])
         # Should not crash; just returns empty
         assert detect_all_patterns(df) == []
+
+
+# ────────────────────────────────────────────────────────
+# Broadening (LMW Def 2)  — megaphone
+# ────────────────────────────────────────────────────────
+class TestBroadeningTop:
+    def test_classic_broadening_top_detected(self):
+        # E1=110 (H), E2=95 (L), E3=115 (H), E4=88 (L), E5=122 (H).
+        # Peaks rising 110<115<122; troughs falling 95>88. ✓ LMW Def 2.
+        closes = (
+            list(np.linspace(100, 110, 15))   # rise to E1
+            + list(np.linspace(110, 95,  15)) # fall to E2
+            + list(np.linspace(95,  115, 15)) # rise to E3
+            + list(np.linspace(115, 88,  15)) # fall to E4
+            + list(np.linspace(88,  122, 15)) # rise to E5
+            + list(np.linspace(122, 115, 5))  # tail
+        )
+        df = _build_df(closes)
+        result = detect_broadening_top(df)
+        assert result is not None
+        assert result.name == "broadening_top"
+        # Peaks must be strictly rising in the key_levels
+        assert (
+            result.key_levels["upper_pivot_first"]
+            < result.key_levels["upper_pivot_latest"]
+        )
+
+    def test_no_pattern_in_strict_uptrend(self):
+        df = _build_df(list(np.linspace(100, 200, 100)))
+        assert detect_broadening_top(df) is None
+
+
+class TestBroadeningBottom:
+    def test_classic_broadening_bottom_detected(self):
+        # E1=90 (L), E2=105 (H), E3=85 (L), E4=110 (H), E5=78 (L).
+        # Troughs falling 90>85>78; peaks rising 105<110. ✓ LMW Def 2.
+        closes = (
+            list(np.linspace(100, 90,  15))   # fall to E1
+            + list(np.linspace(90,  105, 15)) # rise to E2
+            + list(np.linspace(105, 85,  15)) # fall to E3
+            + list(np.linspace(85,  110, 15)) # rise to E4
+            + list(np.linspace(110, 78,  15)) # fall to E5
+            + list(np.linspace(78,  85,  5))  # tail
+        )
+        df = _build_df(closes)
+        result = detect_broadening_bottom(df)
+        assert result is not None
+        assert result.name == "broadening_bottom"
+
+
+# ────────────────────────────────────────────────────────
+# Rectangle (LMW Def 4) — sideways consolidation
+# ────────────────────────────────────────────────────────
+class TestRectangleTop:
+    def test_classic_rectangle_top_detected(self):
+        # Three peaks ~120, two troughs ~110, near-flat both sides.
+        # FIRST extremum must be a HIGH for rectangle_top to register.
+        closes = (
+            list(np.linspace(110, 120.0, 8))  # rise to peak 1
+            + list(np.linspace(120.0, 110.2, 12))
+            + list(np.linspace(110.2, 119.8, 12))
+            + list(np.linspace(119.8, 110.1, 12))
+            + list(np.linspace(110.1, 120.1, 12))
+            + list(np.linspace(120.1, 115, 5))
+        )
+        df = _build_df(closes)
+        result = detect_rectangle_top(df)
+        assert result is not None
+        assert result.name == "rectangle_top"
+        assert result.key_levels["resistance"] > result.key_levels["support"]
+
+    def test_strong_uptrend_is_not_a_rectangle(self):
+        df = _build_df(list(np.linspace(100, 200, 100)))
+        assert detect_rectangle_top(df) is None
+
+
+class TestRectangleBottom:
+    def test_classic_rectangle_bottom_detected(self):
+        # First extremum must be a LOW for rectangle_bottom.
+        closes = (
+            list(np.linspace(120, 100.0, 8))  # fall to trough 1
+            + list(np.linspace(100.0, 109.9, 12))
+            + list(np.linspace(109.9, 100.2, 12))
+            + list(np.linspace(100.2, 110.1, 12))
+            + list(np.linspace(110.1, 100.05, 12))
+            + list(np.linspace(100.05, 105, 5))
+        )
+        df = _build_df(closes)
+        result = detect_rectangle_bottom(df)
+        assert result is not None
+        assert result.name == "rectangle_bottom"
