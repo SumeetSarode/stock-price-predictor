@@ -181,8 +181,14 @@ class Settings(BaseSettings):
     #
     # Adding a new provider = register it in PROVIDER_REGISTRY and add its
     # short name here. No changes to settings.py needed.
+    # Default chain: yfinance primary, alpha_vantage fallback. Stooq was
+    # previously included but verified empirically (2026-04-28) to have ZERO
+    # NSE coverage — every NSE call to stooq.com/q/?s=<sym>.in returns an
+    # empty body, while AAPL.US returns proper data. Keeping Stooq in the
+    # chain only adds latency on every Yahoo failure before falling through.
+    # The provider class itself remains registered for non-Indian use cases.
     price_chain: str = Field(
-        default="yfinance", validation_alias="PRICE_CHAIN"
+        default="yfinance,alpha_vantage", validation_alias="PRICE_CHAIN"
     )
     price_paid: str = Field(
         default="alpha_vantage", validation_alias="PRICE_PAID"
