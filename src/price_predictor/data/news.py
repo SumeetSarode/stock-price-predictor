@@ -5,7 +5,7 @@ DESIGN
 
 Two concerns, two functions:
 
-1. DISCOVERY (`fetch_news`, `fetch_news_batch`)
+1. DISCOVERY (`fetch_news`, `fetch_news_batch`, `fetch_news_paginated`)
    GDELT Doc API 2.0 — free, no auth.
    Coverage: Feb 18, 2017 — present (verified empirically + per GDELT's
    official launch announcement at https://blog.gdeltproject.org/announcing-
@@ -14,6 +14,9 @@ Two concerns, two functions:
    Returns metadata only: title, url, published_at, source, language.
    On HTTP / JSON failure → raises NewsFetchError.
    On empty results       → returns an empty DataFrame (success-with-0-rows).
+   For long ranges that would exceed GDELT's 250-record per-call cap,
+   `fetch_news_paginated` slides a per-day (configurable) window with
+   polite sleeps between calls.
 
 2. EXTRACTION (`fetch_article_body`)
    Per-URL HTML fetch + trafilatura text extraction.
@@ -37,7 +40,7 @@ Date handling:
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -264,6 +267,144 @@ async def fetch_news_batch(
         )
 
     return dict(zip(queries, results, strict=True))
+
+
+# ─────────────────────────────────────────────────────────────
+# Public API: pagination
+# ─────────────────────────────────────────────────────────────
+DEFAULT_POLITE_SLEEP_S = 5.0  # GDELT public guidance: ≤ 1 request / 5 seconds.
+
+
+async def fetch_news_paginated(
+    query: str,
+    start: str,
+    end: str,
+    *,
+    window_days: int = 1,
+    polite_sleep_s: float = DEFAULT_POLITE_SLEEP_S,
+    lang: str = "eng",
+    max_records: int = 250,
+    timeout: float = DEFAULT_TIMEOUT_S,
+    client: httpx.AsyncClient | None = None,
+    dedupe: bool = True,
+) -> pd.DataFrame:
+    """Fetch GDELT news across a long date range by sliding a window.
+
+    GDELT's Doc API hard-caps results at `max_records` (≤ 250) per call.
+    For multi-day searches on high-volume queries that would exceed that
+    cap, this helper chunks `[start, end]` into `window_days`-sized
+    sub-windows, calls `fetch_news` per window, sleeps `polite_sleep_s`
+    between calls (GDELT's published rate-limit guidance), then
+    concatenates the per-window DataFrames into one.
+
+    WHY a separate function (vs a flag on `fetch_news`):
+        `fetch_news` is the single-call primitive — one HTTP request, one
+        DataFrame, one set of failure semantics. Pagination is a different
+        concern (looping, sleeping, deduping) layered on top. Keeping them
+        separate matches the existing `fetch_news` / `fetch_news_batch`
+        split and keeps each function easy to reason about.
+
+    Args:
+        query: Free-text query (same semantics as fetch_news).
+        start: ISO YYYY-MM-DD UTC start (inclusive).
+        end:   ISO YYYY-MM-DD UTC end   (inclusive).
+        window_days: Width of each sub-window in days. Default 1
+            (per-day chunking — safest for high-volume queries).
+            Must be >= 1.
+        polite_sleep_s: Seconds to sleep BETWEEN windows. Not slept
+            after the last window. Pass 0.0 to skip sleeping (use in
+            tests). Default 5.0 per GDELT's published guidance.
+        lang, max_records, timeout: Same as fetch_news.
+        client: Optional shared AsyncClient (for connection pooling).
+            If None, a temporary client is created for the run.
+        dedupe: If True (default), drop duplicate URLs across windows.
+            Adjacent windows DON'T overlap by date so duplicates are
+            rare, but GDELT can re-surface the same article under
+            different `seendate` timestamps if it's re-crawled — dedupe
+            keeps the FIRST occurrence (oldest seendate).
+
+    Returns:
+        Single DataFrame with the same 5 columns as `fetch_news`,
+        sorted by `published_at` ascending. Empty DataFrame if all
+        windows legitimately found nothing (NOT an error).
+
+    Raises:
+        ValueError: Bad inputs (empty query, bad dates, window_days < 1,
+            polite_sleep_s < 0). No network call made.
+        NewsFetchError: Any window's fetch fails. Fail-fast — the partial
+            results from earlier windows are discarded so the caller never
+            sees an inconsistent half-fetched DataFrame. Wrap the call in
+            try/except if you want partial-success semantics.
+    """
+    start_dt, end_dt = _validate_inputs(query, start, end)
+    if window_days < 1:
+        raise ValueError(f"window_days must be >= 1, got {window_days}")
+    if polite_sleep_s < 0:
+        raise ValueError(f"polite_sleep_s must be >= 0, got {polite_sleep_s}")
+
+    headers = {"User-Agent": DEFAULT_USER_AGENT}
+    owns_client = client is None
+    if owns_client:
+        client = httpx.AsyncClient(timeout=timeout, headers=headers)
+
+    try:
+        windows = list(_iter_windows(start_dt, end_dt, window_days))
+        frames: list[pd.DataFrame] = []
+        for i, (w_start, w_end) in enumerate(windows):
+            df = await fetch_news(
+                query,
+                w_start.strftime("%Y-%m-%d"),
+                w_end.strftime("%Y-%m-%d"),
+                lang=lang,
+                max_records=max_records,
+                timeout=timeout,
+                client=client,
+            )
+            frames.append(df)
+            is_last = i == len(windows) - 1
+            if not is_last and polite_sleep_s > 0:
+                await asyncio.sleep(polite_sleep_s)
+    finally:
+        if owns_client:
+            await client.aclose()
+
+    combined = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
+        columns=NEWS_DF_COLUMNS
+    )
+    if dedupe and not combined.empty:
+        combined = combined.drop_duplicates(subset="url", keep="first")
+    if not combined.empty:
+        combined = combined.sort_values("published_at", kind="stable").reset_index(
+            drop=True
+        )
+    return combined
+
+
+def _iter_windows(
+    start_dt: datetime, end_dt: datetime, window_days: int
+) -> list[tuple[datetime, datetime]]:
+    """Yield non-overlapping (window_start, window_end) pairs covering [start, end].
+
+    Both bounds are date-aligned (HH:MM:SS is dropped — GDELT day-resolution
+    queries already cover full days via _to_gdelt_datetime). Each window is
+    inclusive on both ends. The final window is clipped at end_dt.
+
+    Examples (window_days=1):
+        start=2024-01-01, end=2024-01-01 -> [(2024-01-01, 2024-01-01)]
+        start=2024-01-01, end=2024-01-03 -> [(2024-01-01, 2024-01-01),
+                                             (2024-01-02, 2024-01-02),
+                                             (2024-01-03, 2024-01-03)]
+    """
+    out: list[tuple[datetime, datetime]] = []
+    cursor = start_dt
+    step = timedelta(days=window_days)
+    one_day = timedelta(days=1)
+    while cursor <= end_dt:
+        # Window inclusive at both ends => width is (window_days - 1) days.
+        window_end = min(cursor + step - one_day, end_dt)
+        out.append((cursor, window_end))
+        cursor = window_end + one_day
+    return out
 
 
 # ─────────────────────────────────────────────────────────────

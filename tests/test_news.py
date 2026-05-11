@@ -15,7 +15,7 @@ Test layout:
     - Schema round-trip
     - Integration (real GDELT, marked)
 """
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import httpx
@@ -26,6 +26,7 @@ from price_predictor.data.news import (
     GDELT_DOC_URL,
     NewsFetchError,
     _build_params,
+    _iter_windows,
     _normalize_articles,
     _parse_seendate,
     _to_gdelt_datetime,
@@ -33,6 +34,7 @@ from price_predictor.data.news import (
     fetch_article_body,
     fetch_news,
     fetch_news_batch,
+    fetch_news_paginated,
 )
 from price_predictor.data.schema import ArticleBody, NewsArticle
 
@@ -273,6 +275,299 @@ class TestFetchNewsBatch:
         results = await fetch_news_batch([], "2024-01-01", "2024-01-31")
         assert results == {}
 
+
+# ─────────────────────────────────────────────────────────────
+# _iter_windows
+# ─────────────────────────────────────────────────────────────
+class TestIterWindows:
+    def test_single_day_one_window(self):
+        s = datetime(2024, 1, 1, tzinfo=UTC)
+        e = datetime(2024, 1, 1, tzinfo=UTC)
+        assert _iter_windows(s, e, window_days=1) == [(s, e)]
+
+    def test_three_days_window_one(self):
+        s = datetime(2024, 1, 1, tzinfo=UTC)
+        e = datetime(2024, 1, 3, tzinfo=UTC)
+        out = _iter_windows(s, e, window_days=1)
+        assert out == [
+            (datetime(2024, 1, 1, tzinfo=UTC), datetime(2024, 1, 1, tzinfo=UTC)),
+            (datetime(2024, 1, 2, tzinfo=UTC), datetime(2024, 1, 2, tzinfo=UTC)),
+            (datetime(2024, 1, 3, tzinfo=UTC), datetime(2024, 1, 3, tzinfo=UTC)),
+        ]
+
+    def test_window_wider_than_range_one_window(self):
+        s = datetime(2024, 1, 1, tzinfo=UTC)
+        e = datetime(2024, 1, 3, tzinfo=UTC)
+        out = _iter_windows(s, e, window_days=30)
+        assert out == [(s, e)]
+
+    def test_partial_last_window_clipped(self):
+        """7 days with window=3 -> [1..3], [4..6], [7..7]."""
+        s = datetime(2024, 1, 1, tzinfo=UTC)
+        e = datetime(2024, 1, 7, tzinfo=UTC)
+        out = _iter_windows(s, e, window_days=3)
+        assert out == [
+            (datetime(2024, 1, 1, tzinfo=UTC), datetime(2024, 1, 3, tzinfo=UTC)),
+            (datetime(2024, 1, 4, tzinfo=UTC), datetime(2024, 1, 6, tzinfo=UTC)),
+            (datetime(2024, 1, 7, tzinfo=UTC), datetime(2024, 1, 7, tzinfo=UTC)),
+        ]
+
+    def test_exact_multiple(self):
+        """6 days with window=3 -> [1..3], [4..6] (no partial tail)."""
+        s = datetime(2024, 1, 1, tzinfo=UTC)
+        e = datetime(2024, 1, 6, tzinfo=UTC)
+        out = _iter_windows(s, e, window_days=3)
+        assert out == [
+            (datetime(2024, 1, 1, tzinfo=UTC), datetime(2024, 1, 3, tzinfo=UTC)),
+            (datetime(2024, 1, 4, tzinfo=UTC), datetime(2024, 1, 6, tzinfo=UTC)),
+        ]
+
+    def test_windows_are_non_overlapping_and_contiguous(self):
+        """Property test: every day in [start, end] is in exactly one window."""
+        s = datetime(2024, 1, 1, tzinfo=UTC)
+        e = datetime(2024, 1, 31, tzinfo=UTC)
+        for w in (1, 2, 3, 5, 7, 10, 30, 100):
+            windows = _iter_windows(s, e, window_days=w)
+            # Reconstruct day set; should equal [s..e] inclusive, no dupes.
+            seen: set[datetime] = set()
+            for ws, we in windows:
+                assert ws <= we
+                day = ws
+                while day <= we:
+                    assert day not in seen, f"day {day} in two windows for w={w}"
+                    seen.add(day)
+                    day += timedelta(days=1)
+            expected = {s + timedelta(days=i) for i in range((e - s).days + 1)}
+            assert seen == expected, f"coverage gap for window_days={w}"
+
+
+# ─────────────────────────────────────────────────────────────
+# fetch_news_paginated (mocked HTTP)
+# ─────────────────────────────────────────────────────────────
+class TestFetchNewsPaginated:
+    @respx.mock
+    async def test_single_window_short_circuits(self):
+        """Range fits inside one window → exactly one HTTP call, no sleep."""
+        route = respx.get(GDELT_DOC_URL).mock(
+            return_value=httpx.Response(200, json=_gdelt_response([_article()]))
+        )
+        df = await fetch_news_paginated(
+            "Reliance",
+            "2024-01-01",
+            "2024-01-01",
+            window_days=1,
+            polite_sleep_s=0.0,
+        )
+        assert route.call_count == 1
+        assert len(df) == 1
+
+    @respx.mock
+    async def test_multi_window_concatenates(self):
+        """3-day range with window=1 → 3 calls, results concatenated."""
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [
+            httpx.Response(200, json=_gdelt_response([
+                _article(title="day1", url="https://x.com/1", seendate="20240101T100000Z"),
+            ])),
+            httpx.Response(200, json=_gdelt_response([
+                _article(title="day2", url="https://x.com/2", seendate="20240102T100000Z"),
+            ])),
+            httpx.Response(200, json=_gdelt_response([
+                _article(title="day3", url="https://x.com/3", seendate="20240103T100000Z"),
+            ])),
+        ]
+        df = await fetch_news_paginated(
+            "Reliance",
+            "2024-01-01",
+            "2024-01-03",
+            window_days=1,
+            polite_sleep_s=0.0,
+        )
+        assert route.call_count == 3
+        assert len(df) == 3
+        # Sorted ascending by published_at.
+        assert df["title"].tolist() == ["day1", "day2", "day3"]
+
+    @respx.mock
+    async def test_dedupe_across_windows(self):
+        """Same URL appearing in two windows is collapsed (first kept)."""
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [
+            httpx.Response(200, json=_gdelt_response([
+                _article(title="first", url="https://x.com/dup", seendate="20240101T100000Z"),
+            ])),
+            httpx.Response(200, json=_gdelt_response([
+                _article(title="dup-later", url="https://x.com/dup", seendate="20240102T100000Z"),
+                _article(title="unique", url="https://x.com/u", seendate="20240102T110000Z"),
+            ])),
+        ]
+        df = await fetch_news_paginated(
+            "Reliance",
+            "2024-01-01",
+            "2024-01-02",
+            window_days=1,
+            polite_sleep_s=0.0,
+        )
+        assert len(df) == 2
+        # First occurrence kept (oldest seendate)
+        assert "first" in df["title"].tolist()
+        assert "dup-later" not in df["title"].tolist()
+
+    @respx.mock
+    async def test_dedupe_disabled_keeps_duplicates(self):
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [
+            httpx.Response(200, json=_gdelt_response([
+                _article(url="https://x.com/dup", seendate="20240101T100000Z"),
+            ])),
+            httpx.Response(200, json=_gdelt_response([
+                _article(url="https://x.com/dup", seendate="20240102T100000Z"),
+            ])),
+        ]
+        df = await fetch_news_paginated(
+            "Reliance",
+            "2024-01-01",
+            "2024-01-02",
+            window_days=1,
+            polite_sleep_s=0.0,
+            dedupe=False,
+        )
+        assert len(df) == 2
+
+    @respx.mock
+    async def test_all_empty_returns_empty_df(self):
+        """All windows empty → empty DataFrame, never an error."""
+        respx.get(GDELT_DOC_URL).mock(
+            return_value=httpx.Response(200, json=_gdelt_response([]))
+        )
+        df = await fetch_news_paginated(
+            "NoSuchStock",
+            "2024-01-01",
+            "2024-01-03",
+            window_days=1,
+            polite_sleep_s=0.0,
+        )
+        assert len(df) == 0
+        assert list(df.columns) == ["title", "url", "published_at", "source", "language"]
+
+    @respx.mock
+    async def test_failure_in_any_window_raises_fail_fast(self):
+        """Window 2 fails → entire call raises (no half-fetched DataFrame)."""
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [
+            httpx.Response(200, json=_gdelt_response([_article()])),
+            httpx.Response(500),
+        ]
+        with pytest.raises(NewsFetchError, match="GDELT request failed"):
+            await fetch_news_paginated(
+                "Reliance",
+                "2024-01-01",
+                "2024-01-02",
+                window_days=1,
+                polite_sleep_s=0.0,
+            )
+
+    @respx.mock
+    async def test_polite_sleep_called_between_but_not_after_last(self):
+        """3 windows → sleep called exactly 2 times (between, not trailing)."""
+        respx.get(GDELT_DOC_URL).mock(
+            return_value=httpx.Response(200, json=_gdelt_response([_article()]))
+        )
+        with patch(
+            "price_predictor.data.news.asyncio.sleep",
+            new_callable=lambda: __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(),
+        ) as mock_sleep:
+            await fetch_news_paginated(
+                "Reliance",
+                "2024-01-01",
+                "2024-01-03",
+                window_days=1,
+                polite_sleep_s=5.0,
+            )
+        assert mock_sleep.call_count == 2
+        for c in mock_sleep.call_args_list:
+            assert c.args == (5.0,)
+
+    @respx.mock
+    async def test_polite_sleep_zero_skips_sleep(self):
+        """polite_sleep_s=0 → asyncio.sleep never called (fast tests)."""
+        respx.get(GDELT_DOC_URL).mock(
+            return_value=httpx.Response(200, json=_gdelt_response([_article()]))
+        )
+        with patch(
+            "price_predictor.data.news.asyncio.sleep",
+            new_callable=lambda: __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(),
+        ) as mock_sleep:
+            await fetch_news_paginated(
+                "Reliance",
+                "2024-01-01",
+                "2024-01-03",
+                window_days=1,
+                polite_sleep_s=0.0,
+            )
+        assert mock_sleep.call_count == 0
+
+    async def test_validation_bad_query_no_network(self):
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(GDELT_DOC_URL).mock(return_value=httpx.Response(200, json={}))
+            with pytest.raises(ValueError, match="non-empty string"):
+                await fetch_news_paginated("", "2024-01-01", "2024-01-03")
+            assert mock.calls.call_count == 0
+
+    async def test_validation_bad_dates_no_network(self):
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(GDELT_DOC_URL).mock(return_value=httpx.Response(200, json={}))
+            with pytest.raises(ValueError, match="Invalid date format"):
+                await fetch_news_paginated("X", "bad-date", "2024-01-03")
+            assert mock.calls.call_count == 0
+
+    async def test_validation_bad_window_days(self):
+        with pytest.raises(ValueError, match="window_days must be >= 1"):
+            await fetch_news_paginated(
+                "X", "2024-01-01", "2024-01-03", window_days=0
+            )
+        with pytest.raises(ValueError, match="window_days must be >= 1"):
+            await fetch_news_paginated(
+                "X", "2024-01-01", "2024-01-03", window_days=-1
+            )
+
+    async def test_validation_bad_polite_sleep(self):
+        with pytest.raises(ValueError, match="polite_sleep_s must be >= 0"):
+            await fetch_news_paginated(
+                "X", "2024-01-01", "2024-01-03", polite_sleep_s=-0.1
+            )
+
+    @respx.mock
+    async def test_uses_shared_client_when_provided(self):
+        """When caller passes a client, paginator MUST NOT close it."""
+        respx.get(GDELT_DOC_URL).mock(
+            return_value=httpx.Response(200, json=_gdelt_response([_article()]))
+        )
+        async with httpx.AsyncClient() as client:
+            await fetch_news_paginated(
+                "Reliance",
+                "2024-01-01",
+                "2024-01-02",
+                window_days=1,
+                polite_sleep_s=0.0,
+                client=client,
+            )
+            # Client still usable after paginated call.
+            assert not client.is_closed
+
+    @respx.mock
+    async def test_window_days_wider_than_range_makes_one_call(self):
+        route = respx.get(GDELT_DOC_URL).mock(
+            return_value=httpx.Response(200, json=_gdelt_response([_article()]))
+        )
+        await fetch_news_paginated(
+            "Reliance",
+            "2024-01-01",
+            "2024-01-03",
+            window_days=30,
+            polite_sleep_s=0.0,
+        )
+        assert route.call_count == 1
 
 # ─────────────────────────────────────────────────────────────
 # fetch_article_body (mocked HTTP + trafilatura)
