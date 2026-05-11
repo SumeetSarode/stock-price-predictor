@@ -49,3 +49,6 @@ requirements.txt.bak
 *.swp
 .adk/
 reports/
+
+# Smoke-test transcripts (transient; regenerated on each run)
+scripts/smoke_chain_output.txt

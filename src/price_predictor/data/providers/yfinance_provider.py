@@ -5,6 +5,9 @@ Wraps yfinance.download() with the normalization our interface requires:
     - Rename Title Case -> snake_case
     - Localize index to Asia/Kolkata
     - Inclusive end-date semantics (yfinance is exclusive)
+    - Auto-suffix bare symbols with the configured market (default '.NS')
+      so this provider plays nice as the fallback in the NSE-default chain
+      without breaking explicit non-NSE callers.
     - Wrap exceptions as PriceFetchError so the resilient layer can fall back
 
 NOTHING ABOUT YFINANCE LEAKS PAST THIS FILE. The next provider we add
@@ -13,6 +16,7 @@ this one stays untouched.
 """
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 
 import pandas as pd
@@ -21,16 +25,55 @@ from loguru import logger
 
 from price_predictor.data.providers.base import PriceFetchError, PriceProvider
 
+# A ticker is considered "already suffixed" if it ends with `.XX` where
+# XX is 1-5 letters (covers .NS, .BO, .L, .US, .DE, .HK, .NSE, .BSE, etc.).
+# Anchored to end-of-string so internal dots in (hypothetical) tickers
+# aren't confused for an exchange marker.
+_HAS_SUFFIX_RE = re.compile(r"\.[A-Za-z]{1,5}$")
+
 
 class YFinanceProvider(PriceProvider):
     """Concrete provider backed by the yfinance library.
 
     Stateless -- safe to share a single instance across the whole process.
+
+    `default_market` controls the suffix appended to bare symbols (no
+    exchange suffix). Defaults to 'NS' because this codebase is NSE-
+    focused; pass `default_market=None` to disable auto-suffixing if
+    you want the raw yfinance behaviour (where bare symbols are
+    interpreted as US tickers).
+
+    Examples:
+        YFinanceProvider().fetch_ohlcv('RELIANCE', ...)      -> 'RELIANCE.NS'
+        YFinanceProvider().fetch_ohlcv('RELIANCE.NS', ...)   -> 'RELIANCE.NS' (unchanged)
+        YFinanceProvider().fetch_ohlcv('AAPL.US', ...)       -> 'AAPL.US' (unchanged)
+        YFinanceProvider(default_market=None).fetch_ohlcv('AAPL', ...)
+                                                              -> 'AAPL' (unchanged)
     """
+
+    def __init__(self, *, default_market: str | None = "NS") -> None:
+        # Strip any leading '.' the caller may have added (`'.NS'` and `'NS'`
+        # should both work). Empty string treated as None for safety.
+        self._default_market = (default_market or "").lstrip(".") or None
 
     @property
     def name(self) -> str:
         return "yfinance"
+
+    def _resolve_ticker(self, ticker: str) -> str:
+        """Apply default_market suffix iff ticker has no exchange suffix.
+
+        Why a regex instead of a simple `'.' in ticker`: some tickers
+        legitimately contain dots (e.g. 'BRK.B' on NYSE). The regex
+        anchors to a 1-5 letter suffix at end-of-string — 'BRK.B' DOES
+        match (.B is 1 letter), and 'BRK.B' is already a valid yfinance
+        ticker, so leaving it unchanged is correct behaviour.
+        """
+        if self._default_market is None:
+            return ticker
+        if _HAS_SUFFIX_RE.search(ticker):
+            return ticker
+        return f"{ticker}.{self._default_market}"
 
     def fetch_ohlcv(
         self,
@@ -45,12 +88,14 @@ class YFinanceProvider(PriceProvider):
         if start > end:
             raise ValueError(f"start ({start}) must be <= end ({end})")
 
+        resolved_ticker = self._resolve_ticker(ticker.strip())
+
         # ── Fetch from yfinance (upstream's fault -> PriceFetchError) ──
         # `end` shifted +1 day so our wrapper is inclusive (yfinance is exclusive).
         # auto_adjust=False preserves both `Close` (raw) and `Adj Close` (adjusted).
         try:
             df = yf.download(
-                tickers=ticker,
+                tickers=resolved_ticker,
                 start=start,
                 end=end + timedelta(days=1),
                 interval=interval,
@@ -59,15 +104,15 @@ class YFinanceProvider(PriceProvider):
             )
         except Exception as e:
             raise PriceFetchError(
-                f"yfinance failed for ticker={ticker!r} "
-                f"start={start} end={end}: {e}"
+                f"yfinance failed for ticker={resolved_ticker!r} "
+                f"(input={ticker!r}) start={start} end={end}: {e}"
             ) from e
 
         # ── Empty-result check ──
         if df is None or df.empty:
             raise PriceFetchError(
-                f"yfinance returned no data for ticker={ticker!r} "
-                f"in range {start}…{end} (interval={interval}). "
+                f"yfinance returned no data for ticker={resolved_ticker!r} "
+                f"(input={ticker!r}) in range {start}…{end} (interval={interval}). "
                 f"Possible causes: delisted ticker, wrong suffix "
                 f"(NSE needs '.NS'), weekend-only range, or upstream outage."
             )
@@ -100,7 +145,7 @@ class YFinanceProvider(PriceProvider):
             df.index = df.index.tz_convert("Asia/Kolkata")
 
         logger.debug(
-            f"yfinance fetched ticker={ticker} rows={len(df)} "
-            f"start={start} end={end} interval={interval}"
+            f"yfinance fetched ticker={resolved_ticker} (input={ticker}) "
+            f"rows={len(df)} start={start} end={end} interval={interval}"
         )
         return df

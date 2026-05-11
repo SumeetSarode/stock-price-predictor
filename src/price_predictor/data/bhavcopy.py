@@ -83,6 +83,13 @@ LEGACY_URL_TEMPLATE = (
 # UDiff path: NSE's daily-reports JSON gives the actual CSV URL for the day.
 DAILY_REPORTS_URL = "https://www.nseindia.com/api/daily-reports?key=CM"
 
+# UDiff endpoints live under www.nseindia.com which BLOCKS /api/* requests
+# without session cookies. Hitting the homepage first sets them. Same
+# pattern as data/filings.py's `_warm_session` (we keep them separate
+# rather than share because filings.py is async and bhavcopy is sync,
+# and merging them would force one side into the other's I/O model).
+NSE_HOMEPAGE_URL = "https://www.nseindia.com/"
+
 # The label NSE uses inside the daily-reports JSON for the new bhavcopy.
 # Verified against multiple production responses: items have a "name" field
 # whose value contains this substring.
@@ -227,11 +234,46 @@ def _parse_legacy_csv(text: str, *, trading_date: date) -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────
 def _fetch_udiff_bhavcopy(d: date, client: httpx.Client) -> pd.DataFrame:
     """UDiff path — pull the per-day CSV URL from daily-reports JSON,
-    then fetch and parse the CSV."""
+    then fetch and parse the CSV.
+
+    The www.nseindia.com /api/* surface 403s on unwarmed sessions, so we
+    visit the homepage first to populate cookies. The same `client` is
+    reused for every subsequent call so the cookies persist across the
+    JSON + CSV requests.
+    """
+    _warm_nse_session(client, trading_date=d)
     listing = _http_get_json(DAILY_REPORTS_URL, client)
     csv_url = _find_udiff_csv_url(listing, trading_date=d)
     text = _http_get_text(csv_url, client)
     return _parse_udiff_csv(text, trading_date=d)
+
+
+def _warm_nse_session(client: httpx.Client, *, trading_date: date) -> None:
+    """Hit the NSE homepage to populate session cookies.
+
+    Best-effort: NSE's homepage occasionally 403s plain HTTP clients even
+    when the API endpoints themselves are reachable. We log a warning on
+    non-2xx but don't raise — the response usually still includes
+    Set-Cookie headers, and a downstream API failure will surface its
+    own clear error. Only raises on a true network error (DNS, connect
+    refused, timeout).
+
+    The `trading_date` arg is passed in only so the warning includes
+    the context the caller cared about — makes log-tracing trivial.
+    """
+    try:
+        resp = client.get(NSE_HOMEPAGE_URL)
+    except httpx.HTTPError as e:
+        raise BhavcopyError(
+            f"NSE session warmup for {trading_date} failed: "
+            f"{type(e).__name__}: {e}"
+        ) from e
+    if resp.status_code >= 400:
+        logger.warning(
+            f"[bhavcopy] NSE homepage warmup for {trading_date} returned "
+            f"HTTP {resp.status_code}; continuing (cookies may still be "
+            "set; UDiff endpoints sometimes work without a warmed session)"
+        )
 
 
 def _find_udiff_csv_url(listing: object, *, trading_date: date) -> str:

@@ -16,6 +16,7 @@ from price_predictor.data.bhavcopy import (
     DAILY_REPORTS_URL,
     LEGACY_CUTOVER_DATE,
     LEGACY_URL_TEMPLATE,
+    NSE_HOMEPAGE_URL,
     BhavcopyError,
     _coerce_numeric_and_finalize,
     _find_udiff_csv_url,
@@ -23,6 +24,19 @@ from price_predictor.data.bhavcopy import (
     _parse_udiff_csv,
     fetch_nse_bhavcopy,
 )
+
+
+def _mock_homepage_warmup(status: int = 200) -> None:
+    """Stub the NSE homepage cookie-warmup hit.
+
+    UDiff requests go through www.nseindia.com/api/* which 403s without
+    session cookies, so the bhavcopy module first GETs the homepage to
+    populate them. Every UDiff test must mock this call — otherwise
+    respx fails with 'no route matched'.
+    """
+    respx.get(NSE_HOMEPAGE_URL).mock(
+        return_value=httpx.Response(status, text="<html></html>"),
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -131,6 +145,7 @@ class TestDateRouting:
     @respx.mock
     def test_date_on_cutover_uses_udiff(self):
         d = LEGACY_CUTOVER_DATE  # exact cutover
+        _mock_homepage_warmup()
         # Daily-reports JSON returns the CSV link.
         csv_url = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_X.csv"
         respx.get(DAILY_REPORTS_URL).mock(
@@ -148,6 +163,7 @@ class TestDateRouting:
     @respx.mock
     def test_date_after_cutover_uses_udiff(self):
         d = LEGACY_CUTOVER_DATE + timedelta(days=180)
+        _mock_homepage_warmup()
         csv_url = "https://example.invalid/BhavCopy_NSE_CM_0_0_0_Y.csv"
         respx.get(DAILY_REPORTS_URL).mock(
             return_value=httpx.Response(200, json=[
@@ -349,6 +365,7 @@ class TestHttpErrors:
     @respx.mock
     def test_udiff_daily_reports_500_raises(self):
         d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        _mock_homepage_warmup()
         respx.get(DAILY_REPORTS_URL).mock(return_value=httpx.Response(500, text="x"))
         with pytest.raises(BhavcopyError, match="HTTP 500"):
             fetch_nse_bhavcopy(d, client=httpx.Client())
@@ -356,6 +373,7 @@ class TestHttpErrors:
     @respx.mock
     def test_udiff_daily_reports_non_json_raises(self):
         d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        _mock_homepage_warmup()
         respx.get(DAILY_REPORTS_URL).mock(
             return_value=httpx.Response(200, text="<html>not json</html>"),
         )
@@ -365,6 +383,7 @@ class TestHttpErrors:
     @respx.mock
     def test_udiff_csv_404_after_link_found(self):
         d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        _mock_homepage_warmup()
         csv_url = "https://x/missing.csv"
         respx.get(DAILY_REPORTS_URL).mock(
             return_value=httpx.Response(200, json=[
@@ -378,9 +397,84 @@ class TestHttpErrors:
     @respx.mock
     def test_udiff_daily_reports_network_error_raises(self):
         d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        _mock_homepage_warmup()
         respx.get(DAILY_REPORTS_URL).mock(side_effect=httpx.ConnectError("dns"))
         with pytest.raises(BhavcopyError, match="GET .* failed"):
             fetch_nse_bhavcopy(d, client=httpx.Client())
+
+
+# ────────────────────────────────────────────────────────
+# Cookie warmup behaviour (UDiff path only)
+# ────────────────────────────────────────────────────────
+class TestUdiffWarmup:
+    """NSE's www.nseindia.com /api/* surface 403s on unwarmed sessions.
+    These tests verify the bhavcopy module hits the homepage first AND
+    handles warmup-failure modes correctly."""
+
+    @respx.mock
+    def test_warmup_called_before_daily_reports(self):
+        """UDiff path MUST hit the homepage before /api/daily-reports."""
+        d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        warmup_route = respx.get(NSE_HOMEPAGE_URL).mock(
+            return_value=httpx.Response(200, text="<html></html>"),
+        )
+        csv_url = "https://x/file.csv"
+        respx.get(DAILY_REPORTS_URL).mock(
+            return_value=httpx.Response(200, json=[
+                {"name": "BhavCopy CM", "link": csv_url},
+            ]),
+        )
+        respx.get(csv_url).mock(
+            return_value=httpx.Response(200, text=_udiff_csv()),
+        )
+        fetch_nse_bhavcopy(d, client=httpx.Client())
+        assert warmup_route.called, "homepage warmup must be invoked"
+
+    @respx.mock
+    def test_warmup_403_does_not_abort_fetch(self):
+        """NSE homepage occasionally 403s plain HTTP clients even when
+        the API endpoints work fine. Warmup is best-effort — a non-2xx
+        on the homepage should NOT raise; the downstream API call is
+        what matters."""
+        d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        respx.get(NSE_HOMEPAGE_URL).mock(
+            return_value=httpx.Response(403, text="forbidden"),
+        )
+        csv_url = "https://x/file.csv"
+        respx.get(DAILY_REPORTS_URL).mock(
+            return_value=httpx.Response(200, json=[
+                {"name": "BhavCopy CM", "link": csv_url},
+            ]),
+        )
+        respx.get(csv_url).mock(
+            return_value=httpx.Response(200, text=_udiff_csv()),
+        )
+        df = fetch_nse_bhavcopy(d, client=httpx.Client())
+        assert len(df) == 2  # full happy path despite warmup 403
+
+    @respx.mock
+    def test_warmup_network_error_raises_bhavcopy_error(self):
+        """True network failure on warmup (DNS / connect refused) IS fatal
+        — if we can't even reach NSE, no point trying the API. Wrapped
+        as BhavcopyError so the provider's per-day fallback can bucket it."""
+        d = LEGACY_CUTOVER_DATE + timedelta(days=10)
+        respx.get(NSE_HOMEPAGE_URL).mock(side_effect=httpx.ConnectError("dns"))
+        with pytest.raises(BhavcopyError, match="NSE session warmup .* failed"):
+            fetch_nse_bhavcopy(d, client=httpx.Client())
+
+    @respx.mock
+    def test_legacy_path_does_NOT_warmup(self):
+        """Legacy nsearchives endpoint needs no cookies. Warmup would be
+        wasted latency on every pre-2024-07-08 fetch."""
+        d = LEGACY_CUTOVER_DATE - timedelta(days=1)
+        warmup_route = respx.get(NSE_HOMEPAGE_URL).mock(
+            return_value=httpx.Response(200),
+        )
+        respx.get(_legacy_url(d)).mock(
+            return_value=httpx.Response(200, text=_legacy_csv()),
+        )
+        fetch_nse_bhavcopy(d, client=httpx.Client())
+        assert not warmup_route.called, "legacy path must NOT call warmup"
 
 
 # ─────────────────────────────────────────────────────────────

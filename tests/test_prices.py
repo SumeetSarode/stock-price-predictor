@@ -16,7 +16,38 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from price_predictor.data.prices import PriceFetchError, fetch_ohlcv
+from price_predictor.data.prices import (
+    PriceFetchError,
+    fetch_ohlcv,
+    reset_default_fetcher,
+)
+
+
+@pytest.fixture(autouse=True)
+def _pin_chain_to_yfinance(monkeypatch):
+    """Lock the resilient chain to YFINANCE-ONLY for every test in this file.
+
+    Why: tests here mock `yf.download` to assert yfinance-specific behavior.
+    With the new default chain (`jugaad,nse_bhavcopy,yfinance`) jugaad runs
+    FIRST and — if the dev's local `.cache/` happens to contain real bars —
+    serves them before yfinance is ever called, making the mock useless.
+
+    Pinning the chain here keeps each test focused on the provider it claims
+    to test, and makes the suite robust to future default-chain changes.
+    """
+    monkeypatch.setenv("PRICE_CHAIN", "yfinance")
+    monkeypatch.delenv("USE_PAID_PRICES", raising=False)
+    # Build a Settings that IGNORES the .env file (otherwise pydantic-settings
+    # reads .env's PRICE_CHAIN and ignores our setenv — same trick used in
+    # test_settings.py's _build_settings helper). Then patch the binding
+    # `prices.py` actually reads from.
+    from price_predictor.config.settings import Settings as _SettingsCls
+    from price_predictor.data import prices as _prices_mod
+    fresh = _SettingsCls(_env_file=None)  # type: ignore[call-arg]
+    monkeypatch.setattr(_prices_mod, "settings", fresh)
+    reset_default_fetcher()
+    yield
+    reset_default_fetcher()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -125,6 +156,102 @@ def test_fetch_ohlcv_column_normalization():
     assert "adj_close" in result.columns, "adj_close column missing — rename failed?"
     # Order matches documented contract
     assert result.columns.tolist() == ["open", "high", "low", "close", "adj_close", "volume"]
+
+
+# ────────────────────────────────────────────────────────
+# YFinance auto-suffix behaviour (.NS for bare symbols)
+#
+# These tests exist because of a real bug surfaced by the smoke test:
+# the new default chain passes BARE symbols ('RELIANCE') to yfinance,
+# which used to treat them as US tickers and return empty data.
+# YFinanceProvider now appends `.NS` (configurable) to bare symbols.
+# ────────────────────────────────────────────────────────
+class TestYFinanceAutoSuffix:
+    def test_bare_symbol_gets_ns_suffix(self):
+        """'RELIANCE' → yfinance gets called with 'RELIANCE.NS'."""
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="RELIANCE.NS")
+            fetch_ohlcv("RELIANCE", date(2024, 1, 1), date(2024, 1, 5))
+        # Inspect the kwargs yfinance was called with
+        assert mock_dl.call_args.kwargs["tickers"] == "RELIANCE.NS", (
+            f"Expected bare 'RELIANCE' to be auto-suffixed to 'RELIANCE.NS', "
+            f"got tickers={mock_dl.call_args.kwargs['tickers']!r}"
+        )
+
+    def test_already_ns_suffixed_passes_through(self):
+        """'RELIANCE.NS' → yfinance gets called with 'RELIANCE.NS' (no double-suffix)."""
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="RELIANCE.NS")
+            fetch_ohlcv("RELIANCE.NS", date(2024, 1, 1), date(2024, 1, 5))
+        assert mock_dl.call_args.kwargs["tickers"] == "RELIANCE.NS"
+
+    def test_other_exchange_suffix_passes_through(self):
+        """'AAPL.US' / 'BARC.L' / 'TYO.T' must NOT get '.NS' appended."""
+        for input_ticker in ["AAPL.US", "BARC.L", "7203.T"]:
+            with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+                mock_dl.return_value = _make_yf_response(ticker=input_ticker)
+                fetch_ohlcv(input_ticker, date(2024, 1, 1), date(2024, 1, 5))
+            assert mock_dl.call_args.kwargs["tickers"] == input_ticker, (
+                f"Existing exchange suffix on {input_ticker!r} should be preserved"
+            )
+
+    def test_dotted_us_ticker_passes_through(self):
+        """'BRK.B' (Berkshire B-shares on NYSE) is a real dotted US ticker.
+        The auto-suffix regex matches 1-5 letter suffix, so '.B' counts as
+        an existing suffix and the ticker passes through unchanged — which
+        is correct yfinance behaviour for BRK.B."""
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="BRK.B")
+            fetch_ohlcv("BRK.B", date(2024, 1, 1), date(2024, 1, 5))
+        assert mock_dl.call_args.kwargs["tickers"] == "BRK.B"
+
+    def test_default_market_none_disables_suffixing(self):
+        """Caller can opt out by constructing YFinanceProvider(default_market=None).
+        Bare 'AAPL' then stays bare — useful if you're using yfinance for
+        US-only and don't want any market munging."""
+        from price_predictor.data.providers.yfinance_provider import YFinanceProvider
+        prov = YFinanceProvider(default_market=None)
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="AAPL")
+            prov.fetch_ohlcv("AAPL", date(2024, 1, 1), date(2024, 1, 5))
+        assert mock_dl.call_args.kwargs["tickers"] == "AAPL"
+
+    def test_default_market_with_leading_dot_normalised(self):
+        """Constructor accepts both 'NS' and '.NS' — should be equivalent."""
+        from price_predictor.data.providers.yfinance_provider import YFinanceProvider
+        prov = YFinanceProvider(default_market=".NS")
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="RELIANCE.NS")
+            prov.fetch_ohlcv("RELIANCE", date(2024, 1, 1), date(2024, 1, 5))
+        assert mock_dl.call_args.kwargs["tickers"] == "RELIANCE.NS"
+
+    def test_custom_default_market_lse(self):
+        """Configurable: a UK-focused caller can default to '.L'."""
+        from price_predictor.data.providers.yfinance_provider import YFinanceProvider
+        prov = YFinanceProvider(default_market="L")
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="BARC.L")
+            prov.fetch_ohlcv("BARC", date(2024, 1, 1), date(2024, 1, 5))
+        assert mock_dl.call_args.kwargs["tickers"] == "BARC.L"
+
+    def test_whitespace_stripped_before_suffix_check(self):
+        """'  RELIANCE  ' should suffix to 'RELIANCE.NS', not '  RELIANCE  .NS'."""
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = _make_yf_response(ticker="RELIANCE.NS")
+            fetch_ohlcv("  RELIANCE  ", date(2024, 1, 1), date(2024, 1, 5))
+        assert mock_dl.call_args.kwargs["tickers"] == "RELIANCE.NS"
+
+    def test_error_message_includes_resolved_and_input(self):
+        """Empty-result error mentions BOTH the resolved ticker (what we
+        actually queried) AND the input (what the caller passed) — makes
+        debugging suffix issues trivial."""
+        with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+            mock_dl.return_value = pd.DataFrame()
+            with pytest.raises(PriceFetchError) as exc_info:
+                fetch_ohlcv("RELIANCE", date(2024, 1, 1), date(2024, 1, 5))
+        msg = str(exc_info.value)
+        assert "RELIANCE.NS" in msg, f"resolved ticker should appear: {msg}"
+        assert "RELIANCE" in msg, f"input ticker should appear: {msg}"
 
 
 # ─────────────────────────────────────────────────────────────
