@@ -1166,8 +1166,8 @@ order:
 
 **Risk-reward floor.** "After computing target and stop, verify the
 worst-fill risk-reward (per §1.1) is **≥ 1.5**. If it isn't:
-- First, try moving the stop tighter (without violating the stop-pad
-  rule). If that fixes RR, accept it.
+- First, try moving the stop tighter (without leaving the horizon's
+  `STOP_ATR_RANGE_BY_HORIZON` band). If that fixes RR, accept it.
 - Otherwise, **switch the prediction to NEUTRAL** with a rationale
   explaining 'no asymmetric setup at current price'. Do NOT inflate
   the target to force RR."
