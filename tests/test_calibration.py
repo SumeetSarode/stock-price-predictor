@@ -105,6 +105,8 @@ class TestEmptyInputs:
         assert report.hit_rate_optimistic == 0.0
         assert report.direction_accuracy == 0.0
         assert report.brier_score is None
+        assert report.brier_skill_score is None
+        assert report.base_rate is None
         assert report.mean_confidence is None
         assert report.mean_return == 0.0
         assert report.median_return == 0.0
@@ -120,6 +122,8 @@ class TestEmptyInputs:
         assert report.n_inconclusive == 2
         assert report.n_judged == 0
         assert report.brier_score is None
+        assert report.brier_skill_score is None
+        assert report.base_rate is None
         assert report.mean_confidence is None
 
 
@@ -201,6 +205,9 @@ class TestBrierScore:
         ]
         report = compute_calibration(graded)
         assert report.brier_score == pytest.approx(0.0)
+        # All-correct base rate = 1.0; bs_ref = 0; BSS undefined (None)
+        assert report.base_rate == pytest.approx(1.0)
+        assert report.brier_skill_score is None
 
     def test_pathological_calibration(self):
         # 100% confident but always wrong -> Brier = 1
@@ -210,6 +217,9 @@ class TestBrierScore:
         ]
         report = compute_calibration(graded)
         assert report.brier_score == pytest.approx(1.0)
+        # All-wrong base rate = 0.0; bs_ref = 0; BSS undefined (None)
+        assert report.base_rate == pytest.approx(0.0)
+        assert report.brier_skill_score is None
 
     def test_50_percent_baseline(self):
         # Always 50% confident, half right -> Brier = 0.25
@@ -220,6 +230,10 @@ class TestBrierScore:
         ]
         report = compute_calibration(graded)
         assert report.brier_score == pytest.approx(0.25)
+        # base_rate = 0.5; bs_ref = mean((0.5-1)^2, (0.5-0)^2) = 0.25
+        # BSS = 1 - 0.25/0.25 = 0  (no skill above naive base-rate guess)
+        assert report.base_rate == pytest.approx(0.5)
+        assert report.brier_skill_score == pytest.approx(0.0)
 
     def test_hand_computed_mixed(self):
         # confidence=0.8 right -> (0.8-1)^2 = 0.04
@@ -233,6 +247,65 @@ class TestBrierScore:
         assert report.brier_score == pytest.approx(0.20)
         # Mean confidence over judged
         assert report.mean_confidence == pytest.approx(0.7)
+        # base_rate = 1/2 = 0.5; bs_ref = 0.25
+        # BSS = 1 - 0.20/0.25 = 0.20  (modest positive skill)
+        assert report.base_rate == pytest.approx(0.5)
+        assert report.brier_skill_score == pytest.approx(0.20)
+
+
+# ──────────────────────────────────────────────────────
+# Brier Skill Score — the empirical-base-rate-aware metric
+# ──────────────────────────────────────────────────────
+class TestBrierSkillScore:
+    def test_positive_skill_against_75pct_base_rate(self):
+        # Base rate = 75% (3 of 4 correct). Model is well-calibrated:
+        #   3 wins at 0.9 conf  -> (0.9-1)^2 * 3 = 0.03
+        #   1 loss at 0.5 conf  -> (0.5-0)^2     = 0.25
+        #   BS = 0.28/4 = 0.07
+        #   bs_ref = ((0.75-1)^2 * 3 + (0.75-0)^2) / 4
+        #          = (0.0625*3 + 0.5625) / 4 = 0.1875
+        #   BSS = 1 - 0.07/0.1875 = ~0.6267
+        graded = [
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.9),
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.9),
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.9),
+            _grade(outcome=GradeOutcome.STOP_HIT, direction_correct=False, confidence=0.5),
+        ]
+        report = compute_calibration(graded)
+        assert report.base_rate == pytest.approx(0.75)
+        assert report.brier_score == pytest.approx(0.07)
+        assert report.brier_skill_score == pytest.approx(1 - 0.07/0.1875)
+        assert report.brier_skill_score > 0  # real skill
+
+    def test_negative_skill_undercalibrated_against_75pct_base_rate(self):
+        # Same 75% base rate but the model is always 50% confident.
+        # That's WORSE than just predicting the base rate.
+        #   BS = ((0.5-1)^2 * 3 + (0.5-0)^2) / 4 = (0.25*3 + 0.25)/4 = 0.25
+        #   bs_ref = 0.1875 (same as above)
+        #   BSS = 1 - 0.25/0.1875 = -0.333  (active anti-skill)
+        graded = [
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.5),
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.5),
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.5),
+            _grade(outcome=GradeOutcome.STOP_HIT, direction_correct=False, confidence=0.5),
+        ]
+        report = compute_calibration(graded)
+        assert report.base_rate == pytest.approx(0.75)
+        assert report.brier_skill_score == pytest.approx(1 - 0.25/0.1875)
+        assert report.brier_skill_score < 0  # worse than the naive predictor
+
+    def test_bss_undefined_when_all_outcomes_identical(self):
+        # Documented degenerate case: bs_ref = 0 when all outcomes match
+        # (perfect base-rate predictor); we report None rather than -inf.
+        graded = [
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.7),
+            _grade(outcome=GradeOutcome.TARGET_HIT, direction_correct=True, confidence=0.8),
+        ]
+        report = compute_calibration(graded)
+        assert report.base_rate == pytest.approx(1.0)
+        assert report.brier_skill_score is None
+        # raw Brier still computed
+        assert report.brier_score is not None
 
 
 # ─────────────────────────────────────────────────────────────

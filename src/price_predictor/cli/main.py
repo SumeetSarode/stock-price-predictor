@@ -417,7 +417,22 @@ def _render_calibration(report: CalibrationReport, title: str = "Calibration") -
     brier_str = f"{report.brier_score:.3f}" if report.brier_score is not None else "-"
     table.add_row(
         "Brier score", brier_str,
-        "[dim]0=perfect, 0.25=random, 1=pathological[/dim]",
+        "[dim]0=perfect, ~base_rate*(1-base_rate)=naive, 1=pathological[/dim]",
+    )
+    bss_str = (
+        f"{report.brier_skill_score:+.3f}"
+        if report.brier_skill_score is not None else "-"
+    )
+    table.add_row(
+        "Brier Skill Score", bss_str,
+        "[dim]>0 beats base-rate guess, 0=tied, <0 worse[/dim]",
+    )
+    base_rate_str = (
+        f"{report.base_rate:.1%}" if report.base_rate is not None else "-"
+    )
+    table.add_row(
+        "Base rate", base_rate_str,
+        "[dim]empirical fraction correct — BSS reference[/dim]",
     )
     conf_str = f"{report.mean_confidence:.0%}" if report.mean_confidence is not None else "-"
     table.add_row("Mean confidence", conf_str, "")
@@ -440,16 +455,22 @@ def _render_breakdown(
     table.add_column("Hit rate (resolved)")
     table.add_column("Direction acc")
     table.add_column("Brier")
+    table.add_column("BSS")
     table.add_column("Mean return")
 
     for key, report in breakdown.items():
         brier_str = f"{report.brier_score:.3f}" if report.brier_score is not None else "-"
+        bss_str = (
+            f"{report.brier_skill_score:+.3f}"
+            if report.brier_skill_score is not None else "-"
+        )
         table.add_row(
             str(key),
             str(report.n_predictions),
             f"{report.hit_rate_resolved:.1%}",
             f"{report.direction_accuracy:.1%}",
             brier_str,
+            bss_str,
             f"{report.mean_return:+.2%}",
         )
     return table

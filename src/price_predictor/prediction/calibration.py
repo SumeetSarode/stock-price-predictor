@@ -43,7 +43,27 @@ Brier score = mean((confidence - actual_binary_outcome)^2)
   - 0.25 = a model that always predicts p=0.5 regardless of outcome.
   - 1.0 = pathologically wrong (says 100% bullish, always bearish).
 
-We compute it ONLY on predictions where direction_correct is known
+WHY ALSO BRIER SKILL SCORE?
+===========================
+Raw Brier alone is misleading because the "0.25 baseline" only applies
+when the base rate is 50/50. NIFTY-50 daily directional outcomes have
+an empirical bullish-day rate of ~52-55% (Bowman & Iverson 1998 and
+updates), so the right reference is closer to 0.55*(1-0.55) = 0.2475
+NOT a flat 0.25.
+
+Brier Skill Score solves this by referencing the EMPIRICAL base rate:
+    BSS = 1 - BS / BS_reference
+    BS_reference = mean((p_bar - outcome)^2)  where p_bar = mean(outcomes)
+
+Interpretation:
+    BSS > 0  -> real predictive skill above the base-rate guess
+    BSS = 0  -> no better than always predicting the base rate
+    BSS < 0  -> WORSE than predicting the base rate (active anti-skill)
+
+Reference: Brier (1950), Murphy (1973). Standard in meteorology, slowly
+catching on in finance.
+
+We compute Brier ONLY on predictions where direction_correct is known
 (skip INCONCLUSIVE). For NEUTRAL we use the |return|-within-tolerance
 binary as the 'event happened' signal.
 
@@ -108,6 +128,24 @@ class CalibrationReport(BaseModel):
         description=(
             "Mean squared error between confidence and binary "
             "direction-correct outcome. None if no judgements available."
+        ),
+    )
+    brier_skill_score: float | None = Field(
+        ...,
+        description=(
+            "BSS = 1 - BS / BS_reference, where BS_reference uses the "
+            "empirical base rate. >0 means real skill, <=0 means no "
+            "better than guessing the base rate. None if no judgements, "
+            "or if all outcomes were identical (BS_reference=0 — "
+            "degenerate case where skill is undefined)."
+        ),
+    )
+    base_rate: float | None = Field(
+        ...,
+        description=(
+            "Empirical fraction of judged predictions where direction "
+            "was correct. The reference rate that Brier Skill Score "
+            "compares against. None if no judgements."
         ),
     )
     mean_confidence: float | None = Field(
@@ -200,17 +238,27 @@ def compute_calibration(graded: Iterable[GradedPrediction]) -> CalibrationReport
     n_correct = sum(1 for g in judged if g.direction_correct is True)
     direction_acc = _safe_div(n_correct, n_judged)
 
-    # ── Brier score ───────────────────────────────────────────
+    # ── Brier score + Brier Skill Score ───────────────────────
     # mean((confidence - actual)^2) where actual = 1 if correct else 0.
+    # BSS references the empirical base rate so non-50/50 outcome
+    # distributions don't make raw Brier misleading.
     if n_judged > 0:
-        brier = sum(
-            (g.prediction.confidence - (1.0 if g.direction_correct else 0.0)) ** 2
-            for g in judged
-        ) / n_judged
-        mean_conf = sum(g.prediction.confidence for g in judged) / n_judged
+        outcomes = [1.0 if g.direction_correct else 0.0 for g in judged]
+        confs = [g.prediction.confidence for g in judged]
+        brier = sum((c - o) ** 2 for c, o in zip(confs, outcomes)) / n_judged
+        mean_conf = sum(confs) / n_judged
+        base_rate: float | None = sum(outcomes) / n_judged
+        # Reference Brier: what we'd score if we always predicted base_rate
+        bs_ref = sum((base_rate - o) ** 2 for o in outcomes) / n_judged
+        # BSS undefined when bs_ref == 0 (all outcomes identical — the
+        # base-rate predictor would have been perfect, so any deviation
+        # is infinite skill loss; report None rather than -inf).
+        bss: float | None = (1.0 - brier / bs_ref) if bs_ref > 0 else None
     else:
         brier = None
         mean_conf = None
+        base_rate = None
+        bss = None
 
     # ── Realized returns (judged only) ────────────────────────
     returns = [g.realized_return for g in judged]
@@ -231,6 +279,8 @@ def compute_calibration(graded: Iterable[GradedPrediction]) -> CalibrationReport
         n_with_direction_judgement=n_judged,
         direction_accuracy=direction_acc,
         brier_score=brier,
+        brier_skill_score=bss,
+        base_rate=base_rate,
         mean_confidence=mean_conf,
         mean_return=mean_ret,
         median_return=median_ret,
