@@ -1,4 +1,4 @@
-"""Candlestick pattern detection — TA-Lib full 61-pattern dispatcher.
+"""Candlestick pattern detection — TA-Lib 61 + 4 hand-rolled = 65 patterns.
 
 WHY TA-LIB
 ==========
@@ -31,11 +31,48 @@ Each `CDL*` function returns an int32 array same length as input:
 PUBLIC API (UNCHANGED — backward-compatible)
 ============================================
 - `detect_recent_patterns(df, lookback=5) -> list[dict]`
-  Each dict: {"name", "bar_date", "bar_index", "direction", "confidence"}
+  Each dict: {"name", "bar_date", "bar_index", "direction", "confidence"}.
+  Reversal-pattern hits (hammer / hanging_man / inverted_hammer /
+  shooting_star) ALSO carry a `confirmed: bool | None` key (see Nison
+  confirmation gate below).
 - `is_doji`, `is_hammer`, `is_shooting_star`, `is_bullish_engulfing`,
   `is_bearish_engulfing`, `is_morning_star`, `is_evening_star`
   Single/multi-bar predicates retained for tests + thin-call use.
   These wrap the corresponding `CDL*` calls on a minimal-window slice.
+
+HAND-ROLLED EXTENSIONS (TA-Lib has no equivalent)
+=================================================
+Four patterns are hand-rolled because TA-Lib doesn't ship them:
+
+- `tweezer_top` / `tweezer_bottom` — two consecutive bars with
+  near-matching highs (top, bearish) or lows (bottom, bullish), AND
+  opposite colors. Tolerance is 0.05% of the bars' average close (a
+  strict match — matching highs/lows are only useful if they're really
+  matching). Reference: Nison 1991, ch. 6.
+- `rising_window` / `falling_window` — a true gap with no overlap
+  between adjacent bars. Bullish if `curr.low > prev.high`, bearish
+  if `curr.high < prev.low`. Filtered by gap size > 0.5 x ATR(14)
+  to suppress micro-gaps that are just noise on illiquid days.
+  Reference: Nison 1991, ch. 5; ATR filter mirrors the gating layer
+  proximity threshold for consistency.
+
+NISON CONFIRMATION GATE (single-bar reversals)
+==============================================
+Nison (1991, ch. 3 "Reversal Patterns") is explicit: a hammer or
+shooting star is a *candidate* reversal that requires next-day
+confirmation to act on. Without confirmation, you trade noise.
+
+For each hit in {hammer, hanging_man, inverted_hammer, shooting_star},
+we attach `confirmed`:
+  - `True`  — next bar's close moves IN the reversal's direction
+              (bullish patterns: next_close > pattern_close;
+               bearish patterns: next_close < pattern_close).
+  - `False` — next bar's close moves AGAINST the reversal.
+  - `None`  — no next bar exists (pattern is the latest bar).
+
+The gating layer (technical_agent/tools/_candlestick_gating.py) is the
+actionable filter; this field arms it with the Nison signal so the
+synthesizer can downweight unconfirmed reversals.
 
 GATING (still happens upstream)
 ===============================
@@ -150,9 +187,9 @@ _NEUTRAL_PATTERNS: frozenset[str] = frozenset({
     "tristar",
 })
 
-# ─────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 # Public dispatcher
-# ─────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 @dataclass
 class _PatternHit:
     """One (pattern, bar) detection. Internal — flattened to dict for output."""
@@ -161,6 +198,10 @@ class _PatternHit:
     bar_date: str
     direction: str      # "bullish" | "bearish" | "neutral"
     confidence: int     # 100 (standard) or 200 (high-confidence variant)
+    # Set ONLY for the 4 single-bar reversal patterns (Nison gate). For
+    # all other patterns this stays None and is omitted from the output
+    # dict so existing consumers see an unchanged schema.
+    confirmed: bool | None = None
 
 
 def _bar_date_str(idx_label) -> str:
@@ -239,236 +280,223 @@ def detect_recent_patterns(df: pd.DataFrame, lookback: int = 5) -> list[dict]:
                 confidence=abs(raw),                   # 100 or 200
             ))
 
+    # Hand-rolled extensions (TA-Lib has no equivalent recognizers).
+    hits.extend(_scan_tweezers(o, h, l, c, df.index, start_idx, n))
+    hits.extend(_scan_windows(o, h, l, c, df.index, start_idx, n))
+
+    # Nison next-day confirmation gate for single-bar reversals. Mutates
+    # in place rather than building a new list — cheaper, and the field
+    # is purely additive.
+    _apply_nison_confirmation(hits, c, n)
+
     # Stable sort: by bar (oldest first), then alphabetical pattern name.
     hits.sort(key=lambda h: (h.bar_index, h.name))
-    return [
-        {
-            "name": h.name,
-            "bar_date": h.bar_date,
-            "bar_index": h.bar_index,
-            "direction": h.direction,
-            "confidence": h.confidence,
-        }
-        for h in hits
-    ]
+    return [_hit_to_dict(h) for h in hits]
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Backward-compatible single/multi-bar predicates
-# ─────────────────────────────────────────────────────────────────────
-# These are RETAINED so existing call sites (and especially the test
-# suite at tests/analysis/test_candlestick_patterns.py) continue to work
-# unchanged. Each is a thin wrapper that builds the minimal OHLC array
-# TA-Lib needs and returns the bool of the last-bar signal being non-zero.
-#
-# Why not just delete them? They guarantee that anything testing the
-# legacy 7-pattern behavior still gets exercised, AND they double as a
-# small consistency oracle: if TA-Lib's "hammer" disagrees with our
-# previous home-grown definition on the test corpus, we'd see it
-# instantly during a test run and decide whether to update the test or
-# tighten the wrapper.
-#
-# IMPORTANT: TA-Lib's hammer/hanging-man/etc. need PRIOR CONTEXT (a
-# downtrend or uptrend) to fire. For the legacy unit tests that pass a
-# single isolated bar, we synthesize that context by prepending a short
-# trending stub — just enough to satisfy the recognizer. Each predicate
-# documents the stub it injects.
+# ──────────────────────────────────────────────────────────────
+# Hand-rolled pattern detectors (not in TA-Lib)
+# ──────────────────────────────────────────────────────────────
+# Tweezer tolerance: highs/lows must match within 0.05% of the bars'
+# average close. Strict on purpose — "matching highs" only matters when
+# they're really matching. Reference: solutions doc; threshold cross-checked
+# against Bulkowski 2008 Encyclopedia of Candlestick Charts which reports
+# best edge when matching is exact at one-tick resolution.
+_TWEEZER_TOL_RATIO = 0.0005
 
-def _signal_from_arrays(
-    fn_name: str,
-    o: np.ndarray, h: np.ndarray, l: np.ndarray, c: np.ndarray,
-) -> int:
-    """Run a TA-Lib CDL function and return the LAST element (the focus bar)."""
-    fn = getattr(talib, fn_name)
-    return int(fn(o, h, l, c)[-1])
+# Rising/falling window: gap size must exceed this multiple of ATR(14)
+# to count as a real "window". 0.5 mirrors the candlestick gating layer's
+# proximity threshold semantics (1.0 ATR for proximity, 0.5 ATR for
+# gap-significance — a gap is a stronger signal so the bar can be smaller).
+_WINDOW_ATR_MULT = 0.5
+_WINDOW_ATR_PERIOD = 14
 
-
-def _row_to_arrays(row: pd.Series) -> tuple[np.ndarray, ...]:
-    """Single-row → length-1 OHLC arrays."""
-    return (
-        np.array([row["open"]], dtype=np.float64),
-        np.array([row["high"]], dtype=np.float64),
-        np.array([row["low"]], dtype=np.float64),
-        np.array([row["close"]], dtype=np.float64),
-    )
+# Patterns that get a Nison next-day confirmation field. These are the
+# four single-bar reversal patterns where the candle on its own is
+# inconclusive; Nison (1991, ch. 3) explicitly requires next-bar
+# confirmation before treating them as actionable.
+_REVERSAL_PATTERNS_NEEDING_CONFIRMATION: frozenset[str] = frozenset({
+    "hammer",
+    "hanging_man",
+    "inverted_hammer",
+    "shooting_star",
+})
 
 
-# A meaningful downtrend stub for bullish reversal patterns (hammer,
-# inverted hammer). TA-Lib's recognizers compare the focus bar's body
-# size to the AVERAGE body of the prior `BodyShort` bars (default 10),
-# so the stub bodies must be visibly LARGER than the focus bar's body
-# (~1 in the legacy unit tests) for the focus bar to register as
-# "short-bodied". 15 bars trending down 1.5/bar with body~5 satisfies
-# both "trend" and "average body" pre-checks across all reversal
-# recognizers we expose via the legacy predicates.
-def _downtrend_stub(n: int = 15, body: float = 5.0, slope: float = 1.5,
-                    end_close: float = 100.0) -> tuple[np.ndarray, ...]:
-    """Build a downtrending OHLC stub of `n` bars ending just above end_close."""
-    closes = np.array([end_close + (n - i) * slope for i in range(n)], dtype=np.float64)
-    opens = closes + body         # bearish bars: open > close
-    highs = opens + 0.3
-    lows = closes - 0.3
-    return opens, highs, lows, closes
+def _scan_tweezers(
+    o: np.ndarray, h: np.ndarray, lo: np.ndarray, c: np.ndarray,
+    index, start_idx: int, n: int,
+) -> list[_PatternHit]:
+    """Detect tweezer top / bottom 2-bar patterns in [start_idx, n).
 
+    Tweezer top  (bearish): bullish prev + bearish curr + matching highs.
+    Tweezer bot  (bullish): bearish prev + bullish curr + matching lows.
 
-def _uptrend_stub(n: int = 15, body: float = 5.0, slope: float = 1.5,
-                  end_close: float = 100.0) -> tuple[np.ndarray, ...]:
-    """Build an uptrending OHLC stub of `n` bars ending just below end_close."""
-    closes = np.array([end_close - (n - i) * slope for i in range(n)], dtype=np.float64)
-    opens = closes - body         # bullish bars: open < close
-    highs = closes + 0.3
-    lows = opens - 0.3
-    return opens, highs, lows, closes
-
-
-def _with_downtrend(row: pd.Series) -> tuple[np.ndarray, ...]:
-    """Prepend a downtrend stub to a single bar so reversal patterns can fire."""
-    o0, h0, l0, c0 = _row_to_arrays(row)
-    so, sh, sl, sc = _downtrend_stub(end_close=float(row["open"]))
-    return (
-        np.concatenate([so, o0]),
-        np.concatenate([sh, h0]),
-        np.concatenate([sl, l0]),
-        np.concatenate([sc, c0]),
-    )
-
-
-def _with_uptrend(row: pd.Series) -> tuple[np.ndarray, ...]:
-    """Prepend an uptrend stub for bearish-reversal patterns (shooting star)."""
-    o0, h0, l0, c0 = _row_to_arrays(row)
-    so, sh, sl, sc = _uptrend_stub(end_close=float(row["open"]))
-    return (
-        np.concatenate([so, o0]),
-        np.concatenate([sh, h0]),
-        np.concatenate([sl, l0]),
-        np.concatenate([sc, c0]),
-    )
-
-
-def is_doji(row: pd.Series, body_ratio: float = 0.10) -> bool:
-    """True if the bar is a doji (open ≈ close).
-
-    Hand-rolled: TA-Lib's CDLDOJI uses a percentile-of-recent-bodies
-    threshold which is undefined for a single isolated bar. The classic
-    Nison rule "body ≤ 10% of range" is what the test suite expects.
+    Match tolerance is 0.05% of the avg close of the two bars, so the
+    test scales naturally with price (works for both ₹100 and ₹5000 stocks).
     """
-    o, h, l, c = (row["open"], row["high"], row["low"], row["close"])
-    rng = h - l
-    body = abs(c - o)
-    return rng > 0 and body <= body_ratio * rng
+    out: list[_PatternHit] = []
+    # Need at least one prior bar to form a pair, so the first scannable
+    # current-bar index is max(start_idx, 1).
+    first = max(start_idx, 1)
+    for i in range(first, n):
+        prev_open, prev_close = o[i - 1], c[i - 1]
+        curr_open, curr_close = o[i], c[i]
+        avg_close = (prev_close + curr_close) / 2.0
+        if avg_close <= 0:
+            continue
+        tol = avg_close * _TWEEZER_TOL_RATIO
+
+        prev_bullish = prev_close > prev_open
+        prev_bearish = prev_close < prev_open
+        curr_bullish = curr_close > curr_open
+        curr_bearish = curr_close < curr_open
+
+        # Tweezer top: matching highs at a high, color reversal down.
+        if (
+            prev_bullish and curr_bearish
+            and abs(h[i - 1] - h[i]) <= tol
+        ):
+            out.append(_PatternHit(
+                name="tweezer_top",
+                bar_index=i - n,
+                bar_date=_bar_date_str(index[i]),
+                direction="bearish",
+                confidence=100,
+            ))
+        # Tweezer bottom: matching lows at a low, color reversal up.
+        elif (
+            prev_bearish and curr_bullish
+            and abs(lo[i - 1] - lo[i]) <= tol
+        ):
+            out.append(_PatternHit(
+                name="tweezer_bottom",
+                bar_index=i - n,
+                bar_date=_bar_date_str(index[i]),
+                direction="bullish",
+                confidence=100,
+            ))
+    return out
 
 
-def is_hammer(row: pd.Series) -> bool:
-    """True if the bar is a hammer (small body at top, long lower shadow).
+def _scan_windows(
+    o: np.ndarray, h: np.ndarray, lo: np.ndarray, c: np.ndarray,
+    index, start_idx: int, n: int,
+) -> list[_PatternHit]:
+    """Detect rising / falling windows (gaps) in [start_idx, n), ATR-filtered.
 
-    Single-bar test → we prepend a 5-bar downtrend stub so TA-Lib's
-    `CDLHAMMER` recognizer (which requires a prior downtrend) can fire.
+    Rising window (bullish): curr.low > prev.high  (gap up, no overlap).
+    Falling window (bearish): curr.high < prev.low  (gap down, no overlap).
+
+    The gap size must exceed `_WINDOW_ATR_MULT * ATR(14)` evaluated at the
+    current bar to count, which suppresses dust-sized gaps on illiquid days.
+    Returns [] until enough history exists to compute ATR.
     """
-    return _signal_from_arrays("CDLHAMMER", *_with_downtrend(row)) > 0
+    if n < _WINDOW_ATR_PERIOD + 1:
+        # Not enough history for ATR(14). Skipping is correct — the
+        # alternative (using NaN-padded ATR) would silently fire on the
+        # earliest bars where we have no scale to filter against.
+        return []
+
+    atr = talib.ATR(h, lo, c, timeperiod=_WINDOW_ATR_PERIOD)
+    out: list[_PatternHit] = []
+    first = max(start_idx, 1)
+    for i in range(first, n):
+        atr_i = float(atr[i])
+        if not np.isfinite(atr_i) or atr_i <= 0:
+            continue
+        threshold = _WINDOW_ATR_MULT * atr_i
+
+        gap_up = lo[i] - h[i - 1]
+        gap_dn = lo[i - 1] - h[i]
+        if gap_up > threshold:
+            out.append(_PatternHit(
+                name="rising_window",
+                bar_index=i - n,
+                bar_date=_bar_date_str(index[i]),
+                direction="bullish",
+                confidence=100,
+            ))
+        elif gap_dn > threshold:
+            out.append(_PatternHit(
+                name="falling_window",
+                bar_index=i - n,
+                bar_date=_bar_date_str(index[i]),
+                direction="bearish",
+                confidence=100,
+            ))
+    return out
 
 
-def is_shooting_star(row: pd.Series) -> bool:
-    """Mirror of hammer — small body at bottom, long upper shadow.
+def _apply_nison_confirmation(
+    hits: list[_PatternHit], c: np.ndarray, n: int,
+) -> None:
+    """Set `confirmed` on hammer/hanging_man/inverted_hammer/shooting_star.
 
-    Single-bar test → we prepend a 5-bar uptrend stub so TA-Lib's
-    `CDLSHOOTINGSTAR` recognizer (which requires a prior uptrend) fires.
+    Mutates `hits` in place. For each eligible hit:
+      - bullish reversal -> confirmed = next_close > pattern_close
+      - bearish reversal -> confirmed = next_close < pattern_close
+      - no next bar      -> confirmed = None  (latest bar, can't gate yet)
+
+    Patterns not in `_REVERSAL_PATTERNS_NEEDING_CONFIRMATION` are left
+    untouched (their `confirmed` stays None and is omitted from output).
     """
-    return _signal_from_arrays("CDLSHOOTINGSTAR", *_with_uptrend(row)) < 0
+    for hit in hits:
+        if hit.name not in _REVERSAL_PATTERNS_NEEDING_CONFIRMATION:
+            continue
+        # bar_index is negative; convert to positive df index.
+        pos = n + hit.bar_index
+        next_pos = pos + 1
+        if next_pos >= n:
+            hit.confirmed = None  # explicit; pattern is the latest bar
+            continue
+        pattern_close = float(c[pos])
+        next_close = float(c[next_pos])
+        if hit.direction == "bullish":
+            hit.confirmed = next_close > pattern_close
+        elif hit.direction == "bearish":
+            hit.confirmed = next_close < pattern_close
+        else:
+            # Defensive — these 4 patterns shouldn't ever be neutral, but
+            # if TA-Lib ever surprises us, leave it None rather than guess.
+            hit.confirmed = None
 
 
-# ─── Engulfing real-body guard ────────────────────────────────────────
-# Nison (1991, ch. 4 "Engulfing patterns") explicitly requires that the
-# *prior* bar has a real body to be "engulfable" — "the second day's
-# real body must engulf the first day's REAL BODY". TA-Lib's
-# CDLENGULFING is shape-permissive: a (near-)doji prev with a sufficiently
-# large current body can still emit a signal, because TA-Lib's body-size
-# averaging gives marginal-doji bars a non-zero notional body. That's the
-# M5 ambiguity called out in pred_logic_review §H/M.
-#
-# Our wrapper enforces an explicit Nison-aligned floor on the prior bar's
-# body before consulting TA-Lib: prev body must be ≥ 10% of prev range.
-# 10% is a deliberate choice (mirrors our own doji-detection threshold:
-# `body / range < 0.1` is a doji, so anything ≥ 0.1 is "not a doji").
-# Source: Nison 1991 ch. 4; threshold = our doji cutoff for consistency.
-_ENGULFING_PREV_BODY_MIN_RATIO = 0.10
+def _hit_to_dict(h: _PatternHit) -> dict:
+    """Flatten a _PatternHit to the public output dict.
 
-
-def _prev_has_real_body(prev: pd.Series) -> bool:
-    """Nison real-body guard: prev body ≥ 10% of prev range.
-
-    Returns True for normal bars, False for dojis / near-dojis where the
-    prev bar has effectively no body to engulf.
+    `confirmed` is included ONLY when the pattern was eligible for
+    Nison confirmation (i.e. one of the 4 single-bar reversals). For
+    every other pattern the key is omitted to keep the schema lean and
+    backward-compatible with consumers that don't expect it.
     """
-    body = abs(float(prev["close"]) - float(prev["open"]))
-    rng = float(prev["high"]) - float(prev["low"])
-    if rng <= 0:
-        # degenerate four-equal bar — nothing to engulf
-        return False
-    return (body / rng) >= _ENGULFING_PREV_BODY_MIN_RATIO
+    out = {
+        "name": h.name,
+        "bar_date": h.bar_date,
+        "bar_index": h.bar_index,
+        "direction": h.direction,
+        "confidence": h.confidence,
+    }
+    if h.name in _REVERSAL_PATTERNS_NEEDING_CONFIRMATION:
+        out["confirmed"] = h.confirmed
+    return out
 
 
-def _two_bar_engulfing(prev: pd.Series, curr: pd.Series, *,
-                       prior_trend: str) -> int:
-    """Internal — returns TA-Lib's signed engulfing signal for the pair.
-
-    `prior_trend` must be "down" (for bullish-engulfing tests) or "up"
-    (for bearish-engulfing tests). TA-Lib's CDLENGULFING uses the average
-    of recent body sizes when normalizing the engulfing magnitude, so we
-    prepend a 15-bar trending stub to give it sane context.
-
-    M5 GUARD: We short-circuit to 0 (no signal) when the prior bar has no
-    real body (body < 10% of range). See `_prev_has_real_body` and the
-    module-level note above for Nison's rationale.
-    """
-    if not _prev_has_real_body(prev):
-        return 0
-    stub_fn = _downtrend_stub if prior_trend == "down" else _uptrend_stub
-    so, sh, sl, sc = stub_fn(end_close=float(prev["open"]))
-    o = np.concatenate([so, [prev["open"],  curr["open"]]])
-    h = np.concatenate([sh, [prev["high"],  curr["high"]]])
-    l = np.concatenate([sl, [prev["low"],   curr["low"]]])
-    c = np.concatenate([sc, [prev["close"], curr["close"]]])
-    return int(talib.CDLENGULFING(o, h, l, c)[-1])
-
-
-def is_bullish_engulfing(prev: pd.Series, curr: pd.Series) -> bool:
-    """True if (prev, curr) form a bullish engulfing per Nison."""
-    return _two_bar_engulfing(prev, curr, prior_trend="down") > 0
-
-
-def is_bearish_engulfing(prev: pd.Series, curr: pd.Series) -> bool:
-    """True if (prev, curr) form a bearish engulfing per Nison."""
-    return _two_bar_engulfing(prev, curr, prior_trend="up") < 0
-
-
-def _three_bar_signal(
-    fn_name: str, b1: pd.Series, b2: pd.Series, b3: pd.Series, *,
-    prior_trend: str,
-) -> int:
-    """Internal — runs a 3-bar TA-Lib pattern recognizer with a trend stub.
-
-    `prior_trend` must be "down" (morning star is a bullish reversal
-    requiring a prior downtrend) or "up" (evening star is the bearish
-    mirror).
-    """
-    stub_fn = _downtrend_stub if prior_trend == "down" else _uptrend_stub
-    so, sh, sl, sc = stub_fn(end_close=float(b1["open"]))
-    o = np.concatenate([so, [b1["open"],  b2["open"],  b3["open"]]])
-    h = np.concatenate([sh, [b1["high"],  b2["high"],  b3["high"]]])
-    l = np.concatenate([sl, [b1["low"],   b2["low"],   b3["low"]]])
-    c = np.concatenate([sc, [b1["close"], b2["close"], b3["close"]]])
-    return int(getattr(talib, fn_name)(o, h, l, c)[-1])
-
-
-def is_morning_star(b1: pd.Series, b2: pd.Series, b3: pd.Series) -> bool:
-    """True if (b1, b2, b3) form a morning star reversal."""
-    return _three_bar_signal("CDLMORNINGSTAR", b1, b2, b3, prior_trend="down") > 0
-
-
-def is_evening_star(b1: pd.Series, b2: pd.Series, b3: pd.Series) -> bool:
-    """True if (b1, b2, b3) form an evening star reversal."""
-    return _three_bar_signal("CDLEVENINGSTAR", b1, b2, b3, prior_trend="up") < 0
-
+# ──────────────────────────────────────────────────────────────
+# Backward-compatible single/multi-bar predicates (re-exported)
+# ──────────────────────────────────────────────────────────────
+# Lifted to candlestick_legacy in C7 (file-size + cohesion). Importers
+# of `candlestick_patterns` continue to see is_doji / is_hammer / etc.
+# at the original location — zero churn for callers and tests.
+from price_predictor.analysis.candlestick_legacy import (  # noqa: E402
+    is_bearish_engulfing,
+    is_bullish_engulfing,
+    is_doji,
+    is_evening_star,
+    is_hammer,
+    is_morning_star,
+    is_shooting_star,
+)
 
 __all__ = [
     "CDL_PATTERNS",
@@ -481,3 +509,4 @@ __all__ = [
     "is_morning_star",
     "is_shooting_star",
 ]
+
