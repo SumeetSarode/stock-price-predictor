@@ -42,7 +42,10 @@ from price_predictor.agents.technical_agent.tools.get_trend import (
 )
 from price_predictor.analysis import LEVELS_PRESETS, validate_preset
 from price_predictor.analysis.chart_patterns import detect_all_patterns
-from price_predictor.analysis.levels import TRADING_DAYS_PER_YEAR, levels_snapshot
+from price_predictor.analysis.levels import (
+    levels_snapshot,
+    prior_fifty_two_week_window,
+)
 from price_predictor.analysis.volatility import latest_atr
 from price_predictor.data._shared_cache import get_cache
 from price_predictor.data.prices import PriceFetchError
@@ -157,12 +160,13 @@ async def get_levels(ticker: str, sensitivity: str = "standard") -> dict:
 
     # Same trick for the 52-week extremes -- needed so 52w breakouts
     # can be DETECTED at all (high_52w in snapshot includes today).
+    # Calendar-aware: 52 calendar weeks back from the bar at
+    # position -(BREAKOUT_EXCLUDE_BARS+1), so today's candle is free to
+    # set the new extreme.
     prior_52w_high: float | None = None
     prior_52w_low: float | None = None
-    if len(df) > TRADING_DAYS_PER_YEAR + BREAKOUT_EXCLUDE_BARS:
-        win_52w = df.iloc[
-            -(TRADING_DAYS_PER_YEAR + BREAKOUT_EXCLUDE_BARS) : -BREAKOUT_EXCLUDE_BARS
-        ]
+    win_52w = prior_fifty_two_week_window(df, exclude_last_bars=BREAKOUT_EXCLUDE_BARS)
+    if not win_52w.empty:
         prior_52w_high = float(win_52w["high"].max())
         prior_52w_low = float(win_52w["low"].min())
 
