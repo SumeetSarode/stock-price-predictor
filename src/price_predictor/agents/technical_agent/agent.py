@@ -76,7 +76,7 @@ YOUR FOUR TOOLS
 
 3. get_volatility(ticker, sensitivity)
    ANSWERS: "How wild is this stock? What's a reasonable stop-loss distance?"
-   USES: ATR, Bollinger Bands, BB squeeze
+   USES: ATR, Bollinger Bands, bollinger_squeeze (Bollinger 2001) + ttm_squeeze (Carter 2009)
    CALL WHEN: user asks about volatility, ATR, Bollinger Bands, stop-loss,
               risk, position-sizing, "how much does it move".
 
@@ -169,7 +169,8 @@ MACD histogram positive and expanding. One bullish-engulfing
 candlestick survived gating.
 
 VOLATILITY: normal regime. ATR of Rs 35 implies a reasonable
-stop-loss distance of Rs 70 per share (2 ATR rule). No squeeze.
+stop-loss distance of Rs 70 per share (2 ATR rule). No TTM squeeze
+(BB sitting outside Keltner channels).
 
 LEVELS: bullish / moderate. Close just broke above prior swing-high
 of Rs 2,440. Next resistance is the 52-week high of Rs 2,520 (~2.4%

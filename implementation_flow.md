@@ -162,7 +162,7 @@ detectors. Zero ADK exposure — every artifact is testable in pure Python.
 | `analysis/__init__.py` | 3 sensitivity presets per cluster (`standard` / `sensitive` / `smooth`) |
 | `analysis/trend.py` | SMAs, EMA, ADX + `trend_snapshot()` |
 | `analysis/momentum.py` | RSI, MACD, Stoch, OBV + `momentum_snapshot()` |
-| `analysis/volatility.py` | ATR, Bollinger Bands, BB squeeze + `volatility_snapshot()` |
+| `analysis/volatility.py` | ATR, Bollinger Bands, `bollinger_squeeze` (Bollinger 2001) + `ttm_squeeze` (Carter 2009) + `volatility_snapshot()` |
 | `analysis/levels.py` | Swing high/low, 52w high/low, classic pivots + `levels_snapshot()` |
 | `analysis/candlestick_patterns.py` | 6 hand-rolled patterns (doji, hammer, shooting star, bull/bear engulfing, morning/evening star) |
 | `analysis/chart_patterns.py` | 3 hand-rolled patterns (double top/bottom, head & shoulders ±inverse, triangles) |

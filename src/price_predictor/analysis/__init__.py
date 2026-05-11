@@ -6,10 +6,11 @@ PACKAGE LAYOUT
     ├── __init__.py             -- PRESETS, common types, signal enums
     ├── trend.py                -- SMAs, EMA-20, ADX
     ├── momentum.py             -- RSI, MACD, Stochastic, OBV
-    ├── volatility.py           -- ATR, Bollinger Bands, BB squeeze
+    ├── volatility.py           -- ATR, Bollinger Bands, bollinger_squeeze + ttm_squeeze
     ├── levels.py               -- swing high/low, 52w high/low, pivots
-    ├── candlestick_patterns.py -- 6 hand-rolled candlestick patterns
-    └── chart_patterns.py       -- 3 hand-rolled chart patterns
+    ├── candlestick_patterns.py -- TA-Lib full 61-pattern dispatcher
+    └── chart_patterns.py       -- LMW chart patterns (HS, double top/bot,
+                                   triangles, broadening, rectangles)
 
 DESIGN
 ======

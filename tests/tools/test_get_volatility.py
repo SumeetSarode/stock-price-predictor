@@ -135,7 +135,9 @@ class TestGetVolatilityHappy:
                   "indicators", "derived", "rationale", "warnings"):
             assert k in result, f"missing key: {k}"
         for k in ("atr", "atr_pct_of_price", "bb_lower", "bb_middle",
-                  "bb_upper", "bb_bandwidth", "bb_percent_b", "squeeze"):
+                  "bb_upper", "bb_bandwidth", "bb_percent_b",
+                  "bollinger_squeeze", "ttm_squeeze_on",
+                  "ttm_squeeze_fire", "ttm_bars_in_squeeze"):
             assert k in result["indicators"], f"missing indicator: {k}"
         for k in ("volatility_regime", "suggested_stop_distance",
                   "per_share_risk", "atr_multiple_to_upper_band",
@@ -209,9 +211,25 @@ class TestSqueeze:
         cache = _FakeCache(_quiet_then_squeeze_df())
         _shared_cache.set_cache(cache)
         result = asyncio.run(get_volatility("RELIANCE"))
-        # Squeeze SHOULD be True given the synthetic quiet period
-        assert result["indicators"]["squeeze"] is True
-        assert result["strength"] == "strong"
+        # Either squeeze flag firing should bump strength to "strong".
+        # Bollinger percentile is the wider net (looser definition);
+        # TTM may also fire if the quiet window is deep enough.
+        triggered = (
+            result["indicators"]["bollinger_squeeze"] is True
+            or result["indicators"]["ttm_squeeze_on"] is True
+            or result["indicators"]["ttm_squeeze_fire"] is True
+        )
+        assert triggered, (
+            "quiet fixture should trigger at least one squeeze definition; "
+            f"got bollinger={result['indicators']['bollinger_squeeze']}, "
+            f"ttm_on={result['indicators']['ttm_squeeze_on']}, "
+            f"ttm_fire={result['indicators']['ttm_squeeze_fire']}"
+        )
+        # TTM is the one that drives strength=strong; if only Bollinger
+        # fires, strength may stay moderate — see _volatility_signal.py.
+        if (result["indicators"]["ttm_squeeze_on"] is True
+                or result["indicators"]["ttm_squeeze_fire"] is True):
+            assert result["strength"] == "strong"
 
 
 # ─────────────────────────────────────────────────────────────────

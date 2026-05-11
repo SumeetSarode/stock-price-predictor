@@ -16,7 +16,10 @@ def _snapshot(
     bb_upper=105.0,
     bandwidth=10.0,
     percent_b=0.6,
-    squeeze=False,
+    bollinger_squeeze=False,
+    ttm_on=False,
+    ttm_fire=False,
+    ttm_bars=0,
 ):
     """Build a synthetic volatility snapshot for classifier tests."""
     return {
@@ -29,7 +32,8 @@ def _snapshot(
             "bandwidth": bandwidth,
             "percent_b": percent_b,
         },
-        "squeeze": squeeze,
+        "bollinger_squeeze": bollinger_squeeze,
+        "ttm_squeeze": {"on": ttm_on, "fire": ttm_fire, "bars_in_squeeze": ttm_bars},
     }
 
 
@@ -94,32 +98,46 @@ class TestPercentBExtremes:
 # Strength: squeeze beats regime
 # ─────────────────────────────────────────────────────────────────
 class TestStrength:
-    def test_squeeze_yields_strong_regardless_of_regime(self):
-        # Even with low volatility, a squeeze is a STRONG signal (breakout coming)
-        snap = _snapshot(atr_pct=0.5, squeeze=True)
+    def test_ttm_squeeze_on_yields_strong_regardless_of_regime(self):
+        # Even with low volatility, an active TTM squeeze is STRONG (breakout coming)
+        snap = _snapshot(atr_pct=0.5, ttm_on=True, ttm_bars=8)
         _, strength, rationale, _ = classify_volatility(snap)
         assert strength == "strong"
-        assert any("SQUEEZE" in r for r in rationale)
+        assert any("TTM SQUEEZE active" in r for r in rationale)
+
+    def test_ttm_squeeze_fire_yields_strong(self):
+        # Squeeze JUST released -- Carter's trade trigger.
+        snap = _snapshot(atr_pct=0.5, ttm_fire=True, ttm_bars=12)
+        _, strength, rationale, _ = classify_volatility(snap)
+        assert strength == "strong"
+        assert any("FIRED" in r for r in rationale)
+
+    def test_bollinger_squeeze_alone_does_not_force_strong(self):
+        # Bollinger flag firing without TTM → surfaced as diagnostic only.
+        snap = _snapshot(atr_pct=2.5, bollinger_squeeze=True, ttm_on=False)
+        _, strength, rationale, _ = classify_volatility(snap)
+        assert strength == "moderate"   # ATR is normal, no TTM bump
+        assert any("Bollinger bandwidth" in r for r in rationale)
 
     def test_dead_quiet_is_weak(self):
-        snap = _snapshot(atr_pct=0.5, squeeze=False)
+        snap = _snapshot(atr_pct=0.5, ttm_on=False)
         _, strength, _, _ = classify_volatility(snap)
         assert strength == "weak"
 
     def test_normal_volatility_is_moderate(self):
-        snap = _snapshot(atr_pct=2.5, squeeze=False)
+        snap = _snapshot(atr_pct=2.5, ttm_on=False)
         _, strength, _, _ = classify_volatility(snap)
         assert strength == "moderate"
 
     def test_manic_volatility_is_weak_with_warning(self):
-        snap = _snapshot(atr_pct=8.0, squeeze=False)
+        snap = _snapshot(atr_pct=8.0, ttm_on=False)
         _, strength, _, warnings = classify_volatility(snap)
         assert strength == "weak"
         assert "high_volatility" in warnings
 
     def test_elevated_but_not_manic_is_weak(self):
         # 4-6% range: elevated but not manic
-        snap = _snapshot(atr_pct=5.0, squeeze=False)
+        snap = _snapshot(atr_pct=5.0, ttm_on=False)
         _, strength, _, _ = classify_volatility(snap)
         assert strength == "weak"
 
@@ -136,7 +154,8 @@ class TestInsufficientData:
                 "lower": None, "middle": None, "upper": None,
                 "bandwidth": None, "percent_b": None,
             },
-            "squeeze": None,
+            "bollinger_squeeze": None,
+            "ttm_squeeze": {"on": None, "fire": None, "bars_in_squeeze": None},
         }
         signal, strength, rationale, warnings = classify_volatility(snap)
         assert signal == "neutral"

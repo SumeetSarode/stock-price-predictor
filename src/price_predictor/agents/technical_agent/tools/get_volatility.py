@@ -6,7 +6,8 @@ sizing in Step D. Get the math right.
 NO CROSS-CLUSTER IMPORTS
 ========================
 Unlike get_momentum (which gates patterns by levels+ATR), get_volatility
-is self-contained within the volatility cluster. Just ATR, BB, squeeze.
+is self-contained within the volatility cluster. Just ATR, BB,
+bollinger_squeeze (Bollinger 2001) and ttm_squeeze (Carter 2009).
 
 DERIVED HELPERS
 ===============
@@ -37,7 +38,7 @@ from price_predictor.data._shared_cache import get_cache
 from price_predictor.data.prices import PriceFetchError
 from price_predictor.kb.stocks import lookup as resolve_stock
 
-LOOKBACK_DAYS = 400
+LOOKBACK_DAYS = 750  # H7: ≥500 trading days for Wilder warmup
 
 
 async def get_volatility(ticker: str, sensitivity: str = "standard") -> dict:
@@ -60,7 +61,9 @@ async def get_volatility(ticker: str, sensitivity: str = "standard") -> dict:
               "signal": "bullish" | "neutral" | "bearish",  -- from BB %B position
               "strength": "weak" | "moderate" | "strong",   -- squeeze > regime
               "indicators": {atr, atr_pct_of_price, bb_lower, bb_middle,
-                             bb_upper, bb_bandwidth, bb_percent_b, squeeze},
+                             bb_upper, bb_bandwidth, bb_percent_b,
+                             bollinger_squeeze, ttm_squeeze_on,
+                             ttm_squeeze_fire, ttm_bars_in_squeeze},
               "derived": {
                 "volatility_regime": "low" | "normal" | "high" | "unknown",
                 "suggested_stop_distance": 2 * ATR (price units),
@@ -133,6 +136,7 @@ async def get_volatility(ticker: str, sensitivity: str = "standard") -> dict:
 
     # ── Flatten indicators for the LLM ─────────────────────────
     bb = snapshot["bbands"]
+    ttm = snapshot.get("ttm_squeeze") or {}
     indicators = {
         "atr": snapshot["atr"],
         "atr_pct_of_price": snapshot["atr_pct_of_price"],
@@ -141,7 +145,12 @@ async def get_volatility(ticker: str, sensitivity: str = "standard") -> dict:
         "bb_upper": bb.get("upper"),
         "bb_bandwidth": bb.get("bandwidth"),
         "bb_percent_b": bb.get("percent_b"),
-        "squeeze": snapshot["squeeze"],
+        # Bollinger (2001) bandwidth-percentile flag — diagnostic
+        "bollinger_squeeze": snapshot.get("bollinger_squeeze"),
+        # TTM (Carter 2009) squeeze — the actionable trigger
+        "ttm_squeeze_on": ttm.get("on"),
+        "ttm_squeeze_fire": ttm.get("fire"),
+        "ttm_bars_in_squeeze": ttm.get("bars_in_squeeze"),
     }
 
     # ── Derived helpers (the position-sizing math) ─────────────
