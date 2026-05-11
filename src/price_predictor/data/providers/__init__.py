@@ -14,8 +14,9 @@ same pattern as `ResilientModel` for LLMs -- different domain, same shape.
 CURRENT REGISTRY
 ================
     yfinance       -- free, no key, but Yahoo throttles aggressively
-    stooq          -- free, no key, daily-only, very stable
-    alpha_vantage  -- free tier (25/day) or paid (~$50/mo)
+    jugaad         -- free, NSE-native, primary tier per pred_logic_solutions C1
+    stooq          -- free, no key, daily-only, NO India coverage (legacy)
+    alpha_vantage  -- free tier (25/day) or paid (~$50/mo), unreliable for NSE
 
 PROVIDER_REGISTRY maps short names (used in PRICE_CHAIN env var) to
 factory callables. The factory pattern lets us pass per-provider config
@@ -33,7 +34,8 @@ SHAPE
 =====
     PriceProvider           -- abstract base class (the contract)
     YFinanceProvider        -- v1 implementation (Yahoo Finance)
-    StooqProvider           -- backup implementation (Stooq CSV)
+    JugaadDataProvider      -- NSE-native primary tier (jugaad-data)
+    StooqProvider           -- legacy: NO India coverage (kept for non-NSE)
     AlphaVantageProvider    -- final fallback / paid-tier option
     ResilientPriceFetcher   -- ordered fallback over multiple providers
     PriceFetchError         -- raised by any provider on a fetch failure
@@ -44,16 +46,17 @@ from collections.abc import Callable
 from price_predictor.config.settings import settings
 from price_predictor.data.providers.alpha_vantage_provider import AlphaVantageProvider
 from price_predictor.data.providers.base import PriceFetchError, PriceProvider
+from price_predictor.data.providers.jugaad_provider import JugaadDataProvider
 from price_predictor.data.providers.resilient import ResilientPriceFetcher
 from price_predictor.data.providers.stooq_provider import StooqProvider
 from price_predictor.data.providers.yfinance_provider import YFinanceProvider
-
 
 # Map short-name (used in PRICE_CHAIN) to a zero-arg factory that builds
 # a configured provider instance. Lambdas (not classes directly) so we can
 # inject per-provider config like API keys at construction time.
 PROVIDER_REGISTRY: dict[str, Callable[[], PriceProvider]] = {
     "yfinance": YFinanceProvider,
+    "jugaad": JugaadDataProvider,
     "stooq": lambda: StooqProvider(
         api_key=settings.stooq_api_key.get_secret_value()
     ),
@@ -82,6 +85,7 @@ def build_provider(name: str) -> PriceProvider:
 __all__ = [
     "PROVIDER_REGISTRY",
     "AlphaVantageProvider",
+    "JugaadDataProvider",
     "PriceFetchError",
     "PriceProvider",
     "ResilientPriceFetcher",
