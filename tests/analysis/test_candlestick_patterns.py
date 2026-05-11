@@ -75,10 +75,26 @@ class TestBullishEngulfing:
         assert not is_bullish_engulfing(prev, curr)
 
     def test_doji_prev_not_engulfable(self):
-        # Body-existence guard: doji prev (no real body) cannot be engulfed
+        # M5 fix: Nison real-body guard at our wrapper layer. A doji prev
+        # (body == 0) cannot be engulfed regardless of how big the current
+        # bar is. Source: Nison 1991 ch. 4 "Engulfing patterns" — the
+        # second day's real body must engulf the first day's REAL BODY.
         prev = _bar(103, 110, 100, 103)   # doji-ish, body 0
         curr = _bar(100, 112, 99, 111)
         assert not is_bullish_engulfing(prev, curr)
+
+    def test_near_doji_prev_below_threshold_not_engulfable(self):
+        # M5 boundary: prev body / prev range = 0.5 / 10 = 5% < 10% floor.
+        prev = _bar(102.75, 108, 98, 103.25)  # body 0.5, range 10
+        curr = _bar(98, 110, 97, 109)         # large bullish current bar
+        assert not is_bullish_engulfing(prev, curr)
+
+    def test_just_above_threshold_prev_is_engulfable(self):
+        # M5 boundary: prev body / prev range = 1.5 / 10 = 15% > 10% floor;
+        # current bar is unambiguously bullish-engulfing.
+        prev = _bar(104.25, 108, 98, 102.75)  # body 1.5, range 10, bearish
+        curr = _bar(102, 110, 101, 109)       # opens ≤ prev.close, closes ≥ prev.open
+        assert is_bullish_engulfing(prev, curr)
 
 
 class TestBearishEngulfing:
@@ -93,9 +109,27 @@ class TestBearishEngulfing:
         assert not is_bearish_engulfing(prev, curr)
 
     def test_doji_prev_not_engulfable(self):
-        prev = _bar(102, 110, 100, 102)   # doji prev
-        curr = _bar(110, 111, 99, 100)
+        # M5 fix: previously this test asserted the OPPOSITE ("defer to
+        # TA-Lib") which directly contradicted the bullish-engulfing
+        # doji test. Now both directions consistently apply Nison's
+        # real-body guard. Source: Nison 1991 ch. 4 — a doji prev has
+        # no real body to engulf.
+        prev = _bar(102, 110, 100, 102)   # doji prev, body 0
+        curr = _bar(110, 111, 99, 100)    # large bearish current bar
         assert not is_bearish_engulfing(prev, curr)
+
+    def test_near_doji_prev_below_threshold_not_engulfable(self):
+        # M5 boundary: prev body / prev range = 0.5 / 10 = 5% < 10% floor.
+        prev = _bar(101.75, 108, 98, 102.25)  # body 0.5, range 10, bullish
+        curr = _bar(110, 111, 97, 99)         # large bearish current bar
+        assert not is_bearish_engulfing(prev, curr)
+
+    def test_just_above_threshold_prev_is_engulfable(self):
+        # M5 boundary: prev body / prev range = 1.5 / 10 = 15% > 10% floor;
+        # current bar is unambiguously bearish-engulfing.
+        prev = _bar(101.25, 108, 98, 102.75)  # body 1.5, range 10, bullish
+        curr = _bar(103, 110, 99, 100)        # opens ≥ prev.close, closes ≤ prev.open
+        assert is_bearish_engulfing(prev, curr)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -122,14 +156,21 @@ class TestEveningStar:
 # ─────────────────────────────────────────────────────────────────
 class TestDetectRecentPatterns:
     def test_finds_hammer_in_recent_bars(self):
-        # Build 10 bars; place a hammer at index -2
+        # TA-Lib's CDLHAMMER requires a PRIOR DOWNTREND (a hammer in an uptrend
+        # is just a small body with a long lower shadow -- not a reversal
+        # signal). Build a 15-bar downtrend stub with chunky bodies, place a
+        # hammer at index -2, end with one trailing bar so the hammer isn't
+        # the very last bar.
         rows = []
-        for i in range(10):
-            if i == 8:
-                rows.append({"open": 100, "high": 101.2, "low": 95, "close": 101})
-            else:
-                rows.append({"open": 100 + i, "high": 101 + i, "low": 99 + i, "close": 100.5 + i})
-        idx = pd.date_range("2024-01-01", periods=10, freq="D")
+        for i in range(15):
+            # Bearish bar: open high, close low, body ~3, dropping ~1.5/bar
+            close = 130 - i * 1.5
+            rows.append({"open": close + 3, "high": close + 3.5, "low": close - 0.3, "close": close})
+        # The hammer (small body at top, long lower shadow)
+        rows.append({"open": 100, "high": 101.2, "low": 95, "close": 101})
+        # Trailing bar (any benign close-above)
+        rows.append({"open": 101, "high": 103, "low": 100, "close": 102})
+        idx = pd.date_range("2024-01-01", periods=len(rows), freq="D")
         df = pd.DataFrame(rows, index=idx)
         patterns = detect_recent_patterns(df, lookback=5)
         names = {p["name"] for p in patterns}
