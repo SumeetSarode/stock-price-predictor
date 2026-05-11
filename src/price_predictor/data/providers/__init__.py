@@ -15,6 +15,7 @@ CURRENT REGISTRY
 ================
     yfinance       -- free, no key, but Yahoo throttles aggressively
     jugaad         -- free, NSE-native, primary tier per pred_logic_solutions C1
+    nse_bhavcopy   -- free, exchange-of-record EOD, secondary tier per C1
     stooq          -- free, no key, daily-only, NO India coverage (legacy)
     alpha_vantage  -- free tier (25/day) or paid (~$50/mo), unreliable for NSE
 
@@ -35,6 +36,7 @@ SHAPE
     PriceProvider           -- abstract base class (the contract)
     YFinanceProvider        -- v1 implementation (Yahoo Finance)
     JugaadDataProvider      -- NSE-native primary tier (jugaad-data)
+    NseBhavcopyProvider     -- NSE bhavcopy bulk EOD (per-day CSV)
     StooqProvider           -- legacy: NO India coverage (kept for non-NSE)
     AlphaVantageProvider    -- final fallback / paid-tier option
     ResilientPriceFetcher   -- ordered fallback over multiple providers
@@ -46,6 +48,7 @@ from collections.abc import Callable
 from price_predictor.config.settings import settings
 from price_predictor.data.providers.alpha_vantage_provider import AlphaVantageProvider
 from price_predictor.data.providers.base import PriceFetchError, PriceProvider
+from price_predictor.data.providers.bhavcopy_provider import NseBhavcopyProvider
 from price_predictor.data.providers.jugaad_provider import JugaadDataProvider
 from price_predictor.data.providers.resilient import ResilientPriceFetcher
 from price_predictor.data.providers.stooq_provider import StooqProvider
@@ -57,6 +60,7 @@ from price_predictor.data.providers.yfinance_provider import YFinanceProvider
 PROVIDER_REGISTRY: dict[str, Callable[[], PriceProvider]] = {
     "yfinance": YFinanceProvider,
     "jugaad": JugaadDataProvider,
+    "nse_bhavcopy": NseBhavcopyProvider,
     "stooq": lambda: StooqProvider(
         api_key=settings.stooq_api_key.get_secret_value()
     ),
@@ -86,6 +90,7 @@ __all__ = [
     "PROVIDER_REGISTRY",
     "AlphaVantageProvider",
     "JugaadDataProvider",
+    "NseBhavcopyProvider",
     "PriceFetchError",
     "PriceProvider",
     "ResilientPriceFetcher",
