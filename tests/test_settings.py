@@ -165,8 +165,12 @@ class TestPriceChain:
     """PRICE_CHAIN parses like CHAIN_AGENTIC; USE_PAID_PRICES toggles to
     PRICE_PAID just like USE_PAID toggles to PAID_AGENTIC."""
 
-    def test_default_chain_is_yfinance_only(self, monkeypatch):
-        """No-config baseline: works with just yfinance (the v1 default).
+    def test_default_chain_is_nse_native_tier(self, monkeypatch):
+        """No-config baseline: jugaad → nse_bhavcopy → yfinance.
+
+        Per pred_logic_solutions.md C1: NSE-native primary, exchange-of-record
+        secondary, Yahoo-mirror tertiary. Stooq + Alpha Vantage stay registered
+        for non-NSE / explicit-opt-in callers but are NOT in the default chain.
 
         WHY EXPLICIT delenv: LiteLLM auto-loads .env into os.environ at
         import time (a quirk of that library). Other tests in the suite
@@ -176,7 +180,7 @@ class TestPriceChain:
         monkeypatch.delenv("PRICE_CHAIN", raising=False)
         monkeypatch.delenv("USE_PAID_PRICES", raising=False)
         s = _build_settings(monkeypatch)  # no PRICE_CHAIN override
-        assert s.effective_price_chain() == ["yfinance"]
+        assert s.effective_price_chain() == ["jugaad", "nse_bhavcopy", "yfinance"]
 
     def test_full_chain_parses_in_order(self, monkeypatch):
         s = _build_settings(

@@ -173,7 +173,8 @@ class Settings(BaseSettings):
     #
     # PRICE_CHAIN is the ordered free-tier fallback chain. Each entry is a
     # short provider name registered in data/providers/__init__.py's
-    # PROVIDER_REGISTRY (currently: 'yfinance', 'stooq', 'alpha_vantage').
+    # PROVIDER_REGISTRY (currently: 'yfinance', 'jugaad', 'nse_bhavcopy',
+    # 'stooq', 'alpha_vantage').
     #
     # PRICE_PAID is the single paid override used when USE_PAID_PRICES=true.
     # Same logic as LLM's USE_PAID: paying = no rate limits worth handling,
@@ -181,17 +182,26 @@ class Settings(BaseSettings):
     #
     # Adding a new provider = register it in PROVIDER_REGISTRY and add its
     # short name here. No changes to settings.py needed.
-    # Default chain: yfinance primary, alpha_vantage fallback. Stooq was
-    # previously included but verified empirically (2026-04-28) to have ZERO
-    # NSE coverage — every NSE call to stooq.com/q/?s=<sym>.in returns an
-    # empty body, while AAPL.US returns proper data. Keeping Stooq in the
-    # chain only adds latency on every Yahoo failure before falling through.
-    # The provider class itself remains registered for non-Indian use cases.
+    #
+    # DEFAULT CHAIN: jugaad -> nse_bhavcopy -> yfinance (per pred_logic_solutions C1).
+    #   - jugaad        : NSE-native via the jugaad-data library (primary)
+    #   - nse_bhavcopy  : NSE archives bhavcopy CSV (exchange-of-record EOD)
+    #   - yfinance      : Yahoo's NSE mirror (community, breaks ~2x/yr)
+    # Stooq is INTENTIONALLY OMITTED — verified empirically (2026-04-28) to
+    # have ZERO NSE coverage. Class stays registered for non-Indian use cases.
+    # Alpha Vantage is also OMITTED — its NSE feed is unreliable and free tier
+    # is 25 req/day (per pred_logic_solutions.md C1 production scorecard).
+    # Both remain in PROVIDER_REGISTRY for users who want to wire them in
+    # explicitly, but they're not in the default fallback path.
     price_chain: str = Field(
-        default="yfinance,alpha_vantage", validation_alias="PRICE_CHAIN"
+        default="jugaad,nse_bhavcopy,yfinance", validation_alias="PRICE_CHAIN"
     )
+    # PRICE_PAID = "the single most reliable NSE provider". jugaad-data is
+    # free + NSE-native; we use it here because there's no paid NSE provider
+    # in the registry yet (Kite/Upstox integration is H1-tier, deferred).
+    # When that ships, switching this default to 'kite' is a one-line change.
     price_paid: str = Field(
-        default="alpha_vantage", validation_alias="PRICE_PAID"
+        default="jugaad", validation_alias="PRICE_PAID"
     )
     use_paid_prices: bool = Field(
         default=False, validation_alias="USE_PAID_PRICES"
