@@ -187,7 +187,7 @@ class AnalysisBasis(BaseModel):
         ..., min_length=1,
         description=(
             "One-line distillation of the technical view. "
-            "E.g. 'Trend bullish (ADX 32), RSI 68, BB squeeze breaking up'."
+            "E.g. 'Trend bullish (ADX 32), RSI 68, TTM squeeze fired'."
         ),
     )
     news_sentiment_score: float | None = Field(
@@ -364,7 +364,7 @@ class Prediction(BaseModel):
         Only acts on dict inputs (the JSON-parsing path); leaves model
         instances and other types untouched.
         """
-        _COMPUTED_KEYS = {"risk_reward", "target_datetime"}
+        _COMPUTED_KEYS = {"risk_reward", "midpoint_rr", "target_datetime"}
         if isinstance(data, dict):
             # Copy to avoid mutating caller's dict
             data = {k: v for k, v in data.items() if k not in _COMPUTED_KEYS}
@@ -437,15 +437,24 @@ class Prediction(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def risk_reward(self) -> float:
-        """Worst-case risk-to-reward ratio.
+        """Worst-fill risk-to-reward ratio (conservative sizing filter).
 
-        WHY WORST-CASE (not midpoint):
-        ============================
+        WHY "WORST-FILL" (not midpoint or worst-case):
+        ==============================================
         User-locked design choice. For bullish trades we anchor at the TOP
-        of the entry zone — the price you'd be unlucky enough to fill at.
-        For bearish, the bottom (worst short fill). Result is conservative;
-        risk filters like `if rr >= 2.0` then become "even in the worst
-        execution case, RR is still good".
+        of the entry zone — the most expensive (i.e. worst) fill within
+        the band. For bearish, the BOTTOM (worst short fill). Result is
+        conservative; risk filters like `if risk_reward >= 2.0` then
+        become "even at the worst fill within the entry zone, RR is
+        still good".
+
+        Note: this is **worst-FILL** within the entry band, not
+        **worst-CASE** over all adverse paths (e.g. it does not model
+        a stop-gap-down to a price below `stop_loss`). The naming was
+        deliberately revised in M4 because "worst-case RR" implied
+        path-uncertainty quantification that this metric does not
+        provide. See `midpoint_rr` below for the more standard
+        comparison number used in published edge studies.
 
         Bullish:  RR = (target - entry_top)    / (entry_top - stop)
         Bearish:  RR = (entry_bot - target)    / (stop - entry_bot)
@@ -472,6 +481,49 @@ class Prediction(BaseModel):
         # Both reward and risk are guaranteed > 0 by the model_validator
         # (direction-specific level ordering). Defensive guard for the
         # impossible case anyway.
+        if risk <= 0:  # pragma: no cover (validator catches this)
+            return 0.0
+        return reward / risk
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def midpoint_rr(self) -> float:
+        """Midpoint-fill risk-to-reward ratio (literature-comparison metric).
+
+        WHY (M4):
+        =========
+        Most published RR studies (Bulkowski's pattern catalogues, the
+        Edwards & Magee tradition, broker risk calculators) quote a
+        single-entry RR of the form `(target − entry) / (entry − stop)`.
+        Where an entry zone is used (Wyckoff, supply/demand, ICT), the
+        community quotes **midpoint RR** by convention: entry assumed at
+        the midpoint of the zone, giving the "average expected fill" RR.
+
+        We surface BOTH `risk_reward` (worst-fill, for sizing) AND
+        `midpoint_rr` (midpoint, for literature comparison) so that:
+          - Internal risk filters can use the conservative number.
+          - Users / backtest code comparing against published edge
+            studies have the apples-to-apples number.
+        For a zone of width `w`, `midpoint_rr` is always ≥ `risk_reward`
+        (less risk, more reward) for both bullish and bearish. They
+        coincide when the zone collapses to a single price.
+
+        Bullish:  RR = (target  - entry_mid) / (entry_mid - stop)
+        Bearish:  RR = (entry_mid - target)  / (stop      - entry_mid)
+        Neutral:  RR = 1.0
+        """
+        if self.direction == PredictionDirection.NEUTRAL:
+            return 1.0
+
+        entry_mid = (self.entry_zone[0] + self.entry_zone[1]) / 2.0
+        if self.direction == PredictionDirection.BULLISH:
+            reward = self.target.value - entry_mid
+            risk   = entry_mid - self.stop_loss.value
+        else:  # BEARISH
+            reward = entry_mid - self.target.value
+            risk   = self.stop_loss.value - entry_mid
+
+        # Both > 0 by validator (target/stop ordered around entry zone).
         if risk <= 0:  # pragma: no cover (validator catches this)
             return 0.0
         return reward / risk

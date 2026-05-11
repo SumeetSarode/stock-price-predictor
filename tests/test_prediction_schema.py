@@ -303,7 +303,7 @@ class TestDirectionalInvariants:
 
 
 # ─────────────────────────────────────────────────────────────
-# 7. risk_reward computed field — worst-case math
+# 7. risk_reward computed field — worst-fill math
 # ─────────────────────────────────────────────────────────────
 class TestRiskRewardMath:
     def test_bullish_rr_uses_entry_top_worst_case(self):
@@ -360,6 +360,80 @@ class TestRiskRewardMath:
         # 999 was silently dropped; computed value wins
         assert p.risk_reward == pytest.approx(130.0 / 70.0)
         assert p.risk_reward != 999.0
+
+
+# ─────────────────────────────────────────────────────────────
+# 7b. midpoint_rr computed field — M4 literature-comparison metric
+# ─────────────────────────────────────────────────────────────
+class TestMidpointRRMath:
+    """M4: surface midpoint RR alongside worst-fill RR for literature parity."""
+
+    def test_bullish_midpoint_rr_uses_zone_midpoint(self):
+        """Bullish midpoint_rr = (target - entry_mid) / (entry_mid - stop).
+
+        For (1450, 1470), target=1600, stop=1400:
+            entry_mid = 1460
+            (1600 - 1460) / (1460 - 1400) = 140 / 60 = 2.333...
+        """
+        p = Prediction(**_valid_bullish_kwargs())
+        assert p.midpoint_rr == pytest.approx(140.0 / 60.0)
+
+    def test_bearish_midpoint_rr_uses_zone_midpoint(self):
+        """Bearish midpoint_rr = (entry_mid - target) / (stop - entry_mid).
+
+        For (1450, 1470), target=1300, stop=1500:
+            entry_mid = 1460
+            (1460 - 1300) / (1500 - 1460) = 160 / 40 = 4.0
+        """
+        p = Prediction(**_valid_bearish_kwargs())
+        assert p.midpoint_rr == pytest.approx(4.0)
+
+    def test_neutral_midpoint_rr_is_one(self):
+        kw = _valid_bullish_kwargs()
+        kw["direction"] = PredictionDirection.NEUTRAL
+        p = Prediction(**kw)
+        assert p.midpoint_rr == 1.0
+
+    def test_midpoint_rr_at_least_worst_fill_rr_bullish(self):
+        """Invariant: midpoint_rr ≥ risk_reward for any bullish trade.
+
+        Midpoint entry sits *below* worst-fill entry for bullish (cheaper
+        fill), so reward is bigger and risk is smaller → midpoint_rr is
+        always at least as generous.
+        """
+        p = Prediction(**_valid_bullish_kwargs())
+        assert p.midpoint_rr >= p.risk_reward
+
+    def test_midpoint_rr_at_least_worst_fill_rr_bearish(self):
+        """Mirror invariant for bearish trades."""
+        p = Prediction(**_valid_bearish_kwargs())
+        assert p.midpoint_rr >= p.risk_reward
+
+    def test_collapsed_zone_makes_midpoint_equal_worst_fill(self):
+        """When entry_zone collapses to a single price, midpoint == worst-fill.
+
+        This is the degenerate case that makes both metrics agree, which
+        also matches the textbook single-entry formula
+        `RR = (target - entry) / (entry - stop)`.
+        """
+        kw = _valid_bullish_kwargs()
+        # collapse the zone to a single price (top == bottom)
+        kw["entry_zone"] = (1470.0, 1470.0)
+        p = Prediction(**kw)
+        assert p.midpoint_rr == pytest.approx(p.risk_reward)
+
+    def test_midpoint_rr_is_in_serialized_json(self):
+        p = Prediction(**_valid_bullish_kwargs())
+        js = p.model_dump_json()
+        assert '"midpoint_rr"' in js
+
+    def test_midpoint_rr_cannot_be_set_at_construction(self):
+        """@computed_field strip-on-input semantics apply to midpoint_rr too."""
+        kw = _valid_bullish_kwargs()
+        kw["midpoint_rr"] = 42.0  # type: ignore[typeddict-unknown-key]
+        p = Prediction(**kw)
+        assert p.midpoint_rr == pytest.approx(140.0 / 60.0)
+        assert p.midpoint_rr != 42.0
 
 
 # ─────────────────────────────────────────────────────────────
