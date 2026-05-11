@@ -39,6 +39,15 @@ class TestLatestRSI:
     def test_short_history_returns_none(self):
         assert latest_rsi(insufficient_history(5), length=14) is None
 
+    def test_two_length_no_longer_enough_h7(self):
+        # H7 fix: warmup bumped from 2*length=28 to 5*length=70.
+        df = linear_uptrend(n=28, start=100, slope=1)
+        assert latest_rsi(df, length=14) is None
+
+    def test_five_length_is_enough(self):
+        df = linear_uptrend(n=70, start=100, slope=1)
+        assert latest_rsi(df, length=14) is not None
+
 
 class TestLatestMACD:
     def test_uptrend_macd_above_signal(self):
@@ -65,6 +74,17 @@ class TestLatestMACD:
         assert macd["signal"] is None
         assert macd["histogram"] is None
         assert macd["cross"] is None
+
+    def test_old_warmup_no_longer_enough_h8(self):
+        # H8 fix: warmup bumped from slow+signal=35 to 5*slow=130.
+        df = linear_uptrend(n=35, start=100, slope=1)
+        macd = latest_macd(df)
+        assert macd["macd"] is None
+
+    def test_five_slow_is_enough(self):
+        df = linear_uptrend(n=130, start=100, slope=1)
+        macd = latest_macd(df)
+        assert macd["macd"] is not None
 
 
 class TestLatestStoch:

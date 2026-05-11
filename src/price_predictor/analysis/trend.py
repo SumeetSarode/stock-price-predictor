@@ -56,9 +56,17 @@ def latest_adx(df: pd.DataFrame, length: int = 14) -> dict[str, float | None]:
     Returns dict with keys:
       - adx:  trend strength (0-100; >25 trending, <20 chop)
       - di_plus / di_minus: directional indicators
+
+    Wilder warmup guard (H7): ADX is doubly Wilder-smoothed — first the
+    True Range and Directional Movement are RMA-smoothed (length=N), then
+    DX is RMA-smoothed AGAIN (length=N) to give ADX. The first valid bar
+    is at 2N (Wilder 1978), but seed-bias only falls below 1% by ~10N
+    bars. We require ≥ 10*length bars (= 140 for ADX-14) per the
+    convergence-guard derivation in pred_logic_solutions §H7. The previous
+    `2 * length = 28` minimum left massive seed bias on the second
+    smoothing pass and was the largest accuracy gap in the trend cluster.
     """
-    # ADX needs ~2x its period to converge; require at least 2*length bars.
-    if len(df) < 2 * length:
+    if len(df) < 10 * length:
         return {"adx": None, "di_plus": None, "di_minus": None}
 
     out = ta.adx(df["high"], df["low"], df["close"], length=length)

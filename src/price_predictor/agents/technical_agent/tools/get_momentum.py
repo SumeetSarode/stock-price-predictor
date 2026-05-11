@@ -46,7 +46,7 @@ from price_predictor.data.prices import PriceFetchError
 from price_predictor.kb.stocks import lookup as resolve_stock
 
 # Same lookback as get_trend -- shared cache means no duplicate fetch
-LOOKBACK_DAYS = 400
+LOOKBACK_DAYS = 750  # H7: ≥500 trading days for Wilder warmup
 
 # How many recent bars to scan for candlestick patterns
 PATTERN_LOOKBACK_BARS = 5

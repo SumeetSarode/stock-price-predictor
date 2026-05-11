@@ -60,7 +60,7 @@ from price_predictor.kb.stocks import lookup as resolve_stock
 
 # Same lookback the 4 cluster tools use. Centralized here so we can fetch
 # the OHLCV bar-count for `bars_used` without round-tripping a tool.
-LOOKBACK_DAYS = 400
+LOOKBACK_DAYS = 750  # H7: ≥500 trading days for Wilder warmup
 
 # String literals reused at the schema level. Match the tool _types.py.
 Sensitivity = Literal["standard", "sensitive", "smooth"]

@@ -12,8 +12,15 @@ from price_predictor.analysis.trend import _safe_float
 
 
 def latest_rsi(df: pd.DataFrame, length: int = 14) -> float | None:
-    """Latest RSI. RSI needs ~2x its period to converge for a stable value."""
-    if len(df) < 2 * length:
+    """Latest RSI.
+
+    Wilder warmup guard (H7): RSI uses Wilder's RMA. Seed bias decays as
+    `(1−1/N)^k`; only after ~5N bars does it fall below 1%. We require
+    ≥ 5*length bars (= 70 for RSI-14). See `latest_atr` for the same
+    derivation. The previous 2*length = 28 minimum left ~10–15% bias
+    — enough to flip RSI from 58 to 65 (false bullish vote).
+    """
+    if len(df) < 5 * length:
         return None
     series = ta.rsi(df["close"], length=length)
     if series is None or series.empty:
@@ -34,9 +41,16 @@ def latest_macd(
          "cross": "bullish" | "bearish" | None}
     The 'cross' field detects a crossover ON THE LATEST BAR -- i.e. the
     histogram changed sign.
+    Warmup guard (H8): MACD = EMA(close, fast) − EMA(close, slow), signal
+    = EMA(MACD, signal). Each EMA is an EWMA; the signal line is
+    EMA-of-EMA which compounds seed bias. We require ≥ 5*slow bars
+    (= 130 for the default 12/26/9) per the conservative warmup band
+    in pred_logic_solutions §H8 / pred_logic_review §H8. Earlier code
+    used `slow + signal = 35` which left ~30% seed bias in the signal
+    line — cross detection was effectively noise on small histories.
     """
     out_keys = {"macd": None, "signal": None, "histogram": None, "cross": None}
-    if len(df) < slow + signal:
+    if len(df) < 5 * slow:
         return out_keys
 
     macd_df = ta.macd(df["close"], fast=fast, slow=slow, signal=signal)

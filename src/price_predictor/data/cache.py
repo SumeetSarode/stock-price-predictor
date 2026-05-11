@@ -35,9 +35,13 @@ from datetime import date, timedelta
 import pandas as pd
 from loguru import logger
 
-# Default proactive fetch window. When we have to fetch, grab a year so
-# subsequent calls for narrower windows are slices (no extra network).
-DEFAULT_PROACTIVE_DAYS = 365
+# Default proactive fetch window. We grab ~750 calendar days (= ~520 NSE
+# trading bars, ~2 calendar years) so that even after the H7 Wilder-smoothing
+# warmup discard (10 × ADX-length = 140 bars + 200 SMA cushion) we still
+# have a healthy ~180+ usable bars for downstream indicators. Subsequent
+# calls for narrower windows are slices (no extra network). Bumped from
+# 365 in pred_logic_solutions §H7 ("Convergence guard").
+DEFAULT_PROACTIVE_DAYS = 750
 
 
 # Type alias for the underlying fetcher -- any callable that fetches OHLCV

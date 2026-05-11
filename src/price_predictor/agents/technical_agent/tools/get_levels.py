@@ -51,7 +51,7 @@ from price_predictor.data._shared_cache import get_cache
 from price_predictor.data.prices import PriceFetchError
 from price_predictor.kb.stocks import lookup as resolve_stock
 
-LOOKBACK_DAYS = 400
+LOOKBACK_DAYS = 750  # H7: ≥500 trading days for Wilder warmup
 # Bars to exclude from "prior" swing/52w calculation when detecting fresh
 # breakouts. 3 = today + 2 prior bars, so a 3-day breakout still counts.
 BREAKOUT_EXCLUDE_BARS = 3

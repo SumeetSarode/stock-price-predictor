@@ -62,6 +62,17 @@ class TestLatestADX:
         adx = latest_adx(insufficient_history(5), length=14)
         assert adx == {"adx": None, "di_plus": None, "di_minus": None}
 
+    def test_old_warmup_no_longer_enough_h7(self):
+        # H7 fix: warmup bumped from 2*length=28 to 10*length=140.
+        df = linear_uptrend(n=28, start=100, slope=1)
+        adx = latest_adx(df, length=14)
+        assert adx["adx"] is None
+
+    def test_ten_length_is_enough(self):
+        df = linear_uptrend(n=140, start=100, slope=1)
+        adx = latest_adx(df, length=14)
+        assert adx["adx"] is not None
+
 
 class TestTrendSnapshot:
     def test_uptrend_snapshot_all_above_sma(self):

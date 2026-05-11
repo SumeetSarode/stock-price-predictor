@@ -36,7 +36,7 @@ from price_predictor.kb.stocks import lookup as resolve_stock
 
 # How much history to fetch. Trend cluster needs at least 200+ bars for
 # SMA-200; we ask for 400 days to give all indicators headroom.
-LOOKBACK_DAYS = 400
+LOOKBACK_DAYS = 750  # H7: ≥500 trading days for Wilder warmup
 
 
 def _normalize_ticker(ticker: str) -> str:
