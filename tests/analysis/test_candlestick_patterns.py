@@ -68,12 +68,34 @@ class TestBullishEngulfing:
         curr = _bar(102, 104, 101, 103)
         assert not is_bullish_engulfing(prev, curr)
 
+    def test_touching_edges_not_engulfing(self):
+        # Nison strict definition: open == prev close is NOT engulfing
+        prev = _bar(105, 106, 100, 101)   # bearish, body 101..105
+        curr = _bar(101, 108, 100, 105)   # touches both edges exactly
+        assert not is_bullish_engulfing(prev, curr)
+
+    def test_doji_prev_not_engulfable(self):
+        # Body-existence guard: doji prev (no real body) cannot be engulfed
+        prev = _bar(103, 110, 100, 103)   # doji-ish, body 0
+        curr = _bar(100, 112, 99, 111)
+        assert not is_bullish_engulfing(prev, curr)
+
 
 class TestBearishEngulfing:
     def test_classic_bearish_engulfing(self):
         prev = _bar(100, 106, 99, 105)    # bullish, body 100..105
         curr = _bar(106, 107, 98, 99)     # bearish, body 99..106 (engulfs)
         assert is_bearish_engulfing(prev, curr)
+
+    def test_touching_edges_not_engulfing(self):
+        prev = _bar(100, 106, 99, 105)
+        curr = _bar(105, 106, 99, 100)    # touches both edges exactly
+        assert not is_bearish_engulfing(prev, curr)
+
+    def test_doji_prev_not_engulfable(self):
+        prev = _bar(102, 110, 100, 102)   # doji prev
+        curr = _bar(110, 111, 99, 100)
+        assert not is_bearish_engulfing(prev, curr)
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -6,7 +6,11 @@ DESIGN
 Two concerns, two functions:
 
 1. DISCOVERY (`fetch_news`, `fetch_news_batch`)
-   GDELT Doc API 2.0 — free, no auth, 7-day rolling window.
+   GDELT Doc API 2.0 — free, no auth.
+   Coverage: Feb 18, 2017 — present (verified empirically + per GDELT's
+   official launch announcement at https://blog.gdeltproject.org/announcing-
+   the-next-generation-of-gdelt-2-0/). Earlier prototype docstrings claimed
+   a "7-day rolling window" — that's wrong; multi-year queries succeed.
    Returns metadata only: title, url, published_at, source, language.
    On HTTP / JSON failure → raises NewsFetchError.
    On empty results       → returns an empty DataFrame (success-with-0-rows).

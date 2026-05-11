@@ -87,20 +87,42 @@ def is_shooting_star(row: pd.Series) -> bool:
 # ── Two-bar patterns ────────────────────────────────────────────────
 
 
+# Minimum body size for a bar to be "engulfable" (as fraction of range).
+# Nison's original definition (Japanese Candlestick Charting Techniques,
+# 1991, ch. 6) requires the engulfed bar to have a real body — a doji or
+# near-doji can be "engulfed" by almost anything, which produces noise.
+_ENGULF_MIN_PREV_BODY_RATIO = 0.10
+
+
 def is_bullish_engulfing(prev: pd.Series, curr: pd.Series) -> bool:
-    """Prev bearish, current bullish, current body fully engulfs prev body."""
+    """Prev bearish (with a real body), current bullish, current body strictly
+    engulfs prev body.
+
+    Per Nison (1991) ch. 6: strict engulfing means current open BELOW prev
+    close AND current close ABOVE prev open (not equal). Plus the prev bar
+    must have a real body (>=10% of its range) so we don't fire on dojis.
+    """
     pm, cm = _bar_metrics(prev), _bar_metrics(curr)
     if not pm["bearish"] or not cm["bullish"]:
         return False
-    return cm["open"] <= pm["close"] and cm["close"] >= pm["open"]
+    # Reject doji-as-prev (no real body to engulf)
+    if pm["range"] == 0 or pm["body"] < _ENGULF_MIN_PREV_BODY_RATIO * pm["range"]:
+        return False
+    # STRICT inequality (Nison) — touching counts as inside, not engulfing
+    return cm["open"] < pm["close"] and cm["close"] > pm["open"]
 
 
 def is_bearish_engulfing(prev: pd.Series, curr: pd.Series) -> bool:
-    """Prev bullish, current bearish, current body fully engulfs prev body."""
+    """Prev bullish (with a real body), current bearish, current body strictly
+    engulfs prev body. Mirror of bullish engulfing — see that function for the
+    Nison (1991) citation rationale.
+    """
     pm, cm = _bar_metrics(prev), _bar_metrics(curr)
     if not pm["bullish"] or not cm["bearish"]:
         return False
-    return cm["open"] >= pm["close"] and cm["close"] <= pm["open"]
+    if pm["range"] == 0 or pm["body"] < _ENGULF_MIN_PREV_BODY_RATIO * pm["range"]:
+        return False
+    return cm["open"] > pm["close"] and cm["close"] < pm["open"]
 
 
 # ── Three-bar patterns ─────────────────────────────────────────────
