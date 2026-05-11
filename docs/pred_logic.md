@@ -122,10 +122,16 @@ contract that "you always get all four horizons."
 
 So a vetting reviewer doesn't waste time looking for them:
 
-- **Implied volatility / options data.** Not used. ATR is our only
-  volatility unit.
-- **Macro indicators** (interest rates, INR/USD, India VIX). Not used
-  in v1. Acknowledged as a Phase-2 candidate.
+- **Implied volatility / options data.** Per-stock IV is not used —
+  no free per-stock IV source for NSE single-name options. ATR is our
+  per-stock volatility unit. **India VIX (the index-level volatility
+  gauge published by NSE) IS used as a regime-detection input** in
+  later chunks of the accuracy overhaul (it's free, daily, and one
+  number). VIX is for regime gating only, not directional forecasting.
+- **Macro indicators** (interest rates, INR/USD). Not used in v1.
+  Acknowledged as a Phase-2 candidate. India VIX is *not* in this
+  bucket — see the IV bullet above; it's a single-number daily index
+  that costs nothing to integrate.
 - **Sector or index relative strength.** Not used. Single-ticker only.
 - **Fundamentals** (P/E, ROE, debt ratios). Not used directly. We
   assume the news/filings layer surfaces *material* fundamental
@@ -235,9 +241,29 @@ process-wide in-memory cache.
 
 ### 2.4 NSE corporate filings
 
-- **Source:** NSE's public corporate-announcements feed (the same
-  endpoint NSE's website uses for "Corporate Information →
-  Announcements").
+- **Source: undocumented internal NSE endpoint**
+  (`https://www.nseindia.com/api/corporate-announcements?index=equities&symbol=...`),
+  the same one NSE's web UI uses for "Corporate Information →
+  Announcements". This is **NOT a public API** — prior versions of
+  this doc said "public corporate-announcements feed" which understated
+  the operational fragility.
+- **What it actually requires:**
+  1. **Session-cookie priming.** The endpoint rejects naked GETs (HTTP
+     401/403). We first hit `https://www.nseindia.com/` to obtain the
+     `nsit`/`nseappid` cookies and a Cloudflare clearance cookie, then
+     reuse the same `httpx.Client` for the JSON call.
+  2. **Browser-like headers.** A realistic `User-Agent`,
+     `Accept-Language`, `Referer`, and `Sec-Fetch-*` set are needed;
+     the server fingerprints requests and silently 403s on missing
+     headers.
+  3. **Cloudflare-aware retry.** When Cloudflare rotates challenge
+     tokens (typically Friday afternoon IST during their maintenance
+     window), the priming request must be retried.
+- **Operational risk.** Because there is no public contract, NSE may
+  change the endpoint shape or tighten rate limits at any time without
+  notice. This layer is the most fragile thing in the pipeline.
+  Mitigation: cross-validate with BSE's equivalent endpoint when an
+  important catalyst is at stake.
 - **Filter:** by NSE bare-symbol (e.g. `RELIANCE`) and date range.
 - **Common types surfaced:** insider trades, board-meeting notices
   (often the imminent earnings catalyst), earnings-result publications,
@@ -983,16 +1009,36 @@ four guardrail tiers (§7) and possibly retried once.
 
 ### 6.1 The per-horizon constants table — single source of truth
 
-This table is **the** anchor for everything in §6 and §7. It lives
-in code as `synthesis/horizon_constants.py` so every layer
-(synthesizer prompt, guardrails, grading) reads the same numbers.
+The canonical numbers live in code as
+`prediction/horizon_constants.py` so every layer (synthesizer prompt,
+guardrails, grading) reads the same values. The two tables below are
+rendered FROM that file — if they ever drift, the code is authoritative.
 
-| Horizon  | Bars | Mode-A win | Mode-A loss | Stop-pad | Target-tol | Neutral cone | Horizon-confidence cap |
-|----------|-----:|------------|-------------|----------|------------|--------------|------------------------|
-| DAILY    | 1    | +0.5%      | −0.5%       | 0.10 ATR | 0.5%       | ±0.5%        | 0.85                   |
-| WEEKLY   | 5    | +1.5%      | −1.5%       | 0.15 ATR | 0.5%       | ±1.5%        | 0.85                   |
-| BIWEEKLY | 10   | +2.5%      | −2.5%       | 0.20 ATR | 0.5%       | ±2.5%        | 0.80                   |
-| MONTHLY  | 21   | +5.0%      | −5.0%       | 0.25 ATR | 0.5%       | ±5.0%        | 0.75                   |
+#### Synthesizer-facing constants (per `horizon_constants.py`)
+
+These are the bands the synthesizer prompt receives and the guardrails
+enforce. **Source of truth: `horizon_constants.py`.**
+
+| Horizon  | Stop ATR range | Target ATR range | Entry zone (±% close) | Confidence cap |
+|----------|----------------|------------------|------------------------|----------------|
+| DAILY    | 0.5–1.0 × ATR  | 0.75–1.5 × ATR   | ±0.5%                  | 0.90           |
+| WEEKLY   | 0.7–1.5 × ATR  | 1.0–2.0 × ATR    | ±1.0%                  | 0.85           |
+| BIWEEKLY | 1.0–2.0 × ATR  | 1.5–3.0 × ATR    | ±1.5%                  | 0.80           |
+| MONTHLY  | 1.5–2.5 × ATR  | 2.0–4.0 × ATR    | ±2.0%                  | 0.75           |
+
+#### Grading-facing constants (per grader / Mode-A thresholds)
+
+These are the thresholds the grader uses when scoring a completed
+prediction. They are SEPARATE from the synthesizer bands above — the
+synthesizer is told a *hypothetical move band* via ATR, while the
+grader cares about *actual realized return* in % terms.
+
+| Horizon  | Bars | Mode-A win | Mode-A loss | Neutral cone | Target-tol |
+|----------|-----:|------------|-------------|--------------|------------|
+| DAILY    | 1    | +0.5%      | −0.5%       | ±0.5%        | 0.5%       |
+| WEEKLY   | 5    | +1.5%      | −1.5%       | ±1.5%        | 0.5%       |
+| BIWEEKLY | 10   | +2.5%      | −2.5%       | ±2.5%        | 0.5%       |
+| MONTHLY  | 21   | +5.0%      | −5.0%       | ±5.0%        | 0.5%       |
 
 **What each column means** (definitions referenced repeatedly below):
 
@@ -1004,9 +1050,15 @@ in code as `synthesis/horizon_constants.py` so every layer
   ("Mode A") grading rule. A bullish DAILY prediction needs the close
   to rise at least **+0.5%** between `as_of` and `target_datetime` to
   count as a hit. Below that, it's a miss.
-- **Stop-pad** — extra cushion (in ATR-units) the synthesizer is told
-  to add **beyond the natural support level** when placing a bullish
-  stop. Bigger horizon = more noise to absorb = bigger pad.
+- **Stop ATR range / Target ATR range** — the *(min, max) multiples
+  of current ATR* that the synthesizer prompt allows for stop-loss
+  distance and profit-target distance. Wider for longer horizons
+  because longer horizons absorb more noise. The guardrail layer
+  enforces these bands at validation time.
+- **Entry zone (±% close)** — half-width of the entry band the
+  synthesizer is allowed to construct around the current close.
+  Tighter for daily, wider for monthly because a monthly call has
+  more leeway in entry timing.
 - **Target-tol** — tolerance (% of close) within which a
   near-miss target counts as "tagged". Used in grading variants only;
   not in the synthesizer's own math. Held constant across horizons in
@@ -1015,7 +1067,7 @@ in code as `synthesis/horizon_constants.py` so every layer
   effectively didn't move" for grading neutral predictions. A NEUTRAL
   WEEKLY prediction is correct iff the close moved by no more than
   ±1.5% over the 5 bars.
-- **Horizon-confidence cap** — the synthesizer is told its emitted
+- **Confidence cap** — the synthesizer is told its emitted
   confidence MUST NOT exceed this value for that horizon. Longer
   horizons = more uncertainty = lower cap. This is **independent**
   of any cluster-classifier confidence cap in §4.
@@ -1028,14 +1080,17 @@ in code as `synthesis/horizon_constants.py` so every layer
   approximately `√(bars) × 0.5%`, which mirrors the random-walk
   scaling of price moves with √time. The exact values are 🔬 NEEDS
   BACKTEST against the empirical NIFTY 50 distribution.
-- The stop-pad ladder (0.10 → 0.25 ATR) is hand-tuned to keep stops
-  out of intraday noise: shorter horizons can afford tighter stops
-  because an intraday wick takes you out for a brief, recoverable
-  time; on a monthly horizon a single noisy day shouldn't end the
-  trade.
-- The horizon-confidence ceiling (0.85 → 0.75) reflects that further-
-  out predictions are inherently harder to justify with high
-  conviction.
+- The stop and target ATR ranges (`STOP_ATR_RANGE_BY_HORIZON`,
+  `TARGET_ATR_RANGE_BY_HORIZON`) are literature-bracketed: Wilder
+  (1978) 1×ATR canonical swing stop sits in WEEKLY band; Van Tharp
+  (2007) 2–3×ATR positional sits in MONTHLY band; target midpoint
+  ≈ 1.4 × stop midpoint per Murphy/Pring/Tharp consensus on positive
+  expectancy (R:R > 1). Exact picks are 🔬 NEEDS BACKTEST.
+- The confidence ceiling (0.90 → 0.75) reflects that further-out
+  predictions are inherently harder to justify with high conviction.
+  This is a design pick, not a literature value — to be recalibrated
+  from realized hit-rate per horizon once enough graded predictions
+  accumulate (Phase 2).
 
 ### 6.2 The synthesizer's system instruction — paraphrased
 
@@ -1075,13 +1130,14 @@ silently pick its own.
   bearish), prefer NEUTRAL with confidence ≤ 0.50 rather than picking
   a side."
 
-**Entry zone.** "Place the entry zone narrowly around current close:
-- BULLISH: `[close, close + 0.25 ATR]`
-- BEARISH: `[close − 0.25 ATR, close]`
-- NEUTRAL: `[close − 0.10 ATR, close + 0.10 ATR]`
-
-These are the *worst-fill* anchors for risk math (see §1.1
-"worst-fill RR" semantics)."
+**Entry zone.** "Place the entry zone narrowly around current close,
+as a symmetric ±% band of width `entry_zone_pct(horizon)` from
+`horizon_constants.py` (§6.1, synthesizer-facing table). For BULLISH
+you may bias the band slightly upward (close at the lower edge); for
+BEARISH bias downward (close at the upper edge). For NEUTRAL keep the
+band symmetric around close. The chosen `entry_zone[0]` (BEARISH) or
+`entry_zone[1]` (BULLISH) is the *worst-fill* anchor for risk math
+(see §1.1 "worst-fill RR" semantics)."
 
 **Target placement.** "Set the target as follows, in this priority
 order:
@@ -1089,22 +1145,23 @@ order:
    direction** (from the levels cluster — swing high/low, R1/R2,
    S1/S2, 52w extreme). Use that level as the *anchor*.
 2. If no such level exists within `4 × ATR`, use a pure ATR-based
-   target: `entry + (target_multiplier × ATR)` for bullish, or
-   `entry − (target_multiplier × ATR)` for bearish. The
-   `target_multiplier` per horizon is:
-   - DAILY: 1.0
-   - WEEKLY: 2.0
-   - BIWEEKLY: 3.0
-   - MONTHLY: 5.0
+   target inside that horizon's `TARGET_ATR_RANGE_BY_HORIZON` band
+   (§6.1, synthesizer-facing table). The synthesizer picks any value
+   in `[min, max] × ATR` and explains the choice.
 3. Whichever method you used, **state the rationale** explicitly
    (e.g. 'target=1605 — anchored to swing-high resistance', or
-   'target=1623 — 2×ATR projection, no clear level above')."
+   'target=1623 — 1.5×ATR projection inside WEEKLY band, no clear
+   level above')."
 
 **Stop placement.** "Set the stop as follows:
 1. The **nearest level on the OPPOSITE side of the entry zone**, then
-   pad it by `stop_pad_atr × ATR` (per the table in §6.1).
-2. If no such level exists, use a pure ATR stop: `entry − (1.5 ATR)`
-   for bullish, `entry + (1.5 ATR)` for bearish.
+   verify the resulting stop distance lies inside that horizon's
+   `STOP_ATR_RANGE_BY_HORIZON` band (§6.1). If the natural level is
+   too tight, push the stop out to `stop_min × ATR`; if too wide,
+   the prediction must downgrade to NEUTRAL (the structure can't
+   accommodate a sane stop).
+2. If no such level exists, use a pure ATR stop at the midpoint of
+   the horizon's stop band.
 3. State the rationale explicitly."
 
 **Risk-reward floor.** "After computing target and stop, verify the

@@ -8,7 +8,11 @@ WHY STOOQ
 - Genuinely free (an apikey is required as of 2024 but it's free to obtain
   via a one-time captcha challenge -- no signup, no email, no expiry).
 - Stable: been around since 2004; rarely changes its CSV format.
-- Diverse coverage: NSE/BSE Indian stocks, US stocks, FX, crypto, indices.
+- Coverage: US stocks (.us suffix), FX (no suffix), crypto (no suffix),
+  many world indices. **NOT a viable Indian-market source despite
+  earlier docstring claims:** Stooq's `.in` suffix returns the symbol
+  search fallback page for NSE tickers like `reliance.in` (verified
+  empirically 2026-04). For Indian (NSE) data use jugaad-data instead.
 - Daily resolution only -- intraday isn't free.
 - Slightly delayed (last updated bar is usually previous trading day's close,
   refreshed in the European morning).
@@ -38,9 +42,12 @@ boundary, NOT in the agent or tool code (Tell-Don't-Ask).
 
     yfinance       Stooq          What it is
     ---------      ------------   --------------------
-    RELIANCE.NS    reliance.in    NSE-listed Indian stock
+    RELIANCE.NS    reliance.in    NSE-listed (broken — see WHY STOOQ)
     AAPL           aapl.us        NYSE/NASDAQ US stock
     BTC-USD        btcusd         crypto pair (no dot)
+
+The NSE → .in translation is preserved for completeness but Stooq
+returns no usable data for it; use jugaad-data for NSE tickers.
 """
 from __future__ import annotations
 

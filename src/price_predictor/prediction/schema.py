@@ -10,11 +10,13 @@ DESIGN INVARIANTS (locked with user before building)
 ====================================================
 1. **Single target** (NOT a list / ladder). YAGNI for v1 — extending to
    a target ladder later is a non-breaking change on a frozen model.
-2. **Worst-case risk_reward** when entry is a range. For bullish trades
+2. **Worst-fill risk_reward** when entry is a range. For bullish trades
    we anchor RR math at entry_zone[1] (the top of the zone — the price
    you'd be unlucky enough to fill at); for bearish, entry_zone[0]
    (the bottom — worst short fill). This is the conservative "risk
-   filter" semantic that pro traders prefer.
+   filter" semantic that pro traders prefer. (Renamed from "worst-case
+   RR" — it's worst-fill within the band, not worst-case over all
+   adverse paths. See pred_logic.md §1.1.)
 3. **Embedded analysis_basis** — every prediction is self-contained. A
    week from now you can answer "why did the agent think this?" from
    ONE JSON file, no DB lookup required. Backtesting / calibration
