@@ -298,6 +298,11 @@ class Settings(BaseSettings):
         """Default root for PredictionStore (CLI --save flag)."""
         return self.data_dir / "predictions"
 
+    @property
+    def news_snapshots_dir(self) -> Path:
+        """Default root for NewsSnapshot (backtest news cache)."""
+        return self.cache_dir / "news_snapshots"
+
 
 # Singleton — import this everywhere
 settings = Settings()

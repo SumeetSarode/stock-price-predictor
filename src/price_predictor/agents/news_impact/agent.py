@@ -51,7 +51,12 @@ from price_predictor.data.estimates import (
 )
 from price_predictor.data.filings import FilingsFetchError, fetch_filings
 from price_predictor.data.news import NewsFetchError, fetch_news
+from price_predictor.data.news_snapshot import (
+    NewsSnapshotError,
+    get_news_snapshot,
+)
 from price_predictor.llm.factory import make_resilient_model
+from price_predictor.prediction.replay_context import get_as_of
 
 # India Standard Time -- all date math anchored here so 'today' matches NSE
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -146,8 +151,14 @@ def _validate_days_back(days_back: int) -> int | None:
 
 
 def _date_window(days_back: int) -> tuple[str, str]:
-    """Compute (start_iso, end_iso) anchored at today in IST."""
-    end = datetime.now(IST).date()
+    """Compute (start_iso, end_iso) anchored at today (live) or as_of (replay).
+
+    Honors the replay contextvar: when set, the window ENDS at
+    as_of instead of today. This is the load-bearing piece that
+    makes ALL date-bounded tools (news, filings, prices) honest in
+    backtest mode without changing their LLM-facing signatures.
+    """
+    end = get_as_of() or datetime.now(IST).date()
     start = end - timedelta(days=days_back)
     return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
 
@@ -194,9 +205,23 @@ async def fetch_recent_news_tool(query: str, days_back: int = 7) -> dict:
         )
 
     start, end = _date_window(valid_days)
+
+    # In replay mode, prefer the snapshot store. Live fetch would
+    # bypass the cache and could either (a) hit GDELT for nothing
+    # the second time around, or (b) return slightly different
+    # results due to retroactive indexing -- both break
+    # reproducibility. The snapshot is the single source of truth
+    # for backtest news.
+    as_of = get_as_of()
+    snapshot = get_news_snapshot()
     try:
-        df = await fetch_news(query.strip(), start, end)
-    except (ValueError, NewsFetchError) as e:
+        if as_of is not None and snapshot is not None:
+            df = await snapshot.get_or_fetch(
+                query.strip(), as_of, valid_days,
+            )
+        else:
+            df = await fetch_news(query.strip(), start, end)
+    except (ValueError, NewsFetchError, NewsSnapshotError) as e:
         return _err(str(e))
 
     # Cap rows to keep the LLM context manageable
@@ -331,6 +356,34 @@ async def fetch_estimates_tool(yfinance_ticker: str) -> dict:
     """
     if not isinstance(yfinance_ticker, str) or not yfinance_ticker.strip():
         return _err("yfinance_ticker must be a non-empty string.")
+
+    # In replay mode there is NO honest historical version of analyst
+    # estimates: yfinance returns the CURRENT consensus. Returning
+    # today's estimates while pretending to be in the past would leak
+    # forward-looking information into the backtest. Short-circuit to
+    # the same shape we'd return for a no-coverage ticker so the LLM
+    # degrades naturally (it already knows how to handle empty
+    # estimates -- common for Indian small-caps).
+    if get_as_of() is not None:
+        return {
+            "status": "success",
+            "yfinance_ticker": yfinance_ticker,
+            "has_coverage": False,
+            "summary": {
+                "next_quarter_eps_consensus": None,
+                "next_quarter_eps_num_analysts": None,
+                "next_quarter_revenue_consensus": None,
+                "current_price": None,
+                "price_target_mean": None,
+                "price_target_high": None,
+                "price_target_low": None,
+                "recommendations_current": None,
+            },
+            "replay_note": (
+                "estimates skipped in backtest mode: yfinance has no "
+                "point-in-time estimates archive"
+            ),
+        }
 
     try:
         est = await fetch_estimates(yfinance_ticker.strip())

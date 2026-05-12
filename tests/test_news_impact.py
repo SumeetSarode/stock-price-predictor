@@ -549,3 +549,4 @@ class TestAgentFactory:
         prompt = agent.instruction
         assert "suggested_ticker" in prompt
         assert "retry" in prompt.lower()
+

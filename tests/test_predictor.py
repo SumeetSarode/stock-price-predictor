@@ -578,10 +578,12 @@ def spy_cache():
 
 
 class TestAsOfPlumbing:
-    def test_news_tag_for_maps_all_three_states(self):
+    def test_news_tag_for_maps_all_states(self):
         from price_predictor.prediction.predictor import _news_tag_for
         assert _news_tag_for("live") == "news_impact:agentic"
         assert _news_tag_for("degraded") == "news_impact:degraded"
+        assert _news_tag_for("agentic_replay") == "news_impact:agentic_replay"
+        # Step-1 legacy tag still maps for back-compat.
         assert _news_tag_for("backtest_pending") == "news_impact:backtest_pending"
 
     def test_future_as_of_rejected(self, fake_cache):
@@ -593,28 +595,35 @@ class TestAsOfPlumbing:
            new_callable=AsyncMock)
     @patch("price_predictor.prediction.predictor.run_news_impact_agent",
            new_callable=AsyncMock)
-    def test_past_as_of_skips_news_agent(
+    def test_past_as_of_runs_news_under_replay_context(
         self, mock_news, mock_synth, fake_cache,
     ):
-        """Backtest mode MUST NOT call the live news agent — that would
-        leak post-as_of headlines into the prediction.
+        """Step 1.5: backtest mode now CALLS the news agent (no longer
+        skipped). The agent runs under a replay context so its tools
+        consult the snapshot store / pin date windows to as_of.
+
+        We assert two contracts:
+          1. The news agent IS awaited (live and backtest both call it).
+          2. The model_chain carries the replay-distinct tag
+             ``news_impact:agentic_replay`` so audits can tell live and
+             replay predictions apart.
         """
-        # Honest mock: real synthesizer copies model_chain from input,
-        # so the mock must too — otherwise we'd be asserting a contract
-        # that doesn't reflect production behavior.
+        # Honest mock: real synthesizer copies model_chain from input.
         async def _synth_copy_chain(si, **kwargs):
             return _sample_prediction().model_copy(
                 update={"model_chain": si.model_chain}
             )
         mock_synth.side_effect = _synth_copy_chain
+        mock_news.return_value = _sample_impact()
         past = date(2024, 6, 14)
 
         result = _run_predict_one("RELIANCE.NS", as_of=past)
 
-        mock_news.assert_not_awaited()
-        # Audit trail records the explicit skip with a distinct tag.
-        assert "news_impact:backtest_pending" in result.model_chain
-        assert "news_impact:agentic" not in result.model_chain
+        mock_news.assert_awaited_once_with("RELIANCE.NS")
+        # Audit trail: replay-mode predictions carry a distinct tag.
+        assert "news_impact:agentic_replay" in result.model_chain
+        assert "news_impact:agentic" not in result.model_chain  # live tag
+        assert "news_impact:backtest_pending" not in result.model_chain  # Step-1 tag
 
     @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
            new_callable=AsyncMock)
@@ -641,6 +650,7 @@ class TestAsOfPlumbing:
         """Backtest predictions get an as_of pinned to 15:30 IST so the
         timestamp reflects EoD on the requested trading date.
         """
+        mock_news.return_value = _sample_impact()
         mock_synth.return_value = _sample_prediction()
         past = date(2024, 6, 14)
 
@@ -662,6 +672,7 @@ class TestAsOfPlumbing:
         `end`, otherwise the cluster tools silently see today's bars
         and the entire backtest is a lie.
         """
+        mock_news.return_value = _sample_impact()
         mock_synth.return_value = _sample_prediction()
         past = date(2024, 6, 14)
 

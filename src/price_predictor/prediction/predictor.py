@@ -69,6 +69,12 @@ from price_predictor.agents.synthesizer import (
     build_synth_prompt,
     make_synthesizer_agent,
 )
+from price_predictor.config.settings import settings
+from price_predictor.data.news_snapshot import (
+    NewsSnapshot,
+    get_news_snapshot,
+    set_news_snapshot,
+)
 from price_predictor.prediction.inputs import (
     SynthesisInput,
     TechnicalView,
@@ -80,6 +86,7 @@ from price_predictor.prediction.guardrails import (
     HallucinationError,
     validate_all,
 )
+from price_predictor.prediction.replay_context import replay_context
 from price_predictor.prediction.runner import USER_ID, get_runner, get_session_service
 from price_predictor.prediction.schema import (
     DEFAULT_HORIZONS,
@@ -119,12 +126,14 @@ _SYNTH_MODEL_TAG = "synthesizer:agentic"
 # 'neutral' assessment. Lets downstream consumers tell at a glance.
 _NEWS_DEGRADED_TAG = "news_impact:degraded"
 
-# Distinct tag for the backtest case so the audit trail can tell
-# "live news fetch failed" from "news intentionally skipped because
-# we're replaying a past as_of and don't have an honest news snapshot
-# yet". Step 1.5 (NewsSnapshot store) will lift the skip; until then
-# this tag tells future-us exactly which predictions were synthesised
-# without news evidence.
+# Distinct tag for the live-news-fetch-failed case versus the
+# backtest-news-replay-pending case below.
+_NEWS_BACKTEST_REPLAY_TAG = "news_impact:agentic_replay"
+
+# Legacy tag retained for back-compat with any predictions written
+# between Step 1 and Step 1.5 -- the test suite still imports it.
+# New predictions made under as_of WITH replay infrastructure get
+# the _NEWS_BACKTEST_REPLAY_TAG above.
 _NEWS_BACKTEST_PENDING_TAG = "news_impact:backtest_pending"
 
 
@@ -408,14 +417,23 @@ async def predict(
             this date, no future data leaks in. Future dates are
             rejected with ValueError.
 
-            BACKTEST CAVEAT: when ``as_of`` is in the past, news is
-            currently skipped (degraded to neutral with the
-            ``news_impact:backtest_pending`` tag) because honest
-            point-in-time news replay needs a snapshot store we have
-            not yet built. Step 1.5 will lift this. Until then,
-            backtest predictions are technical-only — still useful for
-            calibrating the technical pipeline but NOT a fair fight
-            for the live system.
+            BACKTEST NEWS BEHAVIOR (Step 1.5+): the news_impact agent
+            now runs in backtest mode under a replay context. Its
+            tools (news/filings/prices) read from the point-in-time
+            ``NewsSnapshot`` store on disk -- first call hits GDELT/
+            NSE with a window ending at as_of and snapshots the
+            response; subsequent runs serve from disk for full
+            reproducibility. The estimates tool short-circuits to
+            no-coverage in replay mode because yfinance has no
+            historical estimates archive (returning today's consensus
+            would leak forward-looking info).
+
+            Backtest predictions therefore differ from live in two
+            ways the audit trail flags via the ``news_impact:agentic_replay``
+            model-chain tag:
+              1. No analyst-estimates evidence (vs available in live).
+              2. News evidence is point-in-time-honest but limited to
+                 what GDELT had indexed by as_of + the snapshot window.
 
     Returns:
         dict[PredictionHorizon, Prediction] keyed by horizon enum, in
@@ -508,17 +526,22 @@ async def _gather_phase(
         canonical: KB-resolved ticker.
         sensitivity: Indicator preset.
         as_of: When set to a past date, technicals are pinned to that
-            date and news is short-circuited (backtest mode — see
-            ``predict()`` docstring for the rationale).
+            date AND the news_impact agent runs under a replay context
+            so its tools (news/filings/prices) read from the
+            point-in-time snapshot store instead of live sources. The
+            estimates tool short-circuits to no-coverage in replay
+            mode (yfinance has no historical estimates archive).
 
     Returns:
         Tuple of ``(technical_view, impact_assessment, news_status)``
         where ``news_status`` is one of:
-          - ``"live"``           — news_impact agent ran successfully
-          - ``"degraded"``       — live agent failed; neutral fallback
-          - ``"backtest_pending"`` — skipped because as_of != today
-        The ``str`` shape (vs the old ``bool``) lets the audit trail
-        distinguish "failed live fetch" from "intentionally skipped".
+          - ``"live"``            — news_impact agent ran in live mode
+          - ``"agentic_replay"``  — news_impact agent ran in replay mode
+          - ``"degraded"``        — agent failed; neutral fallback
+        The string shape (vs the old bool) lets the audit trail tell
+        the three modes apart — important for calibration analysis
+        because replay-mode predictions exclude estimates and may have
+        different news coverage characteristics.
 
     Raises:
         PredictionError: technicals failed (core, non-degradable).
@@ -529,20 +552,19 @@ async def _gather_phase(
 
     backtest_mode = as_of is not None and as_of != date.today()
     if backtest_mode:
-        # Honest replay of GDELT requires a snapshot store (Step 1.5).
-        # Until that lands, calling the live news_impact agent during a
-        # backtest would leak post-as_of news into the prediction — the
-        # exact bias we're building this whole machinery to avoid.
-        # Skip it explicitly with a distinct tag so calibration runs
-        # know these predictions are technical-only.
-        logger.info(
-            f"backtest mode (as_of={as_of}): skipping news_impact agent "
-            f"until NewsSnapshot store lands (Step 1.5)."
-        )
-        technical_result = await technical_task
-        news_result: ImpactAssessment | BaseException = _degraded_impact(
-            canonical, "backtest_pending: news replay not yet implemented"
-        )
+        # Ensure a snapshot store is installed before invoking the
+        # agent. Idempotent: if the caller (e.g. a backtest runner)
+        # already wired up a custom store, leave it alone.
+        _ensure_news_snapshot_installed()
+        # `replay_context` flips the contextvar that the news_impact
+        # tools consult to discover backtest mode. The technical task
+        # runs in parallel and is unaffected by the contextvar (it
+        # uses explicit as_of plumbing, not contextvars).
+        with replay_context(as_of):
+            news_task = run_news_impact_agent(canonical)
+            technical_result, news_result = await asyncio.gather(
+                technical_task, news_task, return_exceptions=True,
+            )
     else:
         news_task = run_news_impact_agent(canonical)
         technical_result, news_result = await asyncio.gather(
@@ -570,7 +592,7 @@ async def _gather_phase(
         news_status = "degraded"
     else:
         impact_assessment = news_result
-        news_status = "backtest_pending" if backtest_mode else "live"
+        news_status = "agentic_replay" if backtest_mode else "live"
 
     logger.info(
         f"gather done: technical_view bars={technical_view.bars_used} "
@@ -585,6 +607,24 @@ async def _gather_phase(
     return technical_view, impact_assessment, news_status
 
 
+def _ensure_news_snapshot_installed() -> None:
+    """Install the default NewsSnapshot singleton if none is set.
+
+    Lazy install on first backtest call keeps live-mode startup
+    free of FS side-effects (no directory created if you never run
+    a backtest). Tests that need a custom root or want to disable
+    the store can call set_news_snapshot() directly.
+    """
+    if get_news_snapshot() is not None:
+        return
+    snapshot = NewsSnapshot(settings.news_snapshots_dir)
+    set_news_snapshot(snapshot)
+    logger.info(
+        f"installed default NewsSnapshot at {snapshot.root} "
+        f"(first backtest call this process)"
+    )
+
+
 def _news_tag_for(news_status: str) -> str:
     """Map news_status -> initial model_chain tag.
 
@@ -594,6 +634,10 @@ def _news_tag_for(news_status: str) -> str:
     return {
         "live": _NEWS_MODEL_TAG,
         "degraded": _NEWS_DEGRADED_TAG,
+        "agentic_replay": _NEWS_BACKTEST_REPLAY_TAG,
+        # Legacy mapping retained for back-compat with any caller
+        # passing the Step-1 status string directly. New code paths
+        # produce "agentic_replay", not this.
         "backtest_pending": _NEWS_BACKTEST_PENDING_TAG,
     }[news_status]
 
