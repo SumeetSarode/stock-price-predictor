@@ -172,6 +172,54 @@ class TestSystemInstruction:
         """We've called out specific failure modes by name."""
         assert "ANTI-PATTERNS" in SYSTEM_INSTRUCTION
 
+    # ──────────────────────────────────────────────────────────
+    # MA crossover wiring — prompt must teach the LLM where to find
+    # ma_crosses, how to cite it, and when NOT to.
+    # ──────────────────────────────────────────────────────────
+    def test_documents_ma_crosses_field_location(self):
+        """Inputs section must explicitly point at trend.derived.ma_crosses."""
+        assert "ma_crosses" in SYSTEM_INSTRUCTION
+        assert "trend.derived" in SYSTEM_INSTRUCTION
+
+    def test_documents_ma_cross_struct_shape(self):
+        """L3 struct field names must be in the prompt so the LLM can
+        unambiguously read them."""
+        for field in ("current", "last_event", "bars_since_event",
+                      "short_ma", "long_ma"):
+            assert field in SYSTEM_INSTRUCTION, (
+                f"prompt must teach LLM the {field!r} field of ma_crosses"
+            )
+
+    def test_teaches_golden_cross_naming_convention(self):
+        """Only sma_50_200 + bullish gets the 'Golden Cross' name; the
+        prompt must say so to prevent the LLM calling EMA-9/21 cross a
+        Golden Cross (Murphy 1999 reserves the term)."""
+        assert "Golden Cross" in SYSTEM_INSTRUCTION
+        assert "Death Cross" in SYSTEM_INSTRUCTION
+        # Must mention the canonical pair name
+        assert "sma_50_200" in SYSTEM_INSTRUCTION
+
+    def test_teaches_freshness_window(self):
+        """The 5-bar freshness window must be in the prompt so the LLM
+        only cites fresh crosses in contributing_signals."""
+        # Either '5' bars or 'fresh' qualifier must appear with cross context
+        ma_section = SYSTEM_INSTRUCTION.split("ma_crosses", 1)[1]
+        assert "≤ 5" in ma_section or "<= 5" in ma_section or "5 bars" in ma_section
+
+    def test_anti_pattern_against_inferring_cross_from_static_position(self):
+        """The single most likely hallucination is 'close > SMA-200 so
+        Golden Cross' — prompt must call this out explicitly."""
+        # Anti-pattern about inferring a cross from above_sma_*
+        assert "above_sma" in SYSTEM_INSTRUCTION
+        assert "static" in SYSTEM_INSTRUCTION.lower() or (
+            "NOT a cross" in SYSTEM_INSTRUCTION
+        )
+
+    def test_anti_pattern_against_citing_stale_crosses(self):
+        """Stale crosses should appear in rationale prose only — NOT in
+        contributing_signals. Prompt must say so."""
+        assert "stale" in SYSTEM_INSTRUCTION.lower() or "STALE" in SYSTEM_INSTRUCTION
+
 
 # ────────────────────────────────────────────
 # 2b. PER-HORIZON RULES table (commit C of multi-horizon refactor)
