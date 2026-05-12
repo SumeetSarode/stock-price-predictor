@@ -27,6 +27,7 @@ data/kb/*
 data/logs/*.log
 data/logs/*.log.gz
 data/outputs/*.json
+data/predictions/
 data/*.sqlite
 data/*.sqlite-journal
 
