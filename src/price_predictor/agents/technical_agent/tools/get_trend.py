@@ -165,6 +165,10 @@ async def get_trend(ticker: str, sensitivity: str = "standard") -> dict:
         derived[f"above_sma_{n}"] = v
     for n, v in snapshot["pct_above_sma"].items():
         derived[f"pct_above_sma_{n}"] = v
+    # MA crossovers: surface as a top-level dict in `derived` so the LLM
+    # quotes the L3 struct verbatim instead of inferring a cross from
+    # static SMA position. See pred_logic.md §3.2 MA Crossover.
+    derived["ma_crosses"] = snapshot.get("ma_crosses", {})
 
     # ── Warnings ───────────────────────────────────────────────
     warnings: list[str] = []

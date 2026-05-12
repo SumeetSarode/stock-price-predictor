@@ -320,6 +320,8 @@ The full preset table:
 | Trend       | SMA lengths       | 20, 50, 200    | 10, 30, 100    | 30, 70, 200    |
 | Trend       | EMA length        | 20             | 10             | 30             |
 | Trend       | ADX length        | 14             | 9              | 21             |
+| Trend       | MA cross pairs    | SMA-50/200 + EMA-9/21 | SMA-50/200 + EMA-9/21 | SMA-50/200 + EMA-9/21 |
+| Trend       | MA cross fresh window (bars) | 5    | 5              | 5              |
 | Momentum    | RSI length        | 14             | 9              | 21             |
 | Momentum    | MACD (fast/slow/signal) | 12/26/9 | 8/17/9         | 19/39/9        |
 | Momentum    | Stoch (k/d/smooth)| 14/3/3         | 9/3/3          | 21/5/5         |
@@ -348,6 +350,84 @@ otherwise noted.
   weight `2 / (N + 1)` and the previous EMA gets `1 − 2 / (N + 1)`.
 - **Length used:** 20.
 - **Source.** Pring (2002).
+
+#### MA Crossover (Golden Cross / Death Cross + EMA-9/21)
+
+- **Definition.** A *moving-average crossover* is a discrete event:
+  the SHORT MA's value crosses through the LONG MA's value on the
+  current bar (was on one side yesterday, is on the other side
+  today). The classic **Golden Cross** is SMA-50 crossing above
+  SMA-200; the **Death Cross** is the inverse. We also ship the
+  EMA-9/21 pair (faster swing-trader signal, Pring 2002).
+- **Pairs computed by default:** `("sma", 50, 200)` and
+  `("ema", 9, 21)`. Constant across all sensitivity presets — these
+  are canonical pairs from the literature, not preset-tunable
+  parameters. Users can query custom pairs via
+  `analysis.trend.detect_ma_cross(df, short, long, kind)` directly.
+- **Output contract — the L3 "regime + last event" struct.**
+  `detect_ma_cross()` returns:
+  ```
+  {
+    "current":           "above" | "below" | None,
+    "last_event":        "bullish" | "bearish" | None,
+    "bars_since_event":  int | None,
+    "short_ma":          float | None,
+    "long_ma":           float | None,
+  }
+  ```
+  L3 was chosen over simpler L1 ("did a cross fire on the latest bar?
+  yes/no") and L2 ("... in the last N bars?") because L1/L2 return
+  `None` 99% of the time on real data — uninformative output that
+  invites the LLM to hallucinate a cross from the static SMA stack.
+  L3 always has something true to say: either "fresh cross today",
+  "in-regime since N bars ago", "no cross in available history", or
+  "insufficient data". Cost is ~3 extra lines of code; the gain is
+  agent honesty. See pred_logic_review §H? (TBD).
+- **Naming convention — code vs. prose.**
+  - **Inside the data field**, `last_event` is `"bullish"` /
+    `"bearish"` — generic, matches the vocabulary `momentum.py`
+    uses for the MACD cross, and works for any pair.
+  - **In agent prose and `_trend_signal.py` rationale strings**,
+    only the canonical `sma_50_200` pair gets the marketing name
+    "Golden Cross" / "Death Cross". EMA-9/21 and any custom pair
+    get generic phrasing like `"bullish EMA-9/21 cross"`.
+  - This split avoids both the trap of calling an EMA-9/21 cross a
+    "Golden Cross" (technically wrong, Murphy 1999 reserves the
+    term for SMA-50/200) AND the trap of stripping the term from
+    user-facing output (users expect to hear it).
+- **Source — definition.** Murphy, *Technical Analysis of the
+  Financial Markets* (1999), ch. 9. Pring (2002) for the EMA
+  cousin.
+- **Source — empirical caveat.** The literature on MA-crossover
+  alpha is decisive: it has weakened over time on liquid large-caps.
+  - **Brock, Lakonishok & LeBaron (1992)**, *Journal of Finance*
+    47(5), found statistically significant edge from the 1/50 and
+    1/200 SMA crossover on the Dow 1897–1986 (~0.045% buy-day
+    excess return). **Ignored transaction costs.**
+  - **Sullivan, Timmermann & White (1999)**, *Journal of Finance*
+    54(5), re-tested BLL using White's Reality Check bootstrap to
+    correct for data-snooping across 7,846 trading rules. The
+    50/200 crossover edge **does not replicate** out-of-sample
+    (1987–1996) once data-snooping is corrected.
+  - **Zakamulin (2014)**, *Journal of Asset Management*. The
+    50/200 SMA Sharpe drops from ~0.6 pre-1970 to ~0.1 post-1990
+    on US equity indices.
+  - **Han, Yang & Zhou (2013)**, *J. of Financial & Quantitative
+    Analysis* 48(5), found MA-timing remains profitable in
+    low-volume small-caps during high-vol regimes — but vanishes
+    on liquid large-caps after costs.
+  - We ship the cross signal primarily as a **truth-telling /
+    user-expectation feature**, not as alpha. Users ask about
+    Golden Cross; the agent should answer truthfully ("yes, fired
+    12 bars ago" or "no, no cross in the last 750 bars") rather
+    than inferring one from `above_sma`. The vote weight in §4.1
+    reflects this conservative reading.
+- **NSE-specific calibration.** 🔬 **NEEDS BACKTEST** — the studies
+  cited above are all US/global equity. Indian large-cap equity
+  data (NIFTY 50 constituents, 2010–present) has not been
+  backtested for these specific weights. The `±0.5 / ±0.3` weights
+  in §4.1 are placeholders informed by the US literature; revisit
+  once we have NSE backtest data.
 
 #### ADX + Directional Indicators (+DI / −DI)
 
@@ -836,7 +916,7 @@ Each classifier returns a `ClusterAssessment` with three fields:
 
 ### 4.1 Trend classifier
 
-**Inputs:** trend cluster (SMA stack, EMA, ADX, +DI, −DI).
+**Inputs:** trend cluster (SMA stack, EMA, ADX, +DI, −DI, MA crosses).
 
 **Verdict logic.**
 
@@ -857,6 +937,32 @@ Each classifier returns a `ClusterAssessment` with three fields:
    - If `−DI > +DI` AND SMA stack is bearish → final verdict
      **bearish**.
    - Otherwise (DI disagrees with SMA stack) → **neutral**.
+4. **MA-crossover nudge.** Steps 1–3 produce a base verdict. The MA
+   cross signal (§3.2 MA Crossover) can then **nudge a `neutral`
+   verdict** up to `bullish` or down to `bearish`. It cannot override
+   a `bullish` or `bearish` verdict already locked in by stack + DI.
+   - Only **fresh** crosses (`bars_since_event ≤ 5`) contribute to
+     the vote. Stale crosses appear in the rationale text only
+     ("Golden Cross regime since 47 bars ago, stale; not voting")
+     because the EVENT edge decays in days while the regime info is
+     already captured by the SMA stack score.
+   - Vote weights (deliberately conservative per §3.2 empirical
+     caveat):
+     - `sma_50_200` fresh cross: **±0.5**
+     - `ema_9_21` fresh cross: **±0.3** (faster pair = more whipsaws)
+     - Custom pairs registered later: default **0.0** (rationale
+       only) until weights are explicitly added
+   - Net vote magnitude must be **≥ 0.5** to nudge. The DI direction
+     also acts as a veto: a bullish cross will not nudge to
+     `bullish` if `−DI > +DI`.
+   - **Conflict by design.** When the two pairs disagree (e.g.
+     SMA-50/200 bullish + EMA-9/21 bearish on the same bar), the
+     net vote shrinks toward zero (`+0.5 − 0.3 = +0.2`), failing
+     the `≥ 0.5` threshold. This correctly captures "pullback
+     within an uptrend" — the agent reports both events but the
+     verdict stays neutral.
+   - 🔬 **NEEDS BACKTEST** for NSE-specific weight calibration; see
+     §3.2 MA Crossover for the US literature this is anchored to.
 
 **Confidence formula.** Anchored to ADX strength because that's the
 direct measure of trend conviction:
@@ -870,6 +976,11 @@ direct measure of trend conviction:
 - `"close above SMA20/50/200 (full stack bullish)"`
 - `"ADX 32 – strong trend"`
 - `"+DI 28 > −DI 16 (buyers in control)"`
+- `"Golden Cross fired 3 bars ago"` (fresh — contributes +0.5 vote)
+- `"Death Cross regime since 47 bars ago (stale; not voting)"`
+- `"bullish EMA-9/21 cross fired today"` (fresh — contributes +0.3 vote)
+- `"No sma-50-200 cross in available history (currently above)"`
+- `"Verdict nudged bullish by fresh MA cross vote (+0.8)"`
 
 ### 4.2 Momentum classifier
 
@@ -2060,8 +2171,10 @@ A reviewer who wants to spot-check a single prediction should:
    for daily/weekly.
 6. **Check `contributing_signals`** — do the strings *look like*
    they could have come from one of the cluster classifiers in §4?
-   (No "Fibonacci", "Elliott wave", "moving average crossover"
-   unless those terms appear in the cluster outputs.)
+   (No "Fibonacci", "Elliott wave", "Ichimoku cloud" — we don't
+   ship those. "Golden Cross" / "Death Cross" / "bullish EMA-9/21
+   cross" ARE valid as of §3.2 MA Crossover, but only if the
+   `ma_crosses` field in the trend tool output reports them.)
 7. **Check `catalysts`** — every URL should be visit-able and the
    article should plausibly say what `why_it_matters` claims it
    says.

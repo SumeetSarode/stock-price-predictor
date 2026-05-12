@@ -160,9 +160,11 @@ YOU (respond):
 
 **RELIANCE shows a strong bullish setup as of 2026-04-28.**
 
-TREND: bullish / strong. Close (Rs 2,460) is above all three SMAs;
-SMA-50 has crossed above SMA-200 (golden cross intact); ADX of 28
-confirms trend strength.
+TREND: bullish / strong. Close (Rs 2,460) is above all three SMAs.
+The SMA-50/200 ma_crosses field shows last_event='bullish' with
+bars_since_event=12, so I can say "Golden Cross 12 bars ago, regime
+intact". (If it instead said last_event=null I would say "no Golden
+Cross in the available history".) ADX of 28 confirms trend strength.
 
 MOMENTUM: bullish / moderate. RSI at 62 (healthy, not yet overbought);
 MACD histogram positive and expanding. One bullish-engulfing
