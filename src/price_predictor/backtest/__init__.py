@@ -11,6 +11,10 @@ Runner:
     BacktestError       -- one (ticker, as_of) pair that failed
     BacktestProgress    -- progress snapshot for callbacks
 
+Evaluation (grading + calibration):
+    evaluate_backtest(run, **opts) -> BacktestEvaluation
+    BacktestEvaluation  -- graded run + overall + per-axis breakdowns
+
 USAGE
 =====
 Basic backtest of one ticker over Q1 2024, daily horizon, every
@@ -41,12 +45,14 @@ WHAT THIS LAYER OWNS
 
 WHAT IT EXPLICITLY DOESN'T DO
 =============================
-- Grading the predictions vs ground truth -- see Step 2.2 (evaluation.py).
-- Calibration metrics -- already exists in prediction/calibration.py.
 - HTML/CLI rendering -- see Step 2.3 (CLI command + report).
 - Resume-after-crash -- YAGNI; eager save makes manual resume trivial.
 """
 from price_predictor.backtest.dates import trading_days_in_range
+from price_predictor.backtest.evaluation import (
+    BacktestEvaluation,
+    evaluate_backtest,
+)
 from price_predictor.backtest.runner import (
     BacktestError,
     BacktestProgress,
@@ -57,9 +63,11 @@ from price_predictor.backtest.runner import (
 
 __all__ = [
     "BacktestError",
+    "BacktestEvaluation",
     "BacktestProgress",
     "BacktestRun",
     "ProgressCallback",
+    "evaluate_backtest",
     "run_backtest",
     "trading_days_in_range",
 ]
