@@ -238,6 +238,8 @@ def _cluster_view_from_response(
 
 async def _fetch_close_and_bar_count(
     ticker: str,
+    *,
+    as_of: date | None = None,
 ) -> tuple[float, int, date]:
     """Pull latest close, bar count, and as_of date from the shared cache.
 
@@ -246,7 +248,7 @@ async def _fetch_close_and_bar_count(
     function decoupled from cluster internals — if a cluster tool's cache-
     interaction changes, we don't break.
     """
-    end = date.today()
+    end = as_of if as_of is not None else date.today()
     start = end - timedelta(days=LOOKBACK_DAYS)
     df = await get_cache().get(
         ticker=ticker, start=start, end=end, interval="1d"
@@ -279,7 +281,10 @@ async def _fetch_close_and_bar_count(
 
 
 async def compose_technical_view(
-    ticker: str, sensitivity: Sensitivity = "standard"
+    ticker: str,
+    sensitivity: Sensitivity = "standard",
+    *,
+    as_of: date | None = None,
 ) -> TechnicalView:
     """Run all 4 cluster tools in parallel and pack into a TechnicalView.
 
@@ -287,6 +292,10 @@ async def compose_technical_view(
         ticker: User-supplied ticker (any form: 'reliance', 'RELIANCE.NS',
             'AAPL'). Resolved to canonical yfinance symbol via the KB.
         sensitivity: Preset for all 4 clusters. Default 'standard'.
+        as_of: Keyword-only. Pin all 4 cluster fetches AND the close/
+            bars-used fetch to a past trading date for honest backtest
+            replay. ``None`` (default) means "today" — the live behavior.
+            Caller (predict()) is responsible for rejecting future dates.
 
     Returns:
         Fully-populated, frozen TechnicalView.
@@ -302,10 +311,10 @@ async def compose_technical_view(
     # would cancel siblings on first failure; we want ALL errors collected
     # so the user sees the full picture, hence return_exceptions=True with
     # explicit failure aggregation below.
-    trend_task = get_trend(canonical, sensitivity)
-    momentum_task = get_momentum(canonical, sensitivity)
-    volatility_task = get_volatility(canonical, sensitivity)
-    levels_task = get_levels(canonical, sensitivity)
+    trend_task = get_trend(canonical, sensitivity, as_of=as_of)
+    momentum_task = get_momentum(canonical, sensitivity, as_of=as_of)
+    volatility_task = get_volatility(canonical, sensitivity, as_of=as_of)
+    levels_task = get_levels(canonical, sensitivity, as_of=as_of)
 
     results = await asyncio.gather(
         trend_task, momentum_task, volatility_task, levels_task,
@@ -336,7 +345,9 @@ async def compose_technical_view(
         )
 
     # All 4 succeeded — pull the price-anchoring metadata and pack.
-    close_price, bars_used, as_of = await _fetch_close_and_bar_count(canonical)
+    close_price, bars_used, as_of = await _fetch_close_and_bar_count(
+        canonical, as_of=as_of,
+    )
 
     return TechnicalView(
         ticker=canonical,

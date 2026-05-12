@@ -60,7 +60,12 @@ def _normalize_ticker(ticker: str) -> str:
     return t
 
 
-async def get_trend(ticker: str, sensitivity: str = "standard") -> dict:
+async def get_trend(
+    ticker: str,
+    sensitivity: str = "standard",
+    *,
+    as_of: date | None = None,
+) -> dict:
     """Trend-cluster analysis for a ticker.
 
     Args:
@@ -71,6 +76,14 @@ async def get_trend(ticker: str, sensitivity: str = "standard") -> dict:
                        - standard:  SMA(20,50,200), EMA-20, ADX-14
                        - sensitive: SMA(10,30,100), EMA-10, ADX-9 (faster)
                        - smooth:    SMA(30,70,200), EMA-30, ADX-21 (slower)
+        as_of:       Keyword-only. The trading date the analysis should
+                     be anchored to. ``None`` (default) means "today" —
+                     the live behavior. A past ``date`` is the backtest
+                     mode: history is fetched up to and including this
+                     date, no future data leaks in. Future dates are
+                     rejected by the caller (predict()); this tool
+                     does not re-validate (defence-in-depth lives one
+                     layer up to keep the tool surface narrow).
 
     Returns:
         On success:
@@ -107,7 +120,9 @@ async def get_trend(ticker: str, sensitivity: str = "standard") -> dict:
         )
 
     # ── Fetch via shared cache ─────────────────────────────────
-    end = date.today()
+    # `end` defaults to today (live behavior) but can be pinned to a
+    # past trading date via `as_of` for honest backtest replay.
+    end = as_of if as_of is not None else date.today()
     start = end - timedelta(days=LOOKBACK_DAYS)
     try:
         df = await get_cache().get(

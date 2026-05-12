@@ -541,3 +541,136 @@ class TestPredictMultiHorizon:
     def test_unknown_horizon_raises(self):
         with pytest.raises(ValueError, match="Unknown horizon"):
             asyncio.run(predict("RELIANCE.NS", ["yearly"]))
+
+
+# ─────────────────────────────────────────────────────────────
+# 9. as_of plumbing (Step 1 of backtest harness)
+# ─────────────────────────────────────────────────────────────
+# These tests pin the contract that as_of:
+#   - rejects future dates loudly,
+#   - skips news in backtest mode (until Step 1.5),
+#   - tags the audit trail distinctly,
+#   - flows down to the OHLCV fetch as the `end` cutoff.
+#
+# Mocking strategy mirrors the existing happy-path tests: we mock the
+# two agent helpers, leaving the orchestration + tool plumbing real.
+class _SpyCache:
+    """Fake cache that records every (start, end) pair it's queried with.
+
+    We need this to assert as_of actually reaches the price-fetch layer
+    rather than being silently dropped somewhere mid-call.
+    """
+
+    def __init__(self, df):
+        self.df = df
+        self.calls: list[tuple[date, date]] = []
+
+    async def get(self, ticker, start, end, interval="1d"):
+        self.calls.append((start, end))
+        return self.df.copy()
+
+
+@pytest.fixture
+def spy_cache():
+    cache = _SpyCache(_build_uptrend_df())
+    _shared_cache.set_cache(cache)
+    return cache
+
+
+class TestAsOfPlumbing:
+    def test_news_tag_for_maps_all_three_states(self):
+        from price_predictor.prediction.predictor import _news_tag_for
+        assert _news_tag_for("live") == "news_impact:agentic"
+        assert _news_tag_for("degraded") == "news_impact:degraded"
+        assert _news_tag_for("backtest_pending") == "news_impact:backtest_pending"
+
+    def test_future_as_of_rejected(self, fake_cache):
+        future = date.today() + pd.Timedelta(days=1).to_pytimedelta()
+        with pytest.raises(ValueError, match="future"):
+            asyncio.run(predict("RELIANCE.NS", as_of=future))
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_past_as_of_skips_news_agent(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Backtest mode MUST NOT call the live news agent — that would
+        leak post-as_of headlines into the prediction.
+        """
+        # Honest mock: real synthesizer copies model_chain from input,
+        # so the mock must too — otherwise we'd be asserting a contract
+        # that doesn't reflect production behavior.
+        async def _synth_copy_chain(si, **kwargs):
+            return _sample_prediction().model_copy(
+                update={"model_chain": si.model_chain}
+            )
+        mock_synth.side_effect = _synth_copy_chain
+        past = date(2024, 6, 14)
+
+        result = _run_predict_one("RELIANCE.NS", as_of=past)
+
+        mock_news.assert_not_awaited()
+        # Audit trail records the explicit skip with a distinct tag.
+        assert "news_impact:backtest_pending" in result.model_chain
+        assert "news_impact:agentic" not in result.model_chain
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_default_as_of_still_calls_news(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Live behavior unchanged when as_of is omitted (back-compat)."""
+        mock_news.return_value = _sample_impact()
+        mock_synth.return_value = _sample_prediction()
+
+        _run_predict_one("RELIANCE.NS")  # no as_of
+
+        mock_news.assert_awaited_once_with("RELIANCE.NS")
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_past_as_of_stamps_prediction_at_market_close(
+        self, mock_news, mock_synth, fake_cache,
+    ):
+        """Backtest predictions get an as_of pinned to 15:30 IST so the
+        timestamp reflects EoD on the requested trading date.
+        """
+        mock_synth.return_value = _sample_prediction()
+        past = date(2024, 6, 14)
+
+        _run_predict_one("RELIANCE.NS", as_of=past)
+
+        si = mock_synth.call_args.args[0]
+        assert si.as_of.date() == past
+        assert (si.as_of.hour, si.as_of.minute) == (15, 30)
+        assert si.as_of.tzinfo is not None  # tz-aware
+
+    @patch("price_predictor.prediction.predictor.synthesize_with_guardrails",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.run_news_impact_agent",
+           new_callable=AsyncMock)
+    def test_as_of_reaches_ohlcv_fetch(
+        self, mock_news, mock_synth, spy_cache,
+    ):
+        """The whole point: as_of MUST flow down to the price fetch as
+        `end`, otherwise the cluster tools silently see today's bars
+        and the entire backtest is a lie.
+        """
+        mock_synth.return_value = _sample_prediction()
+        past = date(2024, 6, 14)
+
+        _run_predict_one("RELIANCE.NS", as_of=past)
+
+        # 4 cluster tools + 1 close/bars-used fetch = 5 cache hits, all
+        # ending exactly at as_of.
+        assert len(spy_cache.calls) >= 4
+        for start, end in spy_cache.calls:
+            assert end == past, (
+                f"cache fetched with end={end}, expected {past}: as_of leak!"
+            )

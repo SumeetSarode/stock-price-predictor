@@ -54,7 +54,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Literal
 
 from google.adk.agents import LlmAgent
@@ -118,6 +118,14 @@ _SYNTH_MODEL_TAG = "synthesizer:agentic"
 # Marker appended to model_chain when news fell back to the degraded
 # 'neutral' assessment. Lets downstream consumers tell at a glance.
 _NEWS_DEGRADED_TAG = "news_impact:degraded"
+
+# Distinct tag for the backtest case so the audit trail can tell
+# "live news fetch failed" from "news intentionally skipped because
+# we're replaying a past as_of and don't have an honest news snapshot
+# yet". Step 1.5 (NewsSnapshot store) will lift the skip; until then
+# this tag tells future-us exactly which predictions were synthesised
+# without news evidence.
+_NEWS_BACKTEST_PENDING_TAG = "news_impact:backtest_pending"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -371,6 +379,7 @@ async def predict(
     horizons: Iterable[HorizonLike] | None = None,
     *,
     sensitivity: Literal["standard", "sensitive", "smooth"] = "standard",
+    as_of: date | None = None,
 ) -> dict[PredictionHorizon, Prediction]:
     """Produce one Prediction per requested horizon for one stock.
 
@@ -392,6 +401,21 @@ async def predict(
             ("daily"/"weekly"/etc). Defaults to DEFAULT_HORIZONS (all 4).
             Duplicates are removed; first-occurrence order preserved.
         sensitivity: Indicator-cluster preset. Default 'standard'.
+        as_of: Keyword-only. The trading date the prediction should be
+            anchored to. ``None`` (default) means "now" — the live
+            behavior using ``datetime.now(IST)``. A past ``date`` is
+            backtest mode: technicals are fetched up to and including
+            this date, no future data leaks in. Future dates are
+            rejected with ValueError.
+
+            BACKTEST CAVEAT: when ``as_of`` is in the past, news is
+            currently skipped (degraded to neutral with the
+            ``news_impact:backtest_pending`` tag) because honest
+            point-in-time news replay needs a snapshot store we have
+            not yet built. Step 1.5 will lift this. Until then,
+            backtest predictions are technical-only — still useful for
+            calibrating the technical pipeline but NOT a fair fight
+            for the live system.
 
     Returns:
         dict[PredictionHorizon, Prediction] keyed by horizon enum, in
@@ -402,34 +426,51 @@ async def predict(
             failed (fail-fast: partial results would mask reliability
             problems and break the daily+weekly UX contract). Wraps the
             underlying cause.
-        ValueError: empty/unknown horizons argument.
+        ValueError: empty/unknown horizons argument, or as_of in the future.
     """
     horizon_tuple = _normalize_horizons(horizons)
     canonical = _resolve_ticker(ticker)
-    as_of = datetime.now(IST)
+
+    # Resolve as_of to both (a) the date passed to gather (used by the
+    # cluster tools' OHLCV cutoff) and (b) the tz-aware datetime stamped
+    # on the Prediction for audit. Live mode uses now; backtest mode
+    # pins to 15:30 IST (NSE close) on the requested date.
+    if as_of is None:
+        as_of_date: date | None = None
+        as_of_dt = datetime.now(IST)
+    else:
+        if as_of > date.today():
+            raise ValueError(
+                f"as_of={as_of.isoformat()} is in the future; refusing to "
+                f"predict using data we cannot have. Pass a past trading "
+                f"date or omit as_of to use today."
+            )
+        as_of_date = as_of
+        as_of_dt = datetime.combine(as_of, time(15, 30), tzinfo=IST)
+
     horizon_labels = [h.value for h in horizon_tuple]
+    mode_tag = "live" if as_of_date is None else f"backtest@{as_of_date.isoformat()}"
     logger.info(
         f"predict() start: ticker={canonical} horizons={horizon_labels} "
-        f"sensitivity={sensitivity}"
+        f"sensitivity={sensitivity} mode={mode_tag}"
     )
 
     # ── PHASE 1: GATHER (parallel, horizon-agnostic) ───────────
-    technical_view, impact_assessment, news_degraded = await _gather_phase(
-        canonical, sensitivity
+    technical_view, impact_assessment, news_status = await _gather_phase(
+        canonical, sensitivity, as_of=as_of_date,
     )
+    news_degraded = news_status != "live"
 
     # ── PHASE 2: SYNTHESIZE per horizon (parallel fan-out) ─────
     # All N synthesizer calls share the same gathered evidence; each
     # gets its own SynthesisInput with a horizon-specific prompt slot.
-    initial_chain: tuple[str, ...] = (
-        (_NEWS_DEGRADED_TAG,) if news_degraded else (_NEWS_MODEL_TAG,)
-    )
+    initial_chain: tuple[str, ...] = (_news_tag_for(news_status),)
 
     async def _synth_one(h: PredictionHorizon) -> Prediction:
         si = SynthesisInput(
             ticker=canonical,
             horizon=h.value,
-            as_of=as_of,
+            as_of=as_of_dt,
             technical_view=technical_view,
             impact_assessment=impact_assessment,
             model_chain=initial_chain,
@@ -455,21 +496,58 @@ async def predict(
 async def _gather_phase(
     canonical: str,
     sensitivity: Literal["standard", "sensitive", "smooth"],
-) -> tuple[TechnicalView, ImpactAssessment, bool]:
+    *,
+    as_of: date | None = None,
+) -> tuple[TechnicalView, ImpactAssessment, str]:
     """Run the gather phase (technicals + news) once for all horizons.
 
     Extracted from the old predict() body so the public function reads
-    as a clean two-phase orchestration. Returns:
-      (technical_view, impact_assessment, news_degraded_flag)
+    as a clean two-phase orchestration.
+
+    Args:
+        canonical: KB-resolved ticker.
+        sensitivity: Indicator preset.
+        as_of: When set to a past date, technicals are pinned to that
+            date and news is short-circuited (backtest mode — see
+            ``predict()`` docstring for the rationale).
+
+    Returns:
+        Tuple of ``(technical_view, impact_assessment, news_status)``
+        where ``news_status`` is one of:
+          - ``"live"``           — news_impact agent ran successfully
+          - ``"degraded"``       — live agent failed; neutral fallback
+          - ``"backtest_pending"`` — skipped because as_of != today
+        The ``str`` shape (vs the old ``bool``) lets the audit trail
+        distinguish "failed live fetch" from "intentionally skipped".
 
     Raises:
         PredictionError: technicals failed (core, non-degradable).
     """
-    technical_task = compose_technical_view(canonical, sensitivity=sensitivity)
-    news_task = run_news_impact_agent(canonical)
-    technical_result, news_result = await asyncio.gather(
-        technical_task, news_task, return_exceptions=True,
+    technical_task = compose_technical_view(
+        canonical, sensitivity=sensitivity, as_of=as_of,
     )
+
+    backtest_mode = as_of is not None and as_of != date.today()
+    if backtest_mode:
+        # Honest replay of GDELT requires a snapshot store (Step 1.5).
+        # Until that lands, calling the live news_impact agent during a
+        # backtest would leak post-as_of news into the prediction — the
+        # exact bias we're building this whole machinery to avoid.
+        # Skip it explicitly with a distinct tag so calibration runs
+        # know these predictions are technical-only.
+        logger.info(
+            f"backtest mode (as_of={as_of}): skipping news_impact agent "
+            f"until NewsSnapshot store lands (Step 1.5)."
+        )
+        technical_result = await technical_task
+        news_result: ImpactAssessment | BaseException = _degraded_impact(
+            canonical, "backtest_pending: news replay not yet implemented"
+        )
+    else:
+        news_task = run_news_impact_agent(canonical)
+        technical_result, news_result = await asyncio.gather(
+            technical_task, news_task, return_exceptions=True,
+        )
 
     # Technicals are CORE - failure aborts the prediction.
     if isinstance(technical_result, BaseException):
@@ -482,16 +560,17 @@ async def _gather_phase(
     technical_view = technical_result
 
     # News is OPTIONAL - failure degrades to a neutral assessment.
-    news_degraded = False
+    news_status: str
     if isinstance(news_result, BaseException):
         logger.warning(
             f"news_impact failed for {canonical}; degrading to neutral. "
             f"Cause: {type(news_result).__name__}: {news_result}"
         )
         impact_assessment = _degraded_impact(canonical, str(news_result))
-        news_degraded = True
+        news_status = "degraded"
     else:
         impact_assessment = news_result
+        news_status = "backtest_pending" if backtest_mode else "live"
 
     logger.info(
         f"gather done: technical_view bars={technical_view.bars_used} "
@@ -500,9 +579,23 @@ async def _gather_phase(
         f"volatility:{technical_view.volatility.signal}/"
         f"levels:{technical_view.levels.signal} | "
         f"impact sentiment={impact_assessment.sentiment} "
-        f"confidence={impact_assessment.confidence:.2f}"
+        f"confidence={impact_assessment.confidence:.2f} "
+        f"news_status={news_status}"
     )
-    return technical_view, impact_assessment, news_degraded
+    return technical_view, impact_assessment, news_status
+
+
+def _news_tag_for(news_status: str) -> str:
+    """Map news_status -> initial model_chain tag.
+
+    Single-source-of-truth helper so predict() doesn't grow a 3-arm
+    if/elif and the audit trail stays consistent across modes.
+    """
+    return {
+        "live": _NEWS_MODEL_TAG,
+        "degraded": _NEWS_DEGRADED_TAG,
+        "backtest_pending": _NEWS_BACKTEST_PENDING_TAG,
+    }[news_status]
 
 
 def _finalize_prediction(

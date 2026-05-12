@@ -52,8 +52,17 @@ LOOKBACK_DAYS = 750  # H7: ≥500 trading days for Wilder warmup
 PATTERN_LOOKBACK_BARS = 5
 
 
-async def get_momentum(ticker: str, sensitivity: str = "standard") -> dict:
+async def get_momentum(
+    ticker: str,
+    sensitivity: str = "standard",
+    *,
+    as_of: date | None = None,
+) -> dict:
     """Momentum-cluster analysis for a ticker.
+
+    ``as_of`` (keyword-only, default ``None``) pins the fetch window to a
+    past trading date for honest backtest replay; ``None`` means "today".
+    See ``get_trend`` for the full backtest contract.
 
     Args:
         ticker: Stock symbol. Indian stocks resolve to .NS automatically.
@@ -103,7 +112,7 @@ async def get_momentum(ticker: str, sensitivity: str = "standard") -> dict:
         )
 
     # ── Fetch via shared cache ─────────────────────────────────
-    end = date.today()
+    end = as_of if as_of is not None else date.today()
     start = end - timedelta(days=LOOKBACK_DAYS)
     try:
         df = await get_cache().get(
