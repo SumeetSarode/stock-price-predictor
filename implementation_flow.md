@@ -657,26 +657,123 @@ AND the synthesizer prompt.
 
 ---
 
-## ⏸️ Step 3.5.5+ — Backtest replay/runner/evaluator (NOT STARTED)
+## ✅ Step 1.5 + 2.1–2.7 — Backtest framework + survivorship-bias defense (DONE)
 
-**Goal**: Today, calibration only works on real-elapsed-time predictions.
-Backtest would let us run the whole pipeline against historical data and
-answer "would this system have made money?"
+**Goal**: Today, calibration only worked on real-elapsed-time predictions.
+Backtest lets us run the whole pipeline against historical data and
+answer "would this system have made money?" — honestly (no future-info
+leakage, survivorship-bias-aware).
 
-**Components needed**:
-- `backtest/replay.py` — as-of-date data shim: "give me prices/news/filings
-  AS THEY WOULD HAVE LOOKED on date X." Critical for honest backtest;
-  any leak of future info inflates results.
-- `backtest/runner.py` — historical loop over dates, calling predict()
-  with the replay shim active.
-- `backtest/evaluator.py` — composes calibration metrics across backtest
-  runs (e.g., per-month, per-regime). Reuses `compute_breakdown()`.
+### Sub-step progress
 
-**Open design questions parked for Step 3.5.5 design**:
-- How do we honestly replay GDELT? News articles published AFTER our
-  as-of-date must NOT be visible.
-- How do we handle survivorship bias in the Nifty50 list?
-- Do we replay at end-of-day cadence or hourly?
+| Step | What | Commit |
+|---|---|---|
+| 1.5 | Point-in-time news replay via contextvar + NewsSnapshot store. `predict(as_of=X)` filters articles by `published_at <= X`. | `1931796` |
+| 2.1 | `backtest/dates.py` (NSE-aware `trading_days_in_range` with stride) + `backtest/runner.py` (`run_backtest` orchestrator with concurrency cap, eager-save, per-pair error capture, progress callback). | `946ee8e` |
+| 2.2 | `backtest/evaluation.py` — `evaluate_backtest(run)` composes existing `grade_many` + `compute_calibration` + `compute_breakdown` into a `BacktestEvaluation` artifact. | `eee1d64` |
+| 2.3 | `backtest/html_report.py` + `backtest/insights.py` — self-contained Tailwind HTML with rule-based insights (low confidence overall, NEUTRAL-heavy bias, per-horizon weakness flags). | `2f6ab9e` |
+| 2.4 | `price-predictor backtest --start --end --tickers ... --horizons ... --stride ... --out ... --save-predictions --no-open` CLI command. Typer + Rich progress. | `aa12dff` |
+| 2.5A | `kb/membership.py` — `members_on(d)`, `changes_in_range`, `was_member` with backwards event-walk from today's anchor. Loud-fail schema validation; `MembershipDataError`. | `b8fcc6f` |
+| 2.5B | `scripts/bootstrap_membership_history.py` + `data/kb/index_membership.json` — real NIFTY 50 anchor + Wikipedia event log. | `b55b12e` |
+| 2.5C | Golden-path probes against the real JSON (smoke test that the data loads, schema is honest, and historical lookups produce sane results). | `c902940` |
+| 2.6A | `run_backtest_grid(pairs, ...)` for sparse `(ticker, as_of)` work; `run_backtest` becomes a thin cartesian wrapper. | `7efd727` |
+| 2.6B | `backtest --index NIFTY50` CLI flag (mutex with `--tickers`); `_expand_index_to_pairs` translates index code + date schedule into sparse pairs via `members_on`. | `a948259` |
+| 2.7 | End-to-end integration smoke test (3 tickers × 30 days × WEEKLY, real APIs, <5min wall-clock gate, rate-limit-aware skip). | `8a04b05` |
+
+### What landed (the v1 backtest loop)
+
+```
+  predict(as_of=X)              -- Step 1.5 makes this honest
+        ↓
+  run_backtest(...)             -- Step 2.1 cartesian fanout, OR
+  run_backtest_grid(pairs, ...) -- Step 2.6A sparse pairs
+        ↓
+  evaluate_backtest(run)        -- Step 2.2 grading + calibration
+        ↓
+  write_html_report(eval, out)  -- Step 2.3 Tailwind + insights
+        ↓
+  HTML report (open in browser)
+```
+
+### Survivorship-bias defense (the subtle part)
+
+The naive `--tickers` path uses today's tickers for every backtest date.
+That silently excludes companies that got DROPPED from the index (usually
+because they underperformed) — inflating results.
+
+`--index NIFTY50` walks the Wikipedia event log BACKWARDS from today's
+anchor. For each as_of date, undoes events that happened AFTER that date
+to reconstruct the historical 50. A 2018 backtest predicts the 2018
+NIFTY 50, NOT today's. The pair list is sparse: a ticker only runs on
+dates it was actually a member.
+
+### Critical lessons from Steps 2.1–2.7
+
+1. **Eager-save during long runs.** A 2-hour backtest that crashes at
+   minute 90 is unrecoverable without it. `run_backtest` writes each
+   prediction to `PredictionStore` as it completes, not at the end.
+
+2. **One `predict()` call per `(ticker, as_of)` pair, not per horizon.**
+   `predict()` already fans out across 4 horizons internally (Step 3.4.6).
+   Calling it per-horizon would be 4x cost for zero signal gain. The
+   runner respects this; the test `test_one_predict_call_per_pair` pins it.
+
+3. **Sparse vs cartesian belongs at the pair-construction layer.**
+   The runner is index-agnostic; it just consumes `[(ticker, date), ...]`.
+   Index expansion (`_expand_index_to_pairs`) is a CLI concern. Future
+   pair sources (custom baskets, factor screens, regulator-mandated lists)
+   reuse the runner unchanged.
+
+4. **Backwards-walk from today's anchor beats a period-table.** We KNOW
+   today's 50 exactly (Wikipedia constituents table). Walking backwards,
+   every error is bounded by the gap between now and the as_of date. A
+   pre-computed `(symbol, in_date, out_date)` table would force us to
+   bootstrap a "what was in the index at history_starts" set — another
+   error source.
+
+5. **Rate-limit failures are environmental, not code bugs.** The
+   integration test (Step 2.7) skips loud-and-clear if ≥80% of failures
+   are quota / 429 / chain-exhausted. You can't build a v1 acceptance
+   gate around a quota that resets daily.
+
+6. **The HTML renderer is shape-compatible with the live `calibration`
+   command's renderer.** Same `CalibrationReport` Pydantic model both
+   sides. Free reuse; no duplicate templates.
+
+### Step 1.5 + 2.1–2.7 test count delta: 1021 → 1576 (+555)
+
+Includes:
+- ~31 backtest dates tests (`test_backtest_dates.py`)
+- ~25 backtest runner tests (`test_backtest_runner.py`, includes Step 2.6A)
+- ~30 backtest evaluation tests
+- ~25 backtest insights tests
+- ~20 backtest HTML report tests
+- ~45 backtest CLI tests (`test_backtest_cli.py`, includes Step 2.6B)
+- ~77 KB membership tests (`tests/kb/`)
+- 1 backtest end-to-end integration test (deselected by default)
+- Numerous incidental tests for `data/news.py` `published_at` filtering,
+  `prediction/predictor.py` `as_of` plumbing, etc.
+
+---
+
+## 🎯 v1 STATUS — DONE (as of 2026-05-12)
+
+All v1 acceptance criteria met. The full predict → backtest loop is
+feature-complete and gated end-to-end:
+
+  predict (×4 horizons fanned out, point-in-time honest)
+    → PredictionStore
+    → grade (per-horizon NEUTRAL tolerance)
+    → calibration (Brier, 3 hit-rate variants, breakdowns)
+    → backtest replay + runner (cartesian OR sparse via --index)
+    → evaluator + HTML report
+
+**Surfaces shipped (7 CLI commands):** `predict`, `predict-many`,
+`history`, `grade`, `calibration`, `backtest --tickers`,
+`backtest --index NIFTY50`.
+
+**Tests:** 1576 unit + 8 integration (deselected by default; run
+off-corp via `pytest -m integration`).
 
 ---
 
@@ -704,16 +801,26 @@ src/price_predictor/
 │   ├── __init__.py
 │   ├── schema.py                       # D.1: Prediction model
 │   ├── inputs.py                       # D.3: prompt assembly
-│   ├── predictor.py                    # D.4: predict() orchestrator
+│   ├── predictor.py                    # D.4: predict() orchestrator (Step 1.5: as_of plumbed)
 │   ├── runner.py                       # D.4: ADK Runner singletons
-│   ├── guardrails.py                   # D.5: hallucination guardrails Tiers 1-3
+│   ├── guardrails.py                   # D.5: hallucination guardrails Tiers 1-4
 │   ├── batch.py                        # D.7: predict_many()
 │   ├── store.py                        # D.8: PredictionStore (JSON-on-disk)
 │   ├── grading.py                      # 3.5.1+3.5.2: grade_one + grade_many
-│   └── calibration.py                  # 3.5.2: CalibrationReport + compute_*
-├── cli/                                # NEW (Step D.9 + 3.5.3)
+│   ├── calibration.py                  # 3.5.2: CalibrationReport + compute_*
+│   └── horizon_constants.py            # 3.4.6: single SoT for per-horizon tunables
+├── backtest/                            # NEW (Step 1.5 + 2.x)
 │   ├── __init__.py
-│   └── main.py                         # typer + rich: predict / predict-many / history / grade / calibration
+│   ├── dates.py                        # 2.1: NSE-aware trading_days_in_range
+│   ├── runner.py                       # 2.1: run_backtest + 2.6A: run_backtest_grid
+│   ├── evaluation.py                   # 2.2: evaluate_backtest -> BacktestEvaluation
+│   ├── insights.py                     # 2.3: rule-based insights (NEUTRAL bias, low conf, ...)
+│   └── html_report.py                  # 2.3: Tailwind HTML renderer (compatible with calibration_cmd renderer)
+├── cli/                                # Step D.9 + 3.5.3 + 2.4 + 2.6B
+│   ├── __init__.py
+│   ├── main.py                         # typer app: 7 commands
+│   ├── backtest_cmd.py                 # 2.4 + 2.6B: backtest --tickers / --index NIFTY50
+│   └── ...
 ├── data/
 │   ├── prices.py                       # Thin shim (Step B.1)
 │   ├── cache.py                        # NEW (Step B.2)
@@ -721,9 +828,11 @@ src/price_predictor/
 │   ├── providers/                      # NEW (Step B.1)
 │   │   ├── base.py / yfinance_provider.py / resilient.py
 │   │   └── stooq_provider.py / alpha_vantage_provider.py / _http.py  # Provider Expansion
-│   ├── estimates.py / filings.py / news.py / schema.py
-├── kb/                                 # NEW (Step A)
-│   └── stocks.py
+│   ├── news.py / news_snapshot.py      # Step 1.5: contextvar-driven point-in-time filter
+│   ├── estimates.py / filings.py / schema.py
+├── kb/                                  # Step A + 2.5
+│   ├── stocks.py                       # Step A: stock registry
+│   └── membership.py                   # 2.5A: NIFTY 50 historical constituents (members_on)
 ├── llm/
 │   ├── factory.py
 │   └── resilient.py
@@ -731,24 +840,29 @@ src/price_predictor/
     └── settings.py
 
 data/kb/
-├── stocks.json                         # NEW, COMMITTED (Step A)
-└── indices.json                        # NEW, COMMITTED (Step A)
+├── stocks.json                         # Step A
+├── indices.json                        # Step A
+└── index_membership.json               # 2.5B: NIFTY 50 anchor + Wikipedia event log
 
 scripts/
-└── bootstrap_indices.py                # NEW (Step A)
+├── bootstrap_indices.py                # Step A
+├── bootstrap_membership_history.py     # 2.5B: NIFTY 50 history bootstrapper
+└── run_integration_offcorp.sh          # Off-corp integration runner with preflight + tee'd log
 
-tests/                                  # 1021 unit tests + 7 integration
+tests/                                  # 1576 unit tests + 8 integration
 ├── test_kb_stocks.py                   # 36 tests (Step A)
+├── kb/test_membership.py               # 77 tests (Step 2.5A-C)
 ├── test_prices.py / test_resilient_price_fetcher.py / test_price_cache.py
 ├── analysis/                           # 61 tests (Step B.3 + B.4)
 ├── tools/                              # Step C tool tests
-├── prediction/                         # Step D + 3.5 tests
-│   ├── test_schema.py
-│   ├── test_inputs.py / test_predictor.py / test_runner.py
-│   ├── test_guardrails.py
-│   ├── test_batch.py / test_store.py
-│   ├── test_grading.py / test_grade_many.py
-│   └── test_calibration.py
+├── prediction/                         # Step D + 3.5 + 3.4.6 tests
+├── test_backtest_dates.py              # 31 tests (Step 2.1)
+├── test_backtest_runner.py             # 25 tests (Step 2.1 + 2.6A)
+├── test_backtest_evaluation.py         # ~30 tests (Step 2.2)
+├── test_backtest_insights.py           # ~25 tests (Step 2.3)
+├── test_backtest_html_report.py        # ~20 tests (Step 2.3)
+├── test_backtest_cli.py                # 45 tests (Step 2.4 + 2.6B)
+├── test_backtest_integration.py        # 1 test (Step 2.7, deselected by default)
 └── cli/
     └── test_main.py                    # CLI integration tests
 ```
@@ -791,14 +905,24 @@ tests/                                  # 1021 unit tests + 7 integration
 | Step 3.4.6.6 (horizon_constants — Commit A) | ~975 | +15 | single SoT module (`34bb240`) |
 | Step 3.4.6.7 (guardrails per-horizon — Commit B) | ~1006 | +31 | Tier 4 calibration cap + per-horizon bands (`c66388e`) |
 | Step 3.4.6.8 (synthesizer prompt — Commit C) | **1021** | +15 | per-horizon rules table embedded in prompt (`eb3c84f`) |
+| Step 1.5 (point-in-time news replay) | ~1080 | +59 | contextvar + NewsSnapshot store (`1931796`) |
+| Step 2.1 (backtest dates + runner) | ~1135 | +55 | trading_days_in_range + run_backtest (`946ee8e`); 18 runner + 13 dates tests + ~24 incidentals |
+| Step 2.2 (evaluate_backtest) | ~1175 | +40 | grading + calibration composed (`eee1d64`) |
+| Step 2.3 (HTML report + insights) | ~1230 | +55 | rule-based insights + Tailwind renderer (`2f6ab9e`) |
+| Step 2.4 (backtest CLI) | ~1305 | +75 | typer + rich command (`aa12dff`); 39 CLI tests + ~36 incidentals |
+| Step 2.5A–C (KB membership) | ~1487 | +182 | members_on/changes_in_range/was_member + bootstrap script + golden probes (`b8fcc6f`/`b55b12e`/`c902940`); 77 KB tests + ~105 incidentals |
+| Step 2.6A (run_backtest_grid) | ~1568 | +7 | sparse pairs API (`7efd727`); +7 grid tests in test_backtest_runner.py |
+| Step 2.6B (--index NIFTY50 CLI) | 1574 | +6 | mutex + sparse expansion (`a948259`); +6 TestIndexFlag tests |
+| Step 2.7 (E2E integration test) | **1576** | +2 | end-to-end smoke (`8a04b05`); deselected by default |
 
 \*Includes a +4 incidental gap between B.4 and C.1 (fixture/import additions).
 
 Note: Step D + 3.5 totals are approximate per-substep snapshots reconstructed
-from commit log; the **1021 figure** is the actual current `pytest --collect-only`
-count (with 7 integration tests deselected, 1 skipped). Step 3.4.6 per-substep
-rows are reconstructed from commit-by-commit deltas — the 854 → 1021 net is
-the rock-solid number; intermediate snapshots are best-effort.
+from commit log; the **1576 figure** is the actual current `pytest -m "not
+integration" --collect-only` count (with 8 integration tests deselected by
+default). Step 3.4.6 and Step 2.x per-substep rows are reconstructed from
+commit-by-commit deltas — the 854 → 1021 and 1021 → 1576 net counts are
+the rock-solid numbers; intermediate snapshots are best-effort.
 
 ---
 
@@ -930,6 +1054,53 @@ the rock-solid number; intermediate snapshots are best-effort.
     per-horizon rules table is `_render_per_horizon_table()` called once
     at import; embedded into `SYSTEM_INSTRUCTION` via f-string. No
     runtime cost, zero possibility of stale text.
+
+### From Step 1.5 + 2.1–2.7 (Backtest framework)
+1. **Point-in-time replay belongs in a contextvar, not a function arg.**
+   Threading `as_of` through every fetcher would be a 30-file refactor.
+   `data/news_snapshot.py` sets a contextvar; fetchers consult it; the
+   call site stays clean. Test isolation: each test sets/clears its own
+   snapshot.
+2. **Eager-save during long runs is non-negotiable.** A 2-hour run that
+   crashes at minute 90 is unrecoverable without it. `run_backtest`
+   writes each prediction to `PredictionStore` as it completes — no
+   end-of-run flush.
+3. **One `predict()` call per `(ticker, as_of)`, not per horizon.**
+   `predict()` already fans out across 4 horizons. Per-horizon looping
+   would be 4x cost for zero signal gain. Pinned by
+   `test_one_predict_call_per_pair`.
+4. **Sparse vs cartesian belongs at the pair-construction layer, NOT
+   the runner.** The runner consumes `[(ticker, date), ...]`. Index
+   expansion lives in the CLI. Future pair sources (custom baskets,
+   factor screens) reuse the runner unchanged. SOLID open/closed at
+   the API boundary, not just at the class boundary.
+5. **Backwards-walk from today's anchor beats a period-table.** We
+   KNOW today's NIFTY 50 exactly. Walking backwards, every error is
+   bounded by the gap between now and the as_of date. A period table
+   `(symbol, in_date, out_date)` would force us to bootstrap a "what
+   was in the index at history_starts" set — another error source.
+6. **Rate-limit failures are environmental, not code bugs.** Step 2.7
+   skips loud-and-clear if ≥80% of failures are quota / 429 /
+   chain-exhausted. You can't build a v1 acceptance gate around a
+   quota that resets daily. The skip distinguishes "pipeline broken"
+   from "env out of credits."
+7. **Mutex flags via `(a is None) == (b is None)` beat Typer's
+   built-in.** Typer doesn't have a clean mutex. The single-line
+   XOR check is honest and the error message tells the user exactly
+   what went wrong (`Pass exactly one of --tickers or --index`).
+8. **The same Pydantic model on both sides = free renderer reuse.**
+   `BacktestEvaluation` carries a `CalibrationReport` Pydantic model.
+   The HTML report renderer and the live `calibration` CLI consume
+   the same shape. No duplicate templates; touching one updates both.
+9. **Off-corp execution is a real environment, not a debugging aid.**
+   Walmart wifi blocks GDELT (DNS). Integration tests REQUIRE
+   off-corp execution. `scripts/run_integration_offcorp.sh` checks
+   this upfront via `gecgithub01.walmart.com` reachability inversion
+   (corp-only host → unreachable means off-corp).
+10. **Sed surgery > re-typing 200-line markdown.** When updating a
+    plan doc with stale duplicate sections, `sed -i '' '125,319d'`
+    is the right tool. Just verify the line numbers with `grep -n`
+    first.
 
 ### Meta-lesson (recurring)
 When we agree on a build plan together, sticking to it is the contract.

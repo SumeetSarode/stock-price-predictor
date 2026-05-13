@@ -1,11 +1,12 @@
 # 📈 Predictor — Project Description
 
-> **Status:** 🚧 v1 in progress — `predict` + `grade` + `calibration`
-> shipped end-to-end (1021 unit tests passing). Backtest replay + concurrency
-> still ahead.
+> **Status:** ✅ **v1 DONE** — full predict → backtest loop shipped
+> end-to-end (1576 unit tests passing). Survivorship-bias-aware
+> historical backtest via `--index NIFTY50` and point-in-time honest
+> data replay via `as_of` contextvar both shipped.
 > **Owner:** Sumeet
 > **Codename:** *Predictor* (placeholder — final name TBD)
-> **Last updated:** 2026-04-28
+> **Last updated:** 2026-05-12
 
 > This is the **canonical full spec** — problem, design, output schema,
 > decisions, risks. For practical "how do I run it" content see
@@ -14,21 +15,23 @@
 
 ---
 
-## 0. 🟢 Current state (added 2026-04-28; refreshed post multi-horizon refactor)
+## 0. 🟢 Current state (refreshed 2026-05-12; v1 DONE)
 
 | Layer | Status |
 |---|---|
 | Data layer (prices / news / estimates / filings) | ✅ shipped |
-| KB (Nifty50 registry) | ✅ shipped |
+| KB (Nifty50 registry + historical NIFTY 50 membership) | ✅ shipped |
 | Analysis primitives (trend / momentum / volatility / levels / patterns) | ✅ shipped |
 | ADK agents (price / news / technical / synthesizer) | ✅ shipped |
 | Prediction pipeline (predict / predict-many / store) | ✅ shipped |
 | **Multi-horizon predictions** (daily / weekly / biweekly / monthly per ticker) | ✅ shipped |
 | Per-horizon rules (ATR bands, entry zones, confidence caps) — single source of truth in `prediction/horizon_constants.py` consulted by both guardrails and the LLM prompt | ✅ shipped |
 | Grading + Calibration (3 hit-rate variants · Brier · sqrt-t NEUTRAL band) | ✅ shipped |
-| Backtest replay / runner / evaluator | ⏸️ not started |
-| Concurrency / scale (rate-limit-aware router) | ⏸️ not started |
-| LightRAG knowledge layer (Phase 2) | ⏸️ not started |
+| Point-in-time honest replay (news + filings filtered by `as_of` contextvar) | ✅ shipped |
+| **Backtest replay / runner / evaluator + HTML report** | ✅ **shipped (v1 acceptance)** |
+| **Survivorship-bias defense** (`--index NIFTY50` walks Wikipedia event log backwards) | ✅ **shipped (v1 acceptance)** |
+| Concurrency / scale (rate-limit-aware router) | ⏸️ post-v1 (Option B) |
+| LightRAG knowledge layer (Phase 2) | ⏸️ Option C |
 
 > **Note on §10 schema below**: the canonical spec shows
 > `predictions: { daily, weekly }` as one bundle. The shipped
