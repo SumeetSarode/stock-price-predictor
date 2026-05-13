@@ -1,0 +1,471 @@
+{
+  "NIFTY50": {
+    "display_name": "Nifty 50",
+    "source_url": "https://en.wikipedia.org/wiki/NIFTY_50",
+    "fetched_at": "2026-05-13T03:35:22+00:00",
+    "history_starts": "2015-01-01",
+    "current_snapshot_date": "2026-05-12",
+    "current_members": [
+      "ADANIENT.NS",
+      "ADANIPORTS.NS",
+      "APOLLOHOSP.NS",
+      "ASIANPAINT.NS",
+      "AXISBANK.NS",
+      "BAJAJ-AUTO.NS",
+      "BAJAJFINSV.NS",
+      "BAJFINANCE.NS",
+      "BEL.NS",
+      "BHARTIARTL.NS",
+      "CIPLA.NS",
+      "COALINDIA.NS",
+      "DRREDDY.NS",
+      "EICHERMOT.NS",
+      "ETERNAL.NS",
+      "GRASIM.NS",
+      "HCLTECH.NS",
+      "HDFCBANK.NS",
+      "HDFCLIFE.NS",
+      "HINDALCO.NS",
+      "HINDUNILVR.NS",
+      "ICICIBANK.NS",
+      "INDIGO.NS",
+      "INFY.NS",
+      "ITC.NS",
+      "JIOFIN.NS",
+      "JSWSTEEL.NS",
+      "KOTAKBANK.NS",
+      "LT.NS",
+      "M&M.NS",
+      "MARUTI.NS",
+      "MAXHEALTH.NS",
+      "NESTLEIND.NS",
+      "NTPC.NS",
+      "ONGC.NS",
+      "POWERGRID.NS",
+      "RELIANCE.NS",
+      "SBILIFE.NS",
+      "SBIN.NS",
+      "SHRIRAMFIN.NS",
+      "SUNPHARMA.NS",
+      "TATACONSUM.NS",
+      "TATASTEEL.NS",
+      "TCS.NS",
+      "TECHM.NS",
+      "TITAN.NS",
+      "TMPV.NS",
+      "TRENT.NS",
+      "ULTRACEMCO.NS",
+      "WIPRO.NS"
+    ],
+    "events": [
+      {
+        "symbol": "HEROMOTOCO.NS",
+        "action": "removed",
+        "date": "2025-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "INDUSINDBK.NS",
+        "action": "removed",
+        "date": "2025-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "INDIGO.NS",
+        "action": "added",
+        "date": "2025-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "MAXHEALTH.NS",
+        "action": "added",
+        "date": "2025-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BPCL.NS",
+        "action": "removed",
+        "date": "2025-03-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BRITANNIA.NS",
+        "action": "removed",
+        "date": "2025-03-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "JIOFIN.NS",
+        "action": "added",
+        "date": "2025-03-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "ETERNAL.NS",
+        "action": "added",
+        "date": "2025-03-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "DIVISLAB.NS",
+        "action": "removed",
+        "date": "2024-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "LTIM.NS",
+        "action": "removed",
+        "date": "2024-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BEL.NS",
+        "action": "added",
+        "date": "2024-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "TRENT.NS",
+        "action": "added",
+        "date": "2024-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "UPL.NS",
+        "action": "removed",
+        "date": "2024-03-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "SHRIRAMFIN.NS",
+        "action": "added",
+        "date": "2024-03-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "HDFC.NS",
+        "action": "removed",
+        "date": "2023-07-13",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "LTIM.NS",
+        "action": "added",
+        "date": "2023-07-13",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "SHREECEM.NS",
+        "action": "removed",
+        "date": "2022-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "ADANIENT.NS",
+        "action": "added",
+        "date": "2022-09-30",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "IOC.NS",
+        "action": "removed",
+        "date": "2022-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "APOLLOHOSP.NS",
+        "action": "added",
+        "date": "2022-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "GAIL.NS",
+        "action": "removed",
+        "date": "2021-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "TATACONSUM.NS",
+        "action": "added",
+        "date": "2021-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "ZEEL.NS",
+        "action": "removed",
+        "date": "2020-09-25",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "INFRATEL.NS",
+        "action": "removed",
+        "date": "2020-09-25",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "SBILIFE.NS",
+        "action": "added",
+        "date": "2020-09-25",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "DIVISLAB.NS",
+        "action": "added",
+        "date": "2020-09-25",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "VEDL.NS",
+        "action": "removed",
+        "date": "2020-07-31",
+        "reason": "Proposed delisting"
+      },
+      {
+        "symbol": "HDFCLIFE.NS",
+        "action": "added",
+        "date": "2020-07-31",
+        "reason": "Proposed delisting"
+      },
+      {
+        "symbol": "YESBANK.NS",
+        "action": "removed",
+        "date": "2020-03-19",
+        "reason": "Reconstruction scheme"
+      },
+      {
+        "symbol": "SHREECEM.NS",
+        "action": "added",
+        "date": "2020-03-19",
+        "reason": "Reconstruction scheme"
+      },
+      {
+        "symbol": "IBULHSGFIN.NS",
+        "action": "removed",
+        "date": "2019-09-27",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "NESTLEIND.NS",
+        "action": "added",
+        "date": "2019-09-27",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "HINDPETRO.NS",
+        "action": "removed",
+        "date": "2019-03-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BRITANNIA.NS",
+        "action": "added",
+        "date": "2019-03-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "LUPIN.NS",
+        "action": "removed",
+        "date": "2018-09-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "JSWSTEEL.NS",
+        "action": "added",
+        "date": "2018-09-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "AMBUJACEM.NS",
+        "action": "removed",
+        "date": "2018-04-02",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "AUROPHARMA.NS",
+        "action": "removed",
+        "date": "2018-04-02",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BOSCHLTD.NS",
+        "action": "removed",
+        "date": "2018-04-02",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BAJAJFINSV.NS",
+        "action": "added",
+        "date": "2018-04-02",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "GRASIM.NS",
+        "action": "added",
+        "date": "2018-04-02",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "TITAN.NS",
+        "action": "added",
+        "date": "2018-04-02",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "ACC.NS",
+        "action": "removed",
+        "date": "2017-09-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BANKBARODA.NS",
+        "action": "removed",
+        "date": "2017-09-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "TATAPOWER.NS",
+        "action": "removed",
+        "date": "2017-09-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "BAJFINANCE.NS",
+        "action": "added",
+        "date": "2017-09-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "HINDPETRO.NS",
+        "action": "added",
+        "date": "2017-09-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "UPL.NS",
+        "action": "added",
+        "date": "2017-09-29",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "GRASIM.NS",
+        "action": "removed",
+        "date": "2017-05-26",
+        "reason": "Demerger"
+      },
+      {
+        "symbol": "VEDL.NS",
+        "action": "added",
+        "date": "2017-05-26",
+        "reason": "Demerger"
+      },
+      {
+        "symbol": "BHEL.NS",
+        "action": "removed",
+        "date": "2017-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "IDEA.NS",
+        "action": "removed",
+        "date": "2017-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "IBULHSGFIN.NS",
+        "action": "added",
+        "date": "2017-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "IOC.NS",
+        "action": "added",
+        "date": "2017-03-31",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "CAIRN.NS",
+        "action": "removed",
+        "date": "2016-04-01",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "PNB.NS",
+        "action": "removed",
+        "date": "2016-04-01",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "VEDL.NS",
+        "action": "removed",
+        "date": "2016-04-01",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "AUROPHARMA.NS",
+        "action": "added",
+        "date": "2016-04-01",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "INFRATEL.NS",
+        "action": "added",
+        "date": "2016-04-01",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "EICHERMOT.NS",
+        "action": "added",
+        "date": "2016-04-01",
+        "reason": "Merger"
+      },
+      {
+        "symbol": "NMDC.NS",
+        "action": "removed",
+        "date": "2015-09-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "ADANIPORTS.NS",
+        "action": "added",
+        "date": "2015-09-28",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "IDFC.NS",
+        "action": "removed",
+        "date": "2015-05-29",
+        "reason": "Demerger"
+      },
+      {
+        "symbol": "BOSCHLTD.NS",
+        "action": "added",
+        "date": "2015-05-29",
+        "reason": "Demerger"
+      },
+      {
+        "symbol": "DLF.NS",
+        "action": "removed",
+        "date": "2015-03-27",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "JINDALSTEL.NS",
+        "action": "removed",
+        "date": "2015-03-27",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "IDEA.NS",
+        "action": "added",
+        "date": "2015-03-27",
+        "reason": "Inadequate market capitalization"
+      },
+      {
+        "symbol": "YESBANK.NS",
+        "action": "added",
+        "date": "2015-03-27",
+        "reason": "Inadequate market capitalization"
+      }
+    ]
+  }
+}

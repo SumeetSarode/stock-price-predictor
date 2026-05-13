@@ -24,6 +24,7 @@ data/kb/*
 # clone has working data without re-running the bootstrap script.
 !data/kb/stocks.json
 !data/kb/indices.json
+!data/kb/index_membership.json
 data/logs/*.log
 data/logs/*.log.gz
 data/outputs/*.json
