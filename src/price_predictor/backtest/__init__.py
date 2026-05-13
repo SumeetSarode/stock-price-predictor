@@ -15,6 +15,11 @@ Evaluation (grading + calibration):
     evaluate_backtest(run, **opts) -> BacktestEvaluation
     BacktestEvaluation  -- graded run + overall + per-axis breakdowns
 
+Report (HTML + insights):
+    render_html_report(eval) -> str
+    write_html_report(eval, path) -> Path
+    generate_insights(eval) -> list[Insight]
+
 USAGE
 =====
 Basic backtest of one ticker over Q1 2024, daily horizon, every
@@ -53,6 +58,15 @@ from price_predictor.backtest.evaluation import (
     BacktestEvaluation,
     evaluate_backtest,
 )
+from price_predictor.backtest.html_report import (
+    render_html_report,
+    write_html_report,
+)
+from price_predictor.backtest.insights import (
+    Insight,
+    InsightLevel,
+    generate_insights,
+)
 from price_predictor.backtest.runner import (
     BacktestError,
     BacktestProgress,
@@ -66,8 +80,13 @@ __all__ = [
     "BacktestEvaluation",
     "BacktestProgress",
     "BacktestRun",
+    "Insight",
+    "InsightLevel",
     "ProgressCallback",
     "evaluate_backtest",
+    "generate_insights",
+    "render_html_report",
     "run_backtest",
     "trading_days_in_range",
+    "write_html_report",
 ]
