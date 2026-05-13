@@ -41,6 +41,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from price_predictor.cli.backtest_cmd import backtest_command
 from price_predictor.config.settings import settings
 from price_predictor.prediction import (
     BatchError,
@@ -535,6 +536,12 @@ def calibration(
 
     breakdown = compute_breakdown(graded, _BREAKDOWN_KEYS[by])
     console.print(_render_breakdown(breakdown, by))
+
+
+# ─────────────────────────────────────────────────────────────
+# External commands (kept in their own modules for cohesion / size)
+# ─────────────────────────────────────────────────────────────
+app.command(name="backtest")(backtest_command)
 
 
 # ─────────────────────────────────────────────────────────────
