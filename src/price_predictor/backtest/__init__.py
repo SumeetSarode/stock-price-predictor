@@ -73,6 +73,7 @@ from price_predictor.backtest.runner import (
     BacktestRun,
     ProgressCallback,
     run_backtest,
+    run_backtest_grid,
 )
 
 __all__ = [
@@ -87,6 +88,7 @@ __all__ = [
     "generate_insights",
     "render_html_report",
     "run_backtest",
+    "run_backtest_grid",
     "trading_days_in_range",
     "write_html_report",
 ]

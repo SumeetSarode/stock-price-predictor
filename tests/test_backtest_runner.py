@@ -488,3 +488,134 @@ class TestConcurrency:
 
         assert peak <= 2, f"concurrency cap violated: peak={peak}"
         assert peak >= 1  # at least one call ran (sanity)
+
+
+# ─────────────────────────────────────────────────────────────
+# run_backtest_grid -- explicit (ticker, as_of) pairs
+#
+# These tests exercise the API used by survivorship-aware index
+# backtests where the ticker set varies per date. The thin wrapper
+# (`run_backtest`) is exercised by the suite above; here we only
+# test the new explicit-pairs surface.
+# ─────────────────────────────────────────────────────────────
+from price_predictor.backtest import run_backtest_grid  # noqa: E402
+
+
+class TestGridValidation:
+    def test_empty_pairs_raises(self):
+        with pytest.raises(ValueError, match="pairs list is empty"):
+            _run(run_backtest_grid([], [PredictionHorizon.WEEKLY]))
+
+    def test_empty_horizons_raises(self):
+        with pytest.raises(ValueError, match="horizons list is empty"):
+            _run(run_backtest_grid(
+                [("RELIANCE.NS", date(2024, 6, 14))], [],
+            ))
+
+    def test_concurrency_zero_raises(self):
+        with pytest.raises(ValueError, match="concurrency must be >= 1"):
+            _run(run_backtest_grid(
+                [("RELIANCE.NS", date(2024, 6, 14))],
+                [PredictionHorizon.WEEKLY],
+                concurrency=0,
+            ))
+
+
+class TestGridSparseShape:
+    """The whole point of grid mode: NOT cartesian."""
+
+    @patch("price_predictor.backtest.runner.predict", new_callable=AsyncMock)
+    def test_sparse_pairs_only_those_pairs_called(self, mock_predict):
+        """Pairs [(A, d1), (B, d2)] -- A is NOT predicted on d2 and
+        B is NOT predicted on d1. This is what survivorship-aware
+        index backtests need: a ticker only runs on dates it was
+        actually a member.
+        """
+        mock_predict.side_effect = lambda t, h, **kw: _multi_horizon_result(
+            t, kw["as_of"], h,
+        )
+        d1, d2 = date(2024, 6, 13), date(2024, 6, 14)
+        pairs = [("A.NS", d1), ("B.NS", d2)]
+
+        run = _run(run_backtest_grid(pairs, [PredictionHorizon.WEEKLY]))
+
+        assert mock_predict.await_count == 2
+        called = {
+            (c.args[0], c.kwargs["as_of"])
+            for c in mock_predict.await_args_list
+        }
+        assert called == {("A.NS", d1), ("B.NS", d2)}
+        # Crucially, A was NOT called on d2 and B was NOT called on d1.
+        assert ("A.NS", d2) not in called
+        assert ("B.NS", d1) not in called
+
+    @patch("price_predictor.backtest.runner.predict", new_callable=AsyncMock)
+    def test_run_metadata_carries_unions_not_cartesian(self, mock_predict):
+        """BacktestRun.tickers / .as_of_dates echo the UNION of what
+        appeared in pairs -- the cartesian shape is gone (which is
+        correct for sparse runs)."""
+        mock_predict.side_effect = lambda t, h, **kw: _multi_horizon_result(
+            t, kw["as_of"], h,
+        )
+        d1 = date(2024, 6, 12)
+        d2 = date(2024, 6, 13)
+        d3 = date(2024, 6, 14)
+        # A on d1, d2; B on d2, d3.  Union: {A, B} x {d1, d2, d3}
+        # would be 6 cartesian pairs, but we only run 4 here.
+        pairs = [
+            ("A.NS", d1), ("A.NS", d2),
+            ("B.NS", d2), ("B.NS", d3),
+        ]
+
+        run = _run(run_backtest_grid(pairs, [PredictionHorizon.WEEKLY]))
+
+        assert set(run.tickers) == {"A.NS", "B.NS"}
+        assert set(run.as_of_dates) == {d1, d2, d3}
+        # The legacy n_pairs_attempted property uses
+        # len(tickers) * len(dates) -- on a sparse grid that
+        # OVER-counts vs reality. Sparse callers should use
+        # len(run.predictions) / len(horizons) instead.
+        assert len(run.predictions) == 4  # 4 pairs x 1 horizon
+
+    @patch("price_predictor.backtest.runner.predict", new_callable=AsyncMock)
+    def test_dedup_pairs(self, mock_predict):
+        """Duplicate pairs collapse; predict() called once per unique pair."""
+        mock_predict.side_effect = lambda t, h, **kw: _multi_horizon_result(
+            t, kw["as_of"], h,
+        )
+        d = date(2024, 6, 14)
+        pairs = [("A.NS", d), ("A.NS", d), ("B.NS", d)]
+
+        run = _run(run_backtest_grid(pairs, [PredictionHorizon.WEEKLY]))
+
+        assert mock_predict.await_count == 2
+        assert len(run.predictions) == 2
+
+
+class TestGridBackwardCompat:
+    """`run_backtest` should still behave identically; it now just
+    delegates to run_backtest_grid internally. Catch any regressions
+    where the wrapper drifts from the underlying contract."""
+
+    @patch("price_predictor.backtest.runner.predict", new_callable=AsyncMock)
+    def test_wrapper_produces_same_predictions_as_explicit_grid(
+        self, mock_predict,
+    ):
+        mock_predict.side_effect = lambda t, h, **kw: _multi_horizon_result(
+            t, kw["as_of"], h,
+        )
+        tickers = ["A.NS", "B.NS"]
+        dates = [date(2024, 6, 13), date(2024, 6, 14)]
+        horizons = [PredictionHorizon.WEEKLY]
+
+        run_a = _run(run_backtest(tickers, dates, horizons))
+
+        # Reset mock; run the explicit-grid equivalent.
+        mock_predict.reset_mock()
+        explicit_pairs = [(t, d) for t in tickers for d in dates]
+        run_b = _run(run_backtest_grid(explicit_pairs, horizons))
+
+        def pair_set(r):
+            return {(p.ticker, p.as_of.date()) for p in r.predictions}
+        assert len(run_a.predictions) == len(run_b.predictions) == 4
+        assert pair_set(run_a) == pair_set(run_b)

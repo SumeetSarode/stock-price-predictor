@@ -193,6 +193,14 @@ async def run_backtest(
 ) -> BacktestRun:
     """Sweep predict() across (ticker x as_of) and collect everything.
 
+    Cartesian-product convenience wrapper around :func:`run_backtest_grid`.
+    Use this when every ticker should be predicted on every date (the
+    common single-ticker or fixed-basket case). For survivorship-bias-
+    aware index backtests where the ticker set varies per date, build
+    explicit pairs and call :func:`run_backtest_grid` directly -- THIS
+    function would over-include defunct tickers on dates they weren't
+    members.
+
     Args:
         tickers: Stock symbols to backtest. Duplicates removed,
             order-preserving (same convention as predict_many).
@@ -233,25 +241,16 @@ async def run_backtest(
         raise ValueError("run_backtest: tickers list is empty")
     if not as_of_dates:
         raise ValueError("run_backtest: as_of_dates list is empty")
-    if not horizons:
-        raise ValueError("run_backtest: horizons list is empty")
-    if concurrency < 1:
-        raise ValueError(
-            f"run_backtest: concurrency must be >= 1 (got {concurrency})"
-        )
 
     # ── Dedupe inputs. Preserves first-occurrence order via dict trick.
     unique_tickers = list(dict.fromkeys(tickers))
     unique_dates = list(dict.fromkeys(as_of_dates))
-    unique_horizons = list(dict.fromkeys(horizons))
     if (len(unique_tickers) < len(tickers)
-        or len(unique_dates) < len(as_of_dates)
-        or len(unique_horizons) < len(horizons)):
+        or len(unique_dates) < len(as_of_dates)):
         logger.info(
             f"run_backtest: deduplicated inputs "
             f"(tickers {len(tickers)}->{len(unique_tickers)}, "
-            f"dates {len(as_of_dates)}->{len(unique_dates)}, "
-            f"horizons {len(horizons)}->{len(unique_horizons)})"
+            f"dates {len(as_of_dates)}->{len(unique_dates)})"
         )
 
     # ── Build the work grid: cartesian (ticker x as_of). Order is
@@ -260,11 +259,96 @@ async def run_backtest(
     pairs: list[tuple[str, date]] = [
         (t, d) for t in unique_tickers for d in unique_dates
     ]
-    total_pairs = len(pairs)
+    return await run_backtest_grid(
+        pairs,
+        horizons,
+        sensitivity=sensitivity,
+        store=store,
+        concurrency=concurrency,
+        progress_callback=progress_callback,
+    )
+
+
+async def run_backtest_grid(
+    pairs: list[tuple[str, date]],
+    horizons: list[PredictionHorizon],
+    *,
+    sensitivity: Sensitivity = "standard",
+    store: PredictionStore | None = None,
+    concurrency: int = 3,
+    progress_callback: ProgressCallback | None = None,
+) -> BacktestRun:
+    """Sweep predict() over an EXPLICIT (ticker, as_of) pair list.
+
+    Use this when the ticker set varies per date -- e.g. an index
+    backtest where membership.members_on(d) gives you a different
+    50 tickers each quarter. ``run_backtest`` is a convenience wrapper
+    around this for the cartesian-product case.
+
+    The ``BacktestRun`` returned echoes the UNION of tickers and the
+    UNION of dates seen in ``pairs`` -- the cartesian shape is lost,
+    which matches the survivorship-aware reality (not every ticker
+    was predicted on every date).
+
+    Args:
+        pairs: Explicit (ticker, as_of_date) work units. Duplicates
+            are removed preserving first-occurrence order. An empty
+            list is a caller bug -- raises ValueError.
+        horizons: As per :func:`run_backtest`. Predicted in one
+            ``predict()`` call per pair (cheap to add more).
+        sensitivity: Indicator preset, applied uniformly.
+        store: Optional. As per :func:`run_backtest` -- eager save
+            for crash resilience.
+        concurrency: Maximum in-flight ``predict()`` calls. Cap is
+            on PAIRS, so a run of 1 ticker x 245 dates still gets
+            the requested parallelism.
+        progress_callback: Optional sync callback per completed pair.
+
+    Returns:
+        ``BacktestRun`` with flat predictions list + per-pair errors
+        + timing + config echo. ``tickers`` / ``as_of_dates`` fields
+        carry the UNION (deduped, order-preserving) of what appeared
+        in ``pairs``.
+
+    Raises:
+        ValueError: empty pairs / empty horizons / concurrency<1.
+    """
+    if not pairs:
+        raise ValueError("run_backtest_grid: pairs list is empty")
+    if not horizons:
+        raise ValueError("run_backtest_grid: horizons list is empty")
+    if concurrency < 1:
+        raise ValueError(
+            f"run_backtest_grid: concurrency must be >= 1 (got {concurrency})"
+        )
+
+    # Dedupe pairs preserving first-occurrence order. Same dict-key trick
+    # we use elsewhere -- (str, date) tuples are hashable.
+    unique_pairs = list(dict.fromkeys(pairs))
+    if len(unique_pairs) < len(pairs):
+        logger.info(
+            f"run_backtest_grid: deduplicated pairs "
+            f"({len(pairs)} -> {len(unique_pairs)})"
+        )
+
+    unique_horizons = list(dict.fromkeys(horizons))
+    if len(unique_horizons) < len(horizons):
+        logger.info(
+            f"run_backtest_grid: deduplicated horizons "
+            f"({len(horizons)} -> {len(unique_horizons)})"
+        )
+
+    # Derive the ticker / date unions for BacktestRun's config echo.
+    # Order-preserving so logs and reports are reproducible.
+    union_tickers = list(dict.fromkeys(t for t, _ in unique_pairs))
+    union_dates = list(dict.fromkeys(d for _, d in unique_pairs))
+
+    total_pairs = len(unique_pairs)
     started_at = datetime.now(timezone.utc)
     logger.info(
-        f"run_backtest: starting -- {len(unique_tickers)} ticker(s) x "
-        f"{len(unique_dates)} date(s) = {total_pairs} pair(s), "
+        f"run_backtest_grid: starting -- {total_pairs} pair(s) "
+        f"({len(union_tickers)} unique ticker(s) x "
+        f"{len(union_dates)} unique date(s); not necessarily cartesian), "
         f"{len(unique_horizons)} horizon(s) per pair, "
         f"concurrency={concurrency}"
     )
@@ -345,11 +429,11 @@ async def run_backtest(
     # Fan out all pairs. asyncio.gather respects the semaphore;
     # we don't need return_exceptions because _one_pair captures
     # everything internally (so its return is always None).
-    await asyncio.gather(*(_one_pair(t, d) for t, d in pairs))
+    await asyncio.gather(*(_one_pair(t, d) for t, d in unique_pairs))
 
     finished_at = datetime.now(timezone.utc)
     logger.info(
-        f"run_backtest: done in {(finished_at - started_at).total_seconds():.1f}s "
+        f"run_backtest_grid: done in {(finished_at - started_at).total_seconds():.1f}s "
         f"-- {successes} pair(s) succeeded, {failures} failed, "
         f"{len(predictions)} prediction(s) total"
     )
@@ -359,8 +443,8 @@ async def run_backtest(
         errors=errors,
         started_at=started_at,
         finished_at=finished_at,
-        tickers=tuple(unique_tickers),
-        as_of_dates=tuple(unique_dates),
+        tickers=tuple(union_tickers),
+        as_of_dates=tuple(union_dates),
         horizons=tuple(unique_horizons),
         sensitivity=sensitivity,
         concurrency=concurrency,
