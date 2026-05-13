@@ -117,9 +117,10 @@ This section reflects the implementation path implied by the README and our disc
 | 3.5.2 | Calibration logic (`prediction/calibration.py`) | ✅ done | `CalibrationReport` (frozen Pydantic) + `compute_calibration()` + `compute_breakdown()`. Three hit-rate variants (strict / resolved / optimistic), Brier score for confidence calibration, direction accuracy, mean+median return. 20 tests. |
 | 3.5.3 | Grading core (`prediction/grading.py`) **(NEW — not in original plan)** | ✅ done | `GradedPrediction` + `grade_one()` (per-prediction, pure function on OHLCV) + `grade_many()` (orchestration with injected fetcher). 6 outcome enum: target_hit / stop_hit / stop_hit_ambiguous / expired / not_applicable / inconclusive. Same-bar T+S ambiguity surfaced as a first-class outcome. 34 tests. |
 | 3.5.4 | CLI surface for grading + calibration | ✅ done | `price-predictor grade` + `calibration` (with `--by horizon|ticker|direction|month` breakdowns). Dispatch-dict for breakdown axes (open/closed). |
-| 3.5.5 | Replay layer (`backtest/replay.py`) | not started | Honest as-of-date simulation for historical backtest |
-| 3.5.6 | Backtest runner (`backtest/runner.py`) | not started | Historical loop over dates |
-| 3.5.7 | Evaluator (`backtest/evaluator.py`) | not started | Compose calibration metrics across backtest runs |
+| 3.5.5 | Replay layer (`backtest/replay.py` — actually shipped as point-in-time news replay via contextvar + NewsSnapshot store, Step 1.5) | ✅ done | News articles published AFTER the as-of date are filtered out at fetch time. Predict() against 2018 prices does NOT see 2024 news. |
+| 3.5.6 | Backtest runner (`backtest/runner.py`) | ✅ done | `run_backtest(tickers, dates, ...)` (cartesian) + `run_backtest_grid(pairs, ...)` (sparse, for survivorship-aware index runs). Concurrency-bounded, eager-save to PredictionStore, per-pair error capture, Rich progress callback. |
+| 3.5.7 | Evaluator (`backtest/evaluator.py`) | ✅ done | `evaluate_backtest(run)` composes existing grading + calibration into a `BacktestEvaluation` artifact. HTML report + rule-based insights renderer (`backtest/html_report.py` + `backtest/insights.py`). CLI: `price-predictor backtest --start ... --end ... [--tickers ... | --index NIFTY50]`. End-to-end integration test gates wall-clock <5min. |
+| 3.5.8 | Survivorship-bias defense (NEW — not in original plan) | ✅ done | `kb/membership.py` walks the Wikipedia event log backwards from today's NIFTY 50 to reconstruct historical constituents on any as-of date. `backtest --index NIFTY50` consumes it via `_expand_index_to_pairs` → `run_backtest_grid`. A 2018 backtest predicts the 2018 NIFTY 50, not today's. |
 
 ### 3.6 Concurrency and scale
 
@@ -143,59 +144,62 @@ This section reflects the implementation path implied by the README and our disc
 
 ## 5) Immediate next step
 
-### Current state (as of 2026-04-28, post multi-horizon refactor)
+### Current state (as of 2026-05-12, **v1 DONE**)
 
-**Step 3.5 (grading + calibration) shipped + Step 3.4.6 (multi-horizon
-hardening) shipped.** The v1 prediction loop is now closed end-to-end
-AND honestly multi-horizon:
+**Option A (backtest replay + runner + evaluator + survivorship-bias
++ integration test) shipped.** v1 is feature-complete and gated
+end-to-end. The full loop is now:
 
-  prediction (×4 horizons fanned out) → persistence → grading (per-horizon
-  tolerances) → calibration
+  prediction (×4 horizons) → persistence → grading
+  → calibration → historical replay (point-in-time) → backtest
+  runner (cartesian OR sparse via --index) → evaluator → HTML report
 
 **What's working today:**
 - 5 ADK agents shipped: `hello_agent`, `price_agent`, `news_impact`,
   `technical_agent`, `synthesizer`
-- 5 CLI commands: `predict`, `predict-many`, `history`, `grade`, `calibration`
-- **1021 unit tests passing, 1 skipped**, 7 integration tests deselected
-  (run off-corp). Up from 854 pre-multi-horizon.
-- All v1 data layers (prices, news, estimates, filings) shipped and verified
+- 7 CLI commands: `predict`, `predict-many`, `history`, `grade`,
+  `calibration`, `backtest --tickers`, `backtest --index NIFTY50`
+- **1576 unit tests passing**, 8 integration tests deselected by
+  default (run off-corp via `pytest -m integration`). Up from 1021
+  pre-Option-A.
+- All v1 data layers (prices, news, estimates, filings, KB-membership) shipped + verified
 - All v1 analysis primitives (trend / momentum / volatility / levels / patterns) shipped
 - All v1 prediction infrastructure (predict, predict_many, store, grade, calibration) shipped
-- **Honest multi-horizon**: `predict()` fans out across DAILY / WEEKLY /
-  BIWEEKLY / MONTHLY in parallel; each horizon has its own ATR bands,
-  entry zone, and confidence cap; guardrails enforce them; LLM prompt
-  is taught the same numbers; tests prove no drift.
+- **Honest historical replay**: news + filings filtered by
+  `published_at` / `announced_at` against the as-of date via the
+  Step 1.5 contextvar. Predict() against 2018 prices won't see
+  2024 news.
+- **Honest survivorship-bias defense**: `--index NIFTY50` walks
+  the Wikipedia event log backwards from today's 50 to reconstruct
+  the historical constituents on each as-of date. A 2018 backtest
+  predicts the 2018 NIFTY 50, not today's.
+- **Honest multi-horizon**: `predict()` fans out across DAILY /
+  WEEKLY / BIWEEKLY / MONTHLY in parallel; each horizon has its
+  own ATR bands, entry zone, and confidence cap; guardrails
+  enforce them; LLM prompt is taught the same numbers; tests prove
+  no drift.
 
-**What's NOT yet shipped for v1:**
-- 3.5.5–3.5.7: backtest replay + runner + evaluator (calibration today only
-  works on real-elapsed-time predictions; backtest would let us calibrate
-  against historical years of data)
-- 3.6: concurrency + scale (predict_many is bounded-concurrent but rate-limit
-  routing is naive)
+**What's NOT yet shipped (post-v1):**
+- 3.6: concurrency + rate-limit-aware LLM router (the integration
+  test surfaced this as the next real pain point; the naive
+  Groq/Gemini chain can't sustain NIFTY 50 × months runs)
+- 4.1: LightRAG knowledge layer (Phase 2)
 
-### Three reasonable next moves — user picks
+### Three reasonable next moves — user picks (post-v1)
 
-**Option A: Step 3.6 — concurrency & scale**
-Make multi-stock prediction runs fast and rate-limit-aware. `concurrency/runner.py`
-with semaphores + rate-limit-aware LLM router (Groq → Gemini fallback).
-Unblocks production-scale runs (Nifty50 in ~5 min target). ~3-5 commits.
+**Option B: Step 3.6 — concurrency & rate-limit-aware router (recommended)**
+Backtest revealed the real rate-limit pain (integration test on 12
+pairs blew through the Gemini daily quota). Wraps `llm/factory.py`
+with provider fallback on 429, exponential backoff, token budgeting.
+~3-5 commits.
 
-**Option B: Steps 3.5.5–3.5.7 — backtest replay + runner + evaluator**
-The remaining half of "tracking + backtesting." Today we can grade real
-elapsed-time predictions; backtest would let us run the whole pipeline against
-2 years of historical data and answer "would this system have made money?"
-Bigger lift — needs as-of-date data shim, prediction replay, evaluator that
-composes calibration metrics across runs. ~5-7 commits.
+**Option C: Step 4.1 — LightRAG knowledge layer (Phase 2)**
+Big quality bump for predictions, not v1-critical. ~5-7 commits.
 
-**Option C: Step 4.1 — LightRAG knowledge layer**
-Phase-2 work. Persistent retrieval over the news/filings corpus so agents
-can cite historical context ("this looks like the Q3 2024 announcement
-that moved the stock 8%"). Nice but not v1-critical. ~5-7 commits.
-
-**Option D: Code-tour learning detour (no new code)**
-Walk through the 5 existing ADK agents end-to-end to build a complete
-mental model of how the system works. ~30 min, zero LOC. Helpful before
-tackling any of A/B/C.
+**Option D: Run a real backtest and write up findings**
+With v1 done, run `backtest --index NIFTY50 --start 2024-01-01
+--end 2024-12-31` (off-corp, with full Gemini quota), then write
+up the calibration findings. **No new code**; pure validation.
 
 ---
 
