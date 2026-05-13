@@ -220,10 +220,10 @@ the 1021 figure is the actual current `pytest --collect-only` count
 | Persistence migration to SQLite | JSON-on-disk wins below ~1M predictions | Above ~36k files/yr × 3 years = ~100k files |
 | Auto-adjust raw confidence based on calibration curve | v2+ idea from project desc §12; need more graded predictions before this means anything | After 100+ graded predictions accumulate |
 | Hourly intraday backtest cadence | Free data sources don't reliably provide intraday history | Paid intraday source becomes available |
-| Survivorship-bias handling | Becomes an actual concern only when backtest exists | Step 3.5.5 design |
 
 ### Removed from parking (now done)
 
+- ~~Survivorship-bias handling~~ — shipped as Step 2.5 (kb.membership + bootstrap_membership_history.py + data/kb/index_membership.json). CLI integration deferred to Step 2.6.
 - ~~Stooq / NSE direct provider~~ — landed in Provider Expansion (post-C)
 - ~~yfinance fallback chain~~ — same
 - ~~Backtesting framework~~ — partially: grading + calibration shipped; replay/runner/evaluator are Option A above
