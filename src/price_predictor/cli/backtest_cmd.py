@@ -53,8 +53,14 @@ from price_predictor.backtest import (
     BacktestRun,
     evaluate_backtest,
     run_backtest,
+    run_backtest_grid,
     trading_days_in_range,
     write_html_report,
+)
+from price_predictor.kb.membership import (
+    DEFAULT_INDEX,
+    MembershipDataError,
+    members_on,
 )
 from price_predictor.prediction.schema import PredictionHorizon
 
@@ -180,9 +186,45 @@ def _make_progress_callback(
     return _cb
 
 
-# ─────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
+# Index --> per-date pair expansion (survivorship-bias defense)
+# ────────────────────────────────────────────────────────────
+def _expand_index_to_pairs(
+    index: str, as_of_dates: list[date],
+) -> list[tuple[str, date]]:
+    """Build (ticker, as_of) pairs from an index code + a date schedule.
+
+    For each as_of date, looks up the historically-correct constituents
+    via :func:`kb.membership.members_on`. The output pair list is sparse
+    (a ticker only appears on dates it was actually a member) -- that's
+    the WHOLE POINT of survivorship-bias defense.
+
+    Lives here, not in backtest/, because expansion is a CLI concern:
+    the runner deliberately stays index-agnostic so it can be called
+    with any pair source (custom baskets, regulator-mandated lists,
+    factor screens, ...).
+
+    Raises:
+        typer.Exit(1): with a friendly red message on any
+            MembershipDataError (out-of-window date, missing JSON,
+            wrong index code, ...).
+    """
+    pairs: list[tuple[str, date]] = []
+    try:
+        for d in as_of_dates:
+            for sym in members_on(d, index=index):
+                pairs.append((sym, d))
+    except MembershipDataError as exc:
+        console.print(
+            f"[red]membership lookup failed for --index {index}: {exc}[/red]"
+        )
+        raise typer.Exit(code=1)
+    return pairs
+
+
+# ────────────────────────────────────────────────────────────
 # The command itself
-# ─────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
 def backtest_command(
     start: str = typer.Option(
         ..., "--start", help="Backtest window start, YYYY-MM-DD (inclusive).",
@@ -190,9 +232,20 @@ def backtest_command(
     end: str = typer.Option(
         ..., "--end", help="Backtest window end, YYYY-MM-DD (inclusive).",
     ),
-    tickers: str = typer.Option(
-        ..., "--tickers",
-        help="Comma-separated tickers, e.g. 'RELIANCE.NS,TCS.NS'.",
+    tickers: Optional[str] = typer.Option(
+        None, "--tickers",
+        help=(
+            "Comma-separated tickers, e.g. 'RELIANCE.NS,TCS.NS'. "
+            "Mutually exclusive with --index."
+        ),
+    ),
+    index: Optional[str] = typer.Option(
+        None, "--index",
+        help=(
+            "Index code (e.g. NIFTY50). Per as_of date, predicts only "
+            "the historical constituents on that date -- defends against "
+            "survivorship bias. Mutually exclusive with --tickers."
+        ),
     ),
     horizons: str = typer.Option(
         "weekly", "--horizons",
@@ -229,8 +282,21 @@ def backtest_command(
     a single command. Predictions are ephemeral by default; pass
     --save-predictions to persist them for follow-up `grade` /
     `calibration` queries.
+
+    Ticker source is one of:
+      --tickers RELIANCE.NS,TCS.NS  (explicit, fixed across all dates)
+      --index NIFTY50               (per-date historical constituents)
+
+    Exactly one must be supplied.
     """
     # ── 1. Validate user inputs (fail loud BEFORE any data fetch).
+    if (tickers is None) == (index is None):
+        # Both supplied OR both omitted -- both are caller bugs.
+        console.print(
+            "[red]Pass exactly one of --tickers or --index.[/red]"
+        )
+        raise typer.Exit(code=1)
+
     start_d = _parse_iso_date(start, label="start")
     end_d = _parse_iso_date(end, label="end")
     today = date.today()
@@ -241,7 +307,6 @@ def backtest_command(
         )
         raise typer.Exit(code=1)
 
-    ticker_list = _parse_csv_list(tickers, label="tickers")
     horizon_list = _parse_horizons(horizons)
 
     # ── 2. Build the trading-day schedule. trading_days_in_range
@@ -258,15 +323,41 @@ def backtest_command(
         )
         raise typer.Exit(code=1)
 
-    n_pairs = len(ticker_list) * len(as_of_dates)
-    console.print(
-        f"[dim]Scheduling {n_pairs} prediction(s): "
-        f"{len(ticker_list)} ticker(s) x {len(as_of_dates)} as-of date(s) "
-        f"x {len(horizon_list)} horizon(s) "
-        f"(stride={stride}).[/dim]"
-    )
+    # ── 3. Resolve ticker source -> work units.
+    #     --tickers is a flat list (cartesian with as_of_dates).
+    #     --index is a sparse pair list (membership varies per date).
+    if tickers is not None:
+        ticker_list = _parse_csv_list(tickers, label="tickers")
+        n_pairs = len(ticker_list) * len(as_of_dates)
+        console.print(
+            f"[dim]Scheduling {n_pairs} prediction pair(s): "
+            f"{len(ticker_list)} ticker(s) x {len(as_of_dates)} as-of date(s) "
+            f"x {len(horizon_list)} horizon(s) (stride={stride}).[/dim]"
+        )
+        pairs: list[tuple[str, date]] | None = None
+    else:
+        # --index path
+        index_code = (index or DEFAULT_INDEX).upper().strip()
+        pairs = _expand_index_to_pairs(index_code, as_of_dates)
+        if not pairs:
+            console.print(
+                f"[red]--index {index_code} produced 0 pairs in window "
+                f"{start_d}..{end_d}; check membership data.[/red]"
+            )
+            raise typer.Exit(code=1)
+        n_pairs = len(pairs)
+        # Display the union footprint so the user knows what's coming.
+        unique_tickers = {t for t, _ in pairs}
+        console.print(
+            f"[dim]Scheduling {n_pairs} prediction pair(s) via --index "
+            f"{index_code}: {len(unique_tickers)} unique historical "
+            f"ticker(s) across {len(as_of_dates)} as-of date(s) "
+            f"x {len(horizon_list)} horizon(s) (stride={stride}). "
+            f"Sparse: a ticker only runs on dates it was a member.[/dim]"
+        )
+        ticker_list = []  # not used in --index path
 
-    # ── 3. Optional eager-save store (matches existing CLI pattern).
+    # ── 4. Optional eager-save store (matches existing CLI pattern).
     store = None
     if save_predictions:
         # Lazy import: avoids paying the prediction package's deps when
@@ -278,16 +369,17 @@ def backtest_command(
             f"[dim]Saving each prediction to {settings.predictions_dir}.[/dim]"
         )
 
-    # ── 4. Run the backtest with a Rich progress bar.
+    # ── 5. Run the backtest with a Rich progress bar.
     run = _run_with_progress(
         ticker_list, as_of_dates, horizon_list,
         sensitivity=sensitivity,
         concurrency=concurrency,
         store=store,
         total_pairs=n_pairs,
+        pairs=pairs,
     )
 
-    # ── 5. Bail out if the whole run failed (no predictions to grade).
+    # ── 6. Bail out if the whole run failed (no predictions to grade).
     if not run.predictions:
         console.print(
             f"[red]All {len(run.errors)} pair(s) failed. "
@@ -301,12 +393,12 @@ def backtest_command(
             f"see report errors section.[/yellow]"
         )
 
-    # ── 6. Grade + calibrate.
+    # ── 7. Grade + calibrate.
     console.print(f"[dim]Grading {len(run.predictions)} prediction(s)...[/dim]")
     with console.status("[dim]Computing calibration...[/dim]", spinner="dots"):
         evaluation = evaluate_backtest(run)
 
-    # ── 7. Write the HTML report and (maybe) open it.
+    # ── 8. Write the HTML report and (maybe) open it.
     out_path = Path(out) if out else _default_report_path()
     written = write_html_report(evaluation, out_path)
     console.print(f"[green]Wrote report to {written}.[/green]")
@@ -317,9 +409,9 @@ def backtest_command(
             console.print("[dim]Opening in browser...[/dim]")
 
 
-# ─────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
 # Async runner wrapper (extracted so tests can patch the boundary)
-# ─────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
 def _run_with_progress(
     tickers: list[str],
     as_of_dates: list[date],
@@ -329,8 +421,13 @@ def _run_with_progress(
     concurrency: int,
     store: object | None,
     total_pairs: int,
+    pairs: list[tuple[str, date]] | None = None,
 ) -> BacktestRun:
-    """Drive run_backtest under a Rich progress bar.
+    """Drive run_backtest (or run_backtest_grid) under a Rich progress bar.
+
+    If ``pairs`` is given, dispatches to the explicit-grid runner --
+    used by the ``--index`` path where membership varies per date. If
+    ``pairs`` is None, falls back to the cartesian wrapper.
 
     Extracted so tests can monkeypatch ``backtest_cmd._run_with_progress``
     with a synchronous stub instead of mocking the whole asyncio +
@@ -350,6 +447,17 @@ def _run_with_progress(
     with progress:
         task_id = progress.add_task("[dim]starting...", total=total_pairs)
         callback = _make_progress_callback(progress, task_id)
+        if pairs is not None:
+            return asyncio.run(
+                run_backtest_grid(
+                    pairs,
+                    horizons,
+                    sensitivity=sensitivity,  # type: ignore[arg-type]
+                    concurrency=concurrency,
+                    store=store,  # type: ignore[arg-type]
+                    progress_callback=callback,
+                )
+            )
         return asyncio.run(
             run_backtest(
                 tickers,

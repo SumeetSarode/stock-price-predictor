@@ -503,8 +503,159 @@ class TestBacktestCommandHappyPath:
         result = runner.invoke(app, ["backtest", "--help"])
         assert result.exit_code == 0
         for flag in (
-            "--start", "--end", "--tickers", "--horizons", "--stride",
-            "--sensitivity", "--concurrency", "--out", "--save-predictions",
-            "--no-open",
+            "--start", "--end", "--tickers", "--index", "--horizons",
+            "--stride", "--sensitivity", "--concurrency", "--out",
+            "--save-predictions", "--no-open",
         ):
             assert flag in result.stdout, f"missing {flag} in --help"
+
+
+# ─────────────────────────────────────────────────────────────
+# --index NIFTY50 path (Step 2.6B)
+# ─────────────────────────────────────────────────────────────
+class TestIndexFlag:
+    """Mutex + happy-path for the --index NIFTY50 surface.
+
+    We don't re-test membership.members_on() here -- it has its own
+    77 tests under tests/kb/. We only verify the CLI wires the right
+    pairs into the runner.
+    """
+
+    def test_neither_tickers_nor_index_rejected(self, runner: CliRunner):
+        result = runner.invoke(app, [
+            "backtest", "--start", "2024-06-01", "--end", "2024-06-14",
+        ])
+        assert result.exit_code == 1
+        assert "exactly one of --tickers or --index" in result.stdout
+
+    def test_both_tickers_and_index_rejected(self, runner: CliRunner):
+        result = runner.invoke(app, [
+            "backtest", "--start", "2024-06-01", "--end", "2024-06-14",
+            "--tickers", "RELIANCE.NS", "--index", "NIFTY50",
+        ])
+        assert result.exit_code == 1
+        assert "exactly one of --tickers or --index" in result.stdout
+
+    def test_unknown_index_rejected(self, runner: CliRunner):
+        """An unsupported index code -> friendly red error, exit 1."""
+        result = runner.invoke(app, [
+            "backtest", "--start", "2024-06-01", "--end", "2024-06-14",
+            "--index", "NIFTY999",
+        ])
+        assert result.exit_code == 1
+        # MembershipDataError surfaces; we just verify the error path
+        # reaches the CLI's red-text translator.
+        assert "membership lookup failed" in result.stdout
+
+    def test_index_path_passes_pairs_to_runner(
+        self, runner: CliRunner, tmp_path: Path,
+    ):
+        """The CLI's --index branch must call _run_with_progress with
+        pairs=[(ticker, date), ...] (NOT tickers/dates as separate
+        lists). This is the contract that makes --index actually
+        survivorship-aware in the runner.
+        """
+        out = tmp_path / "report.html"
+        run = _fake_run(n_predictions=2)
+
+        captured: dict = {}
+
+        def _capture(*args, **kwargs):
+            captured.update(kwargs)
+            return run
+
+        # Patch members_on to a tiny synthetic universe so the test is
+        # fully hermetic (no dependence on the real JSON file shape).
+        def _fake_members_on(d, *, index="NIFTY50"):
+            assert index == "NIFTY50"
+            return ["A.NS", "B.NS"]
+
+        with patch.object(backtest_cmd, "_run_with_progress", side_effect=_capture), \
+             patch.object(backtest_cmd, "evaluate_backtest", return_value=_fake_evaluation()), \
+             patch.object(backtest_cmd, "write_html_report", return_value=out), \
+             patch.object(backtest_cmd, "members_on", side_effect=_fake_members_on), \
+             patch.object(backtest_cmd, "webbrowser"), \
+             patch.object(backtest_cmd, "sys") as m_sys:
+            m_sys.stdout.isatty.return_value = False
+            result = runner.invoke(app, [
+                "backtest", "--start", "2024-06-12", "--end", "2024-06-14",
+                "--index", "NIFTY50",
+                "--out", str(out),
+            ])
+
+        assert result.exit_code == 0, result.stdout
+        # The runner wrapper must have been called with explicit pairs,
+        # not with a flat ticker/date pair.
+        assert "pairs" in captured
+        pairs = captured["pairs"]
+        assert pairs is not None, "CLI didn't pass pairs= for --index path"
+        # Every pair is ("A.NS"|"B.NS", a date). Exact dates depend on
+        # NSE trading-calendar; we only assert structure.
+        for sym, d in pairs:
+            assert sym in {"A.NS", "B.NS"}
+            assert isinstance(d, date)
+        # Total = 2 tickers * (NSE trading days in range). The window
+        # 2024-06-12 -> 2024-06-14 contains 3 weekdays, all trading
+        # days (no NSE holidays). Stride defaults to 5 (weekly), so
+        # we expect just 1 sample date -> 2 pairs total.
+        assert len(pairs) == 2
+
+    def test_index_path_displays_unique_ticker_count(
+        self, runner: CliRunner, tmp_path: Path,
+    ):
+        """The user-facing dim line in --index mode must mention the
+        UNIQUE historical ticker count (so they know the run will
+        touch dropped tickers, not just today's 50).
+        """
+        out = tmp_path / "report.html"
+        run = _fake_run(n_predictions=2)
+
+        with patch.object(backtest_cmd, "_run_with_progress", return_value=run), \
+             patch.object(backtest_cmd, "evaluate_backtest", return_value=_fake_evaluation()), \
+             patch.object(backtest_cmd, "write_html_report", return_value=out), \
+             patch.object(
+                backtest_cmd, "members_on",
+                side_effect=lambda d, **kw: ["A.NS", "B.NS"],
+             ), \
+             patch.object(backtest_cmd, "webbrowser"), \
+             patch.object(backtest_cmd, "sys") as m_sys:
+            m_sys.stdout.isatty.return_value = False
+            result = runner.invoke(app, [
+                "backtest", "--start", "2024-06-12", "--end", "2024-06-14",
+                "--index", "NIFTY50", "--out", str(out),
+            ])
+
+        assert result.exit_code == 0, result.stdout
+        # Rich may wrap the dim line at terminal width, so collapse
+        # whitespace before substring-checking.
+        normalized = " ".join(result.stdout.split())
+        assert "unique historical ticker" in normalized
+        assert "NIFTY50" in normalized
+
+    def test_index_lowercase_normalized(
+        self, runner: CliRunner, tmp_path: Path,
+    ):
+        """`--index nifty50` should work the same as `--index NIFTY50`
+        (we uppercase + strip before passing to membership)."""
+        out = tmp_path / "report.html"
+        run = _fake_run(n_predictions=2)
+        captured = {}
+
+        def _capture_members(d, *, index):
+            captured["index"] = index
+            return ["A.NS"]
+
+        with patch.object(backtest_cmd, "_run_with_progress", return_value=run), \
+             patch.object(backtest_cmd, "evaluate_backtest", return_value=_fake_evaluation()), \
+             patch.object(backtest_cmd, "write_html_report", return_value=out), \
+             patch.object(backtest_cmd, "members_on", side_effect=_capture_members), \
+             patch.object(backtest_cmd, "webbrowser"), \
+             patch.object(backtest_cmd, "sys") as m_sys:
+            m_sys.stdout.isatty.return_value = False
+            result = runner.invoke(app, [
+                "backtest", "--start", "2024-06-12", "--end", "2024-06-14",
+                "--index", "  nifty50  ", "--out", str(out),
+            ])
+
+        assert result.exit_code == 0, result.stdout
+        assert captured.get("index") == "NIFTY50"
