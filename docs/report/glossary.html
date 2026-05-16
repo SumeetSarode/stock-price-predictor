@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Glossary — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Glossary</nav>
+    <h1 class="text-3xl font-bold mb-6">Glossary — every term, alphabetical</h1>
+
+    <dl class="space-y-4">
+
+      <div><dt class="font-semibold">ADX (Average Directional Index)</dt>
+      <dd class="text-sm text-gray-700">Wilder's measure of trend <em>strength</em> (not direction).
+      0–100 scale. Below 20 = no trend; 25+ = strong trend. Doubly smoothed — needs 140 bars to converge.</dd></div>
+
+      <div><dt class="font-semibold">Anchored VWAP</dt>
+      <dd class="text-sm text-gray-700">Cumulative volume-weighted average price computed from a chosen
+      anchor date forward (Brian Shannon, 2023). Useful around catalysts like Budget day or
+      post-earnings gaps.</dd></div>
+
+      <div><dt class="font-semibold">ATR (Average True Range)</dt>
+      <dd class="text-sm text-gray-700">Wilder 1978. The smoothed average of True Range over 14 bars,
+      where True Range = max(high−low, |high − prev close|, |low − prev close|). Our universal
+      unit for stop and target distances.</dd></div>
+
+      <div><dt class="font-semibold">Bars</dt>
+      <dd class="text-sm text-gray-700">Daily OHLCV candles. The smallest time unit we use.</dd></div>
+
+      <div><dt class="font-semibold">Bollinger Bands</dt>
+      <dd class="text-sm text-gray-700">Middle = SMA-20 of close. Upper/lower = middle ± 2 × stdev.
+      John Bollinger, early 1980s.</dd></div>
+
+      <div><dt class="font-semibold">Brier score</dt>
+      <dd class="text-sm text-gray-700">A calibration metric for probabilistic forecasts.
+      Mean squared error of (confidence − outcome). Lower is better; 0.25 is the random baseline.</dd></div>
+
+      <div><dt class="font-semibold">Catalyst</dt>
+      <dd class="text-sm text-gray-700">A material news item or filing that supports the predicted
+      direction. Each catalyst carries title, URL, importance, and why_it_matters.</dd></div>
+
+      <div><dt class="font-semibold">Death Cross</dt>
+      <dd class="text-sm text-gray-700">SMA-50 crossing <em>below</em> SMA-200. Bearish regime
+      marker. Murphy 1999.</dd></div>
+
+      <div><dt class="font-semibold">+DI / −DI</dt>
+      <dd class="text-sm text-gray-700">Positive and Negative Directional Indicators — Wilder's
+      companion to ADX. +DI &gt; −DI = buyers in control; reverse = sellers.</dd></div>
+
+      <div><dt class="font-semibold">Engulfing pattern</dt>
+      <dd class="text-sm text-gray-700">Two-bar candlestick reversal where today's body fully
+      engulfs yesterday's body.</dd></div>
+
+      <div><dt class="font-semibold">EMA (Exponential Moving Average)</dt>
+      <dd class="text-sm text-gray-700">Weighted moving average where recent bars get more weight.
+      Faster than SMA of the same length.</dd></div>
+
+      <div><dt class="font-semibold">GDELT</dt>
+      <dd class="text-sm text-gray-700">The Global Database of Events, Language and Tone —
+      our free news data source via the Doc API 2.0.</dd></div>
+
+      <div><dt class="font-semibold">Golden Cross</dt>
+      <dd class="text-sm text-gray-700">SMA-50 crossing <em>above</em> SMA-200. Bullish regime
+      marker. Murphy 1999. Note: empirical alpha on liquid large-caps has weakened sharply
+      post-1990 (Sullivan/Timmermann/White 1999; Zakamulin 2014).</dd></div>
+
+      <div><dt class="font-semibold">Hammer</dt>
+      <dd class="text-sm text-gray-700">Single-bar bullish reversal: small body at top with a long
+      lower shadow (≥ 2 × body) and tiny upper shadow.</dd></div>
+
+      <div><dt class="font-semibold">Head and Shoulders (H&amp;S)</dt>
+      <dd class="text-sm text-gray-700">Three-peak chart pattern with the middle "head" taller than
+      the two "shoulders". Bearish reversal. LMW Def. 1.</dd></div>
+
+      <div><dt class="font-semibold">Horizon</dt>
+      <dd class="text-sm text-gray-700">The forecast window. We support DAILY (1 bar), WEEKLY (5),
+      BIWEEKLY (10), MONTHLY (21).</dd></div>
+
+      <div><dt class="font-semibold">ImpactAssessment</dt>
+      <dd class="text-sm text-gray-700">The structured output of the news LLM. Fields: direction,
+      magnitude, confidence, summary, catalysts, risks.</dd></div>
+
+      <div><dt class="font-semibold">Keltner Channel</dt>
+      <dd class="text-sm text-gray-700">EMA-based volatility envelope built on ATR. Used as the
+      "outer fence" in the TTM Squeeze definition.</dd></div>
+
+      <div><dt class="font-semibold">LMW (Lo, Mamaysky, Wang 2000)</dt>
+      <dd class="text-sm text-gray-700">The academic paper that gave us the geometric tolerances for
+      our 5 chart-pattern detectors. <em>Journal of Finance</em> 55(4).</dd></div>
+
+      <div><dt class="font-semibold">MACD</dt>
+      <dd class="text-sm text-gray-700">Moving Average Convergence Divergence. MACD line =
+      EMA-12 − EMA-26. Signal line = EMA-9 of MACD line. Histogram = MACD − signal. Gerald Appel,
+      late 1970s.</dd></div>
+
+      <div><dt class="font-semibold">Mode A / B / C grading</dt>
+      <dd class="text-sm text-gray-700">Three parallel ways we score a prediction. Mode A: strict
+      directional move met threshold. Mode B: target/stop touched intra-window. Mode C: NEUTRAL
+      stayed in the cone.</dd></div>
+
+      <div><dt class="font-semibold">midpoint_rr</dt>
+      <dd class="text-sm text-gray-700">Risk-reward computed using the midpoint of the entry zone
+      as the entry price. Used for literature comparability (textbook formula).</dd></div>
+
+      <div><dt class="font-semibold">NEUTRAL</dt>
+      <dd class="text-sm text-gray-700">The "no setup" verdict. Required when technicals + news
+      disagree, RR floor can't be met, or price is mid-range. NEUTRAL predictions cap confidence at 0.65.</dd></div>
+
+      <div><dt class="font-semibold">OBV (On-Balance Volume)</dt>
+      <dd class="text-sm text-gray-700">Granville 1963. Running cumulative sum: add volume on up days,
+      subtract on down days. We use the 20-bar slope, not the level.</dd></div>
+
+      <div><dt class="font-semibold">OHLCV</dt>
+      <dd class="text-sm text-gray-700">Open, High, Low, Close, Volume — the five numbers per daily bar.</dd></div>
+
+      <div><dt class="font-semibold">Pivot points (PP, R1, R2, S1, S2)</dt>
+      <dd class="text-sm text-gray-700">Classic floor-trader levels computed from yesterday's bar.
+      PP = (high + low + close)/3.</dd></div>
+
+      <div><dt class="font-semibold">Rationale</dt>
+      <dd class="text-sm text-gray-700">The plain-English explanation field on every prediction.
+      The citation guardrail enforces that ≥ 80% of meaningful tokens trace to the input vocabulary.</dd></div>
+
+      <div><dt class="font-semibold">risk_reward (worst-fill)</dt>
+      <dd class="text-sm text-gray-700">The RR computed assuming the worst possible fill inside the
+      entry zone. The conservative sizing number. Guardrails enforce ≥ 1.5.</dd></div>
+
+      <div><dt class="font-semibold">RSI (Relative Strength Index)</dt>
+      <dd class="text-sm text-gray-700">Wilder 1978. Average gain vs average loss over 14 bars,
+      normalised to 0–100. Classic 70/30 overbought/oversold; trend-RSI 60/40 (Cardwell/Brown).</dd></div>
+
+      <div><dt class="font-semibold">SMA (Simple Moving Average)</dt>
+      <dd class="text-sm text-gray-700">Plain average of the last N closes. We use SMA-20, SMA-50, SMA-200.</dd></div>
+
+      <div><dt class="font-semibold">Squeeze (Bollinger bandwidth)</dt>
+      <dd class="text-sm text-gray-700">Boolean: bandwidth in the lowest 20% over 60 bars.
+      Bollinger 2001 ch. 11.</dd></div>
+
+      <div><dt class="font-semibold">Squeeze (TTM)</dt>
+      <dd class="text-sm text-gray-700">Carter 2009. Bollinger Bands sit inside Keltner Channels.
+      When the squeeze "fires" (bands pop outside), it's a breakout trigger.</dd></div>
+
+      <div><dt class="font-semibold">Stochastic</dt>
+      <dd class="text-sm text-gray-700">Lane 1950s. %K = where today's close sits in the recent
+      high-low range; %D = smoothed %K. Above 80 overbought, below 20 oversold.</dd></div>
+
+      <div><dt class="font-semibold">Swing high / low</dt>
+      <dd class="text-sm text-gray-700">The highest high / lowest low over the last 30 bars (standard
+      preset). The most recent actionable resistance / support.</dd></div>
+
+      <div><dt class="font-semibold">Synthesizer</dt>
+      <dd class="text-sm text-gray-700">The LLM that takes the technical view + news assessment +
+      horizon and writes the final Prediction object.</dd></div>
+
+      <div><dt class="font-semibold">TechnicalView</dt>
+      <dd class="text-sm text-gray-700">The bundle of all four cluster verdicts + raw indicator values
+      + candlestick patterns + chart patterns. Horizon-agnostic; serves all 4 horizons.</dd></div>
+
+      <div><dt class="font-semibold">TTM Squeeze</dt>
+      <dd class="text-sm text-gray-700">See "Squeeze (TTM)".</dd></div>
+
+      <div><dt class="font-semibold">VWAP</dt>
+      <dd class="text-sm text-gray-700">Volume-Weighted Average Price. Σ(typical price × volume) /
+      Σ(volume). We compute rolling (20-bar) and anchored (from a chosen date) variants. Acts as
+      dynamic support/resistance.</dd></div>
+
+      <div><dt class="font-semibold">%B</dt>
+      <dd class="text-sm text-gray-700">Where the close sits inside the Bollinger Band on a 0–1 scale.
+      0 = at lower band, 1 = at upper, &gt;1 = above upper.</dd></div>
+
+      <div><dt class="font-semibold">52-week high / low</dt>
+      <dd class="text-sm text-gray-700">Highest / lowest price over the last 252 trading days.
+      Psychological levels every retail trader watches.</dd></div>
+
+    </dl>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="example.html" class="text-[#0053e2]">← Worked example</a>
+      <a href="index.html" class="text-[#0053e2]">Back to home →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("glossary.html");</script>
+</body>
+</html>

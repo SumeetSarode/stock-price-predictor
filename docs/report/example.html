@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Worked example — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Worked example</nav>
+    <h1 class="text-3xl font-bold mb-2">Worked example — RELIANCE WEEKLY, traced end-to-end</h1>
+    <p class="text-gray-700 mb-8">A hypothetical prediction, walked through every stage from raw
+    bars to final five numbers. All numbers below are illustrative; this is not a real call.</p>
+
+    <!-- ── Setup ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The setup</h2>
+      <table class="t">
+        <thead><tr><th>Item</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Ticker</td><td>RELIANCE.NS</td></tr>
+          <tr><td>As-of</td><td>2026-03-12, 14:45 IST (before close)</td></tr>
+          <tr><td>Horizon requested</td><td>WEEKLY (5 trading days)</td></tr>
+          <tr><td>Current close</td><td>₹2,884</td></tr>
+          <tr><td>Bars fetched</td><td>518 daily bars (~2 years)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Phase 1 outputs ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Phase 1 — Gather (parallel)</h2>
+
+      <h3 class="text-xl font-semibold mt-5 mb-2">Technical view (illustrative)</h3>
+      <div class="grid sm:grid-cols-2 gap-4">
+
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Trend cluster</div>
+          <div class="mt-1"><span class="tag tag-bull">BULLISH</span> confidence 0.74</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>Close ₹2,884 above SMA20 (₹2,840), SMA50 (₹2,790), SMA200 (₹2,680). Stack = 3.</li>
+            <li>ADX 32 — strong trend.</li>
+            <li>+DI 28 &gt; −DI 17 (buyers in control).</li>
+            <li>Golden Cross fired 18 bars ago (regime; not voting).</li>
+            <li>EMA-9/21 cross bullish 4 bars ago — fresh, +0.3 vote.</li>
+          </ul>
+        </div>
+
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Momentum cluster</div>
+          <div class="mt-1"><span class="tag tag-bull">BULLISH</span> confidence 0.66</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>RSI 62 — strong, not overbought (+1 vote).</li>
+            <li>MACD line &gt; signal; no fresh cross today (+0.5).</li>
+            <li>Stoch %K 71 &gt; %D 64, both above 50 (+0.5).</li>
+            <li>OBV slope +9% over 20 bars (+0.5).</li>
+            <li>Net vote = +2.5 → bullish; |2.5|/3 = 0.83 capped to 0.85 → 0.66 after smoothing.</li>
+          </ul>
+        </div>
+
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Volatility cluster</div>
+          <div class="mt-1">Direction <span class="tag tag-bull">bullish</span>, Strength: moderate, Regime: normal</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>ATR = ₹38 (1.32% of price).</li>
+            <li>%B 0.71 — upper half of band, bullish.</li>
+            <li>Bandwidth in 41st percentile — not squeezed.</li>
+            <li>TTM Squeeze: OFF.</li>
+          </ul>
+        </div>
+
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Levels cluster</div>
+          <div class="mt-1"><span class="tag tag-bull">BULLISH</span> confidence 0.58</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>Swing-high resistance at ₹2,948 (₹64 / 1.7×ATR away).</li>
+            <li>Swing-low support at ₹2,810 (₹74 below; 1.95×ATR).</li>
+            <li>52w-high ₹3,025; 52w-low ₹2,420.</li>
+            <li>Pivots: PP ₹2,860, R1 ₹2,910, S1 ₹2,830.</li>
+            <li>Rolling VWAP (20) at ₹2,852 — close is 1.1% above (supportive).</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">News impact assessment (illustrative)</h3>
+      <div class="border border-gray-200 rounded p-4">
+        <div><strong>Direction:</strong> <span class="tag tag-bull">BULLISH</span> ·
+             <strong>Magnitude:</strong> medium · <strong>Confidence:</strong> 0.68</div>
+        <p class="text-sm mt-2"><strong>Summary:</strong> Two material catalysts in the last week.
+        (1) Jio's tariff hike implementation announced for April quarter — most brokers raising
+        ARPU forecasts. (2) Retail division reported a 13% LFL growth print, ahead of the 9% street
+        estimate. One risk: planned ₹75,000-cr capex commentary that could pressure near-term
+        free cash flow.</p>
+        <p class="text-sm mt-2"><strong>Catalysts considered:</strong> 4 ·
+           <strong>Filings considered:</strong> 2 (board-meeting notice for April 24 results; insider
+           purchase by promoter group ₹4.2 cr).</p>
+      </div>
+    </section>
+
+    <!-- ── Phase 2 — synthesis ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Phase 2 — Synthesize</h2>
+
+      <h3 class="text-xl font-semibold mt-4 mb-2">Step 1 — direction</h3>
+      <p>WEEKLY weighting: 50% technical / 50% news.</p>
+      <div class="formula">
+        Avg technical-cluster confidence weighted by verdict:<br>
+        (0.74 × +1 + 0.66 × +1 + 0.58 × +1 + 0.55 × +1) / 4 = +0.633   (all four bullish)<br>
+        News contribution:  +1 × 0.68 = +0.68<br>
+        signed_score = 0.5 × 0.633 + 0.5 × 0.68 = <strong>+0.657</strong>
+      </div>
+      <p>Strongly positive → direction = <span class="tag tag-bull">BULLISH</span>.</p>
+
+      <h3 class="text-xl font-semibold mt-4 mb-2">Step 2 — entry zone</h3>
+      <p>WEEKLY entry zone is ±1.0% around close ₹2,884.</p>
+      <div class="formula">entry_zone = [₹2,855.16, ₹2,912.84]<br>
+      worst-fill anchor (bullish) = zone_high = ₹2,912.84</div>
+
+      <h3 class="text-xl font-semibold mt-4 mb-2">Step 3 — target</h3>
+      <p>Nearest level above the entry zone? <strong>Swing-high at ₹2,948</strong> sits ₹35 above
+      zone_high — well inside the 4×ATR window. Use it as the target anchor.</p>
+      <div class="formula">target = ₹2,948 (anchored to swing-high resistance)</div>
+
+      <h3 class="text-xl font-semibold mt-4 mb-2">Step 4 — stop</h3>
+      <p>Nearest level on the opposite side of the entry zone? Swing-low at ₹2,810 sits ₹45 below
+      zone_low (₹2,855). Distance = ₹45 = <strong>1.18 × ATR</strong> — comfortably inside the
+      WEEKLY stop band (0.7–1.5 × ATR). Use it as the stop.</p>
+      <div class="formula">stop = ₹2,810 (anchored to swing-low support)</div>
+
+      <h3 class="text-xl font-semibold mt-4 mb-2">Step 5 — risk-reward check</h3>
+      <div class="formula">
+        risk_reward (worst-fill)<br>
+        &nbsp;&nbsp;= (target − zone_high) / (zone_high − stop)<br>
+        &nbsp;&nbsp;= (2948 − 2912.84) / (2912.84 − 2810)<br>
+        &nbsp;&nbsp;= 35.16 / 102.84<br>
+        &nbsp;&nbsp;= <strong>0.34</strong>
+      </div>
+      <p class="text-red-700"><strong>Below 1.5 floor!</strong> The synthesizer must try to fix this.
+      First attempt: tighten the stop. The minimum allowed stop distance is 0.7×ATR = ₹26.6. With
+      zone_high ₹2,912.84, that means stop ≥ ₹2,886.24 — but that puts the stop <em>inside</em>
+      the entry zone, which violates direction-level sanity. <strong>No legal stop placement
+      satisfies RR ≥ 1.5 at this price.</strong></p>
+
+      <p>Per the synthesizer's protocol: <strong>downgrade to NEUTRAL with rationale "no asymmetric
+      setup at current price".</strong></p>
+
+      <h3 class="text-xl font-semibold mt-4 mb-2">Final output</h3>
+      <div class="border border-gray-300 rounded p-4 bg-gray-50">
+        <pre class="text-xs overflow-x-auto"><code>{
+  "ticker": "RELIANCE.NS",
+  "horizon": "WEEKLY",
+  "as_of": "2026-03-12T14:45:00+05:30",
+  "direction": "NEUTRAL",
+  "entry_zone": [2855.16, 2912.84],
+  "target":     { "value": 2948.0, "rationale": "swing-high resistance" },
+  "stop_loss":  { "value": 2810.0, "rationale": "swing-low support" },
+  "risk_reward": 1.0,
+  "midpoint_rr": 1.0,
+  "confidence": 0.48,
+  "rationale": "Technicals are uniformly bullish (4/4 clusters) and news is
+                bullish-medium, but at this price the nearest resistance is
+                too close and the nearest support too far — no setup with
+                an acceptable worst-fill RR exists. Wait for a pullback
+                toward VWAP / swing-low support, or a clean break of 2948.",
+  "contributing_signals": [
+      "close above SMA20/50/200 (full stack bullish)",
+      "ADX 32 - strong trend",
+      "OBV rising (+9% over 20 bars)",
+      "Jio tariff hike implementation, April quarter"
+  ],
+  "conflicting_signals": [
+      "swing-high resistance 1.7 ATR overhead — limits upside"
+  ],
+  "not_advice": true,
+  "is_educational": true
+}</code></pre>
+      </div>
+
+      <div class="meaning">
+        Note that NEUTRAL is the <strong>correct</strong> answer here — not a failure. The agent
+        identified a strong directional bias but recognised that the structure of price doesn't
+        give an asymmetric setup. Telling the user to wait is better than forcing a 0.34-RR trade.
+      </div>
+    </section>
+
+    <!-- ── Guardrails on this output ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Guardrails verdict</h2>
+      <table class="t">
+        <thead><tr><th>Tier</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>Tier 1 — Grounding</td><td>✓ Close echo, entry-zone width, ATR distances all sane.</td></tr>
+          <tr><td>Tier 2 — Citation</td><td>✓ Every signal traces to TechnicalView or news catalysts.</td></tr>
+          <tr><td>Tier 3 — Consistency</td><td>✓ NEUTRAL rationale mentions "wait" and "pullback".</td></tr>
+          <tr><td>Tier 4 — Calibration</td><td>✓ NEUTRAL confidence 0.48 below 0.65 ceiling. RR=1.0 ✓.</td></tr>
+        </tbody>
+      </table>
+      <p class="mt-3">Prediction ships to disk at
+      <code>predictions/2026-03-12/RELIANCE.NS_144527_WEEKLY.json</code>.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="guardrails.html" class="text-[#0053e2]">← Quality controls</a>
+      <a href="glossary.html" class="text-[#0053e2]">Next: Glossary →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("example.html");</script>
+</body>
+</html>

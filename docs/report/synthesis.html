@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Putting it together — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Putting it together</nav>
+    <h1 class="text-3xl font-bold mb-2">The synthesizer — how a prediction is actually written</h1>
+    <p class="text-gray-700 mb-8">The synthesizer is the LLM that turns the four cluster verdicts
+    plus the news assessment into a single prediction object. It runs once per requested horizon,
+    in parallel. Same model each call — only the prompt's horizon-specific weights and bands change.</p>
+
+    <!-- ── What the synthesizer sees ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">What the synthesizer sees on its desk</h2>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>The <strong>TechnicalView</strong>: the four cluster verdicts + their underlying numbers
+            (so it can quote exact RSI, ADX, %B values).</li>
+        <li>The <strong>ImpactAssessment</strong>: directional read, magnitude, confidence, and the
+            up-to-5 catalysts and risks the news agent surfaced.</li>
+        <li>The <strong>horizon label</strong>: DAILY, WEEKLY, BIWEEKLY, or MONTHLY.</li>
+        <li>The current <strong>close price</strong> (anchors all the math).</li>
+        <li>The current <strong>ATR</strong> (the unit for stop and target distances).</li>
+        <li>The current timestamp (tz-aware IST).</li>
+      </ul>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">What it deliberately does NOT see</h3>
+      <ul class="list-disc pl-6 space-y-1 text-sm text-gray-700">
+        <li>The previous prediction for the same ticker (each call is independent).</li>
+        <li>Any backtest outcome from past predictions (no feedback loop).</li>
+        <li>The <code>target_datetime</code> (calendar math happens after, in a computed field).</li>
+        <li>The "other horizons'" outputs (they may disagree — that's information for the user).</li>
+      </ul>
+    </section>
+
+    <!-- ── Weighting table ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">How much weight technicals vs. news get, per horizon</h2>
+
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Technical weight</th><th>News weight</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY (1 bar)</td><td>35%</td><td><strong>65%</strong></td></tr>
+          <tr><td>WEEKLY (5 bars)</td><td>50%</td><td>50%</td></tr>
+          <tr><td>BIWEEKLY (10 bars)</td><td><strong>60%</strong></td><td>40%</td></tr>
+          <tr><td>MONTHLY (21 bars)</td><td><strong>70%</strong></td><td>30%</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        <strong>Why this slope?</strong> Short-horizon (intraday/daily) moves are overwhelmingly
+        news-driven — a single earnings miss can move a stock 8% in a day, no chart pattern needed.
+        Longer-horizon moves are dominated by trend regimes that show up in technicals. The exact
+        weights are 🔬 <em>NEEDS BACKTEST</em>; they are explicit in the prompt so the LLM cannot
+        silently pick its own.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">Disagreement protocol</h3>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>If technicals and news disagree…</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY / WEEKLY</td><td>News wins, but confidence is capped at 0.55.</td></tr>
+          <tr><td>BIWEEKLY / MONTHLY</td><td>Technicals win, but confidence is capped at 0.60.</td></tr>
+          <tr><td>Sharp disagreement<br>(trend bullish, news strongly bearish)</td>
+              <td>Prefer NEUTRAL with confidence ≤ 0.50 rather than picking a side.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Direction call ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Picking the direction</h2>
+
+      <p>The synthesizer computes a weighted vote of the four cluster verdicts plus the news
+      direction. Each "vote" is the verdict (+1 bullish, −1 bearish, 0 neutral) multiplied by the
+      classifier's confidence. The news contribution is similarly the news direction × news
+      confidence.</p>
+
+      <div class="formula">
+        signed_score = w_tech × Σ(verdict_i × confidence_i, i in clusters) / 4<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + w_news × (news_direction × news_confidence)<br><br>
+        Where w_tech + w_news = 1, picked from the table above.
+      </div>
+
+      <p>If <code>signed_score &gt; +threshold</code> → <span class="tag tag-bull">BULLISH</span>.
+      If <code>signed_score &lt; −threshold</code> → <span class="tag tag-bear">BEARISH</span>.
+      Otherwise <span class="tag tag-neut">NEUTRAL</span>. The synthesizer is given guidance on
+      thresholds but the LLM has some discretion — and is required to <em>state which clusters
+      contributed</em> in the rationale.</p>
+    </section>
+
+    <!-- ── Entry zone ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Placing the entry zone</h2>
+
+      <p>The entry zone is a narrow symmetric <strong>±% band around current close</strong>. The
+      half-width depends on horizon:</p>
+
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Entry zone half-width</th><th>Example at close ₹1,000</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY</td><td>±0.5%</td><td>[₹995.00, ₹1,005.00] — total ₹10 wide</td></tr>
+          <tr><td>WEEKLY</td><td>±1.0%</td><td>[₹990.00, ₹1,010.00]</td></tr>
+          <tr><td>BIWEEKLY</td><td>±1.5%</td><td>[₹985.00, ₹1,015.00]</td></tr>
+          <tr><td>MONTHLY</td><td>±2.0%</td><td>[₹980.00, ₹1,020.00]</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        Tighter for daily (less leeway on entry timing), wider for monthly (more leeway). For a
+        BULLISH call the band may be biased slightly upward (close at the lower edge); for BEARISH
+        biased downward. For NEUTRAL it stays symmetric. The chosen worst-fill anchor (zone-high
+        for longs, zone-low for shorts) is what the risk-reward math uses — see the
+        <a href="horizons.html" class="text-[#0053e2] underline">Horizons &amp; targets</a> page.
+      </div>
+    </section>
+
+    <!-- ── Target placement ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Setting the profit target</h2>
+
+      <p>The synthesizer follows this priority order:</p>
+
+      <ol class="list-decimal pl-6 space-y-3 mt-3">
+        <li>
+          <strong>Nearest level beyond the entry zone in the predicted direction.</strong>
+          That means: for a BULLISH call, find the closest level (swing-high, R1, R2, 52w-high) that
+          sits above the entry zone — that's the target anchor. The rationale becomes
+          <em>"target=1605 — anchored to swing-high resistance"</em>.
+        </li>
+        <li>
+          If no level exists within <strong>4 × ATR</strong>, fall back to a pure ATR-based target
+          inside the horizon's allowed band. The synthesizer picks a value in
+          <code>[stop_min × ATR, stop_max × ATR]</code> and explains the choice.
+        </li>
+        <li>
+          Whichever method was used, the synthesizer <strong>must state the rationale explicitly</strong>
+          (e.g. <em>"target=1623 — 1.5×ATR projection inside WEEKLY band, no clear level above"</em>).
+        </li>
+      </ol>
+    </section>
+
+    <!-- ── Stop placement ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Setting the stop-loss</h2>
+
+      <ol class="list-decimal pl-6 space-y-3">
+        <li>
+          <strong>Nearest level on the OPPOSITE side of the entry zone.</strong>
+          For a BULLISH call, that means the nearest support (swing-low, S1, 52w-low). The natural
+          level is then verified against the horizon's stop ATR band — if it's too tight, push the
+          stop out to <code>stop_min × ATR</code>; if it's too wide, the prediction
+          <strong>must downgrade to NEUTRAL</strong>.
+        </li>
+        <li>
+          If no opposite-side level exists, use a pure ATR stop at the midpoint of the horizon's stop band.
+        </li>
+        <li>
+          Same explicit-rationale rule applies.
+        </li>
+      </ol>
+    </section>
+
+    <!-- ── Risk-reward floor ── -->
+    <section class="mb-10 bg-blue-50 border border-blue-100 rounded p-5">
+      <h2 class="text-xl font-bold mb-2 text-[#0053e2]">The risk-reward floor (1.5×)</h2>
+      <p>After computing target and stop, the synthesizer verifies that the
+      <strong>worst-fill risk-reward is ≥ 1.5</strong>. If it isn't:</p>
+      <ol class="list-decimal pl-6 space-y-1 mt-2">
+        <li>First, try moving the stop tighter (without leaving the horizon's stop ATR band).</li>
+        <li>Otherwise, <strong>switch to NEUTRAL</strong> with a rationale explaining
+            "no asymmetric setup at current price".</li>
+      </ol>
+      <p class="mt-3 text-sm text-[#0053e2]"><strong>Forbidden:</strong> inflating the target to
+      force RR ≥ 1.5. That would be the model lying to itself.</p>
+    </section>
+
+    <!-- ── Confidence math ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Computing the final confidence number</h2>
+
+      <ol class="list-decimal pl-6 space-y-2">
+        <li><strong>Base.</strong> Weighted average of the four cluster classifier confidences and
+            the news assessment confidence, using the per-horizon weights above.</li>
+        <li><strong>Disagreement cap.</strong> If technicals and news disagree, apply the
+            0.55/0.60/0.50 caps.</li>
+        <li><strong>Horizon ceiling.</strong> Final cap at the horizon's ceiling: 0.90 daily,
+            0.85 weekly, 0.80 biweekly, 0.75 monthly.</li>
+        <li><strong>Fallback penalty.</strong> If the target was set via the pure-ATR fallback
+            (no level anchor), multiply by 0.85. Less anchored = less confident.</li>
+        <li>Round to two decimal places.</li>
+      </ol>
+
+      <div class="example">
+        WEEKLY call. Cluster confidences 0.65, 0.70, 0.55, 0.60. News confidence 0.78, direction
+        agrees. Base = 0.5 × ((0.65+0.70+0.55+0.60)/4) + 0.5 × 0.78 = 0.5 × 0.625 + 0.5 × 0.78 = 0.70.
+        No disagreement cap. WEEKLY ceiling 0.85 (no clamp needed). Level-anchored target (no
+        fallback). Final confidence = <strong>0.70</strong>.
+      </div>
+    </section>
+
+    <!-- ── NEUTRAL escape hatch ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">When the synthesizer emits NEUTRAL</h2>
+      <p>NEUTRAL is the honest escape hatch. The synthesizer must emit NEUTRAL when <em>any</em>
+      of these are true:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Technicals and news sharply disagree (e.g. trend bullish, news strongly bearish).</li>
+        <li>The risk-reward floor of 1.5× cannot be met with any sane stop.</li>
+        <li>Price is mid-range — no nearby support OR resistance within 2 × ATR.</li>
+        <li>Volatility regime is "expanding" AND there's no clear directional catalyst.</li>
+      </ul>
+      <p class="mt-3">NEUTRAL predictions still emit entry/target/stop fields, but they describe the
+      <em>expected range</em>, not a directional trade. Risk-reward is set to exactly 1.0 by
+      convention.</p>
+    </section>
+
+    <!-- ── Discipline ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Citation &amp; vocabulary discipline</h2>
+
+      <h3 class="text-lg font-semibold mt-3 mb-2">Citation rule</h3>
+      <p>Every claim in the rationale, contributing_signals, and conflicting_signals fields MUST be
+      traceable to either:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>A specific signal string in the TechnicalView (which the LLM may quote verbatim), or</li>
+        <li>A specific catalyst or risk in the ImpactAssessment (URL included).</li>
+      </ul>
+      <p class="mt-2 text-sm">The synthesizer is explicitly forbidden from inventing a "recent
+      management commentary" that isn't in the news payload.</p>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Forbidden vocabulary</h3>
+      <p>The rationale must contain none of:</p>
+      <div class="formula">guarantee, certain, definitely, risk-free, easy money, multibagger</div>
+      <p>The output is <strong>educational, not advice</strong> — <code>not_advice=True</code> and
+      <code>is_educational=True</code> are always set in every prediction object.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="news.html" class="text-[#0053e2]">← News analysis</a>
+      <a href="horizons.html" class="text-[#0053e2]">Next: Horizons &amp; targets →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("synthesis.html");</script>
+</body>
+</html>

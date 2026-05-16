@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Horizons &amp; targets — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Horizons &amp; targets</nav>
+    <h1 class="text-3xl font-bold mb-2">Horizons, ATR units, and the risk-reward math</h1>
+    <p class="text-gray-700 mb-8">Why ATR is the unit of everything, what the per-horizon bands
+    actually look like, and how risk-reward is computed two different ways.</p>
+
+    <!-- ── The four horizons ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The four horizons we predict at</h2>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Trading days</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY</td><td>1</td><td>Next-session close (today's close if it's before 15:30 IST).</td></tr>
+          <tr><td>WEEKLY</td><td>5</td><td>+7 calendar days, snapped back to the last trading day.</td></tr>
+          <tr><td>BIWEEKLY</td><td>10</td><td>+14 calendar days, snapped back to the last trading day.</td></tr>
+          <tr><td>MONTHLY</td><td>21</td><td>+1 calendar month, snapped back to the last trading day.</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">
+        Why both calendar and trading-day measures? The grading window uses trading-day counts
+        (1, 5, 10, 21) — those match NIFTY's typical 21 trading days per month. The target
+        evaluation moment uses calendar windows snapped back to the most recent NSE trading day —
+        that way a prediction never silently extends past Diwali or a long weekend.
+      </div>
+    </section>
+
+    <!-- ── ATR as unit ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Why ATR is the unit of everything</h2>
+      <p>A 1% move means very different things in different stocks. In sleepy HUL (typical daily
+      ATR ~0.9%) a 1% move is a significant day; in volatile Vodafone-Idea (typical ATR ~5%) it's
+      noise. So we express every stop and every target as a <strong>multiple of the stock's own
+      ATR</strong>:</p>
+
+      <div class="formula">stop distance = (entry − stop) for bullish<br>target distance = (target − entry) for bullish</div>
+
+      <p>Then we ask: how does that distance compare to 1 day's worth of typical movement?</p>
+
+      <div class="example">
+        RELIANCE close ₹2,900 with ATR ₹40. A 2 × ATR stop sits ₹80 below the entry, or about 2.8%.
+        A 1.5 × ATR target sits ₹60 above, or about 2.1%. Both numbers are "translated" into the
+        stock's own volatility — the same 2× ATR stop applied to TCS would sit at a different
+        percent of price.
+      </div>
+    </section>
+
+    <!-- ── Per-horizon bands ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The per-horizon ATR bands</h2>
+
+      <p>The synthesizer is allowed to pick any stop/target distance inside the band for the chosen
+      horizon. Numbers come from <code>horizon_constants.py</code> — the single source of truth in code.</p>
+
+      <table class="t">
+        <thead>
+          <tr>
+            <th>Horizon</th>
+            <th>Stop band (× ATR)</th>
+            <th>Target band (× ATR)</th>
+            <th>Entry zone (± % close)</th>
+            <th>Conf. ceiling</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>DAILY</td><td>0.5 – 1.0</td><td>0.75 – 1.5</td><td>±0.5%</td><td>0.90</td></tr>
+          <tr><td>WEEKLY</td><td>0.7 – 1.5</td><td>1.0 – 2.0</td><td>±1.0%</td><td>0.85</td></tr>
+          <tr><td>BIWEEKLY</td><td>1.0 – 2.0</td><td>1.5 – 3.0</td><td>±1.5%</td><td>0.80</td></tr>
+          <tr><td>MONTHLY</td><td>1.5 – 2.5</td><td>2.0 – 4.0</td><td>±2.0%</td><td>0.75</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        Wider bands for longer horizons because longer horizons absorb more noise. A 1×ATR stop on
+        a MONTHLY position would get eaten by routine wiggles every other week; a 1×ATR stop on a
+        DAILY trade is appropriate.
+      </div>
+
+      <p class="text-sm text-gray-600 mt-3"><strong>Literature anchors.</strong> Wilder's (1978)
+      canonical 1×ATR "swing stop" sits in the WEEKLY band. Van Tharp's (2007) 2–3×ATR positional
+      stop sits in the MONTHLY band. The target midpoint of each row is ≈ 1.4× the stop midpoint —
+      the positive-expectancy ratio Murphy / Pring / Tharp all converge on for retail timeframes.</p>
+    </section>
+
+    <!-- ── RR math: two flavours ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Risk-reward — the two numbers we report</h2>
+
+      <p>Every BULLISH/BEARISH prediction surfaces <strong>two</strong> RR fields, both computed.
+      Why two? Because the textbook single-entry RR formula and the worst-case sizing decision are
+      not the same number.</p>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">1. <code>risk_reward</code> — the worst-fill anchor</h3>
+      <div class="formula">
+        BULLISH:  risk_reward = (target − zone_high) / (zone_high − stop)<br>
+        BEARISH:  risk_reward = (zone_low − target) / (stop − zone_low)
+      </div>
+      <div class="meaning">
+        The "what if I got the worst possible fill inside the entry band" answer. This is what
+        the conservative sizing rule reads: <em>"even at the worst fill, RR is still acceptable"</em>.
+        The guardrail enforces <strong>risk_reward ≥ 1.5</strong> for any non-NEUTRAL prediction.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">2. <code>midpoint_rr</code> — the textbook number</h3>
+      <div class="formula">
+        entry_mid = (zone_low + zone_high) / 2<br>
+        midpoint_rr = (target − entry_mid) / (entry_mid − stop)  &nbsp;&nbsp; for bullish
+      </div>
+      <div class="meaning">
+        This is the convention used in published edge studies (Bulkowski's pattern catalogues,
+        Edwards &amp; Magee, every broker's RR calculator). We surface it for <strong>literature
+        comparability</strong> — not for sizing.
+      </div>
+
+      <p class="mt-3 text-sm">For any zone of nonzero width,
+      <code>midpoint_rr ≥ risk_reward</code> (the midpoint fill is unambiguously better than
+      the worst-end fill). They coincide when the zone collapses to a single price.</p>
+    </section>
+
+    <!-- ── Grading thresholds ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Grading thresholds (what counts as "right")</h2>
+
+      <p>When we go back later to grade a prediction against what actually happened, we use a
+      separate set of thresholds — the synthesizer was given an <em>expected move band</em> in
+      ATR; the grader cares about <em>actual realized return</em> in percent.</p>
+
+      <table class="t">
+        <thead>
+          <tr>
+            <th>Horizon</th>
+            <th>Bars</th>
+            <th>Mode-A win threshold</th>
+            <th>Mode-A loss threshold</th>
+            <th>Neutral cone</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>DAILY</td><td>1</td><td>+0.5%</td><td>−0.5%</td><td>±0.5%</td></tr>
+          <tr><td>WEEKLY</td><td>5</td><td>+1.5%</td><td>−1.5%</td><td>±1.5%</td></tr>
+          <tr><td>BIWEEKLY</td><td>10</td><td>+2.5%</td><td>−2.5%</td><td>±2.5%</td></tr>
+          <tr><td>MONTHLY</td><td>21</td><td>+5.0%</td><td>−5.0%</td><td>±5.0%</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        These thresholds follow approximately <code>√(bars) × 0.5%</code> — the random-walk scaling
+        of how price drifts with time. A 5-bar week should see a ~1.1% standard deviation around
+        zero; we set the bar a bit higher at 1.5% so we're only counting genuine directional moves.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">Three grading modes</h3>
+      <table class="t">
+        <thead><tr><th>Mode</th><th>Question answered</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Mode A — strict directional</strong></td>
+              <td>Did the realized close-to-close return meet the horizon's win/loss threshold?</td></tr>
+          <tr><td><strong>Mode B — target/stop resolution</strong></td>
+              <td>Walking the intra-window bars, which did price touch first — target or stop?
+                  Possible outcomes: TARGET_HIT, STOP_HIT, STOP_HIT_AMBIGUOUS (both touched same bar
+                  — counted as stop, conservatively), OPEN (neither touched by deadline).</td></tr>
+          <tr><td><strong>Mode C — neutral cone</strong></td>
+              <td>For NEUTRAL calls only: did the realized return stay inside the cone?</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Brier score ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Calibration metric: Brier score</h2>
+      <p>How well does the agent's stated confidence match its actual hit rate? The Brier score is
+      our answer:</p>
+      <div class="formula">
+        Brier = mean((confidence − outcome)²)<br>
+        where outcome = 1.0 if Mode-A correct, else 0.0
+      </div>
+      <p>Lower is better. The naive baseline (predicting 0.5 confidence on a 50/50 outcome) is
+      <strong>0.25</strong>. Below <strong>0.20</strong> is "decent"; below <strong>0.15</strong>
+      is "good". We additionally report the Brier <em>skill</em> score (BSS) — Brier compared to
+      the empirical base rate, which is the apples-to-apples comparison if the base rate isn't 50%.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="synthesis.html" class="text-[#0053e2]">← Putting it together</a>
+      <a href="guardrails.html" class="text-[#0053e2]">Next: Quality controls →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("horizons.html");</script>
+</body>
+</html>

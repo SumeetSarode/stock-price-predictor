@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Candlestick patterns — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-5xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Candlestick patterns</nav>
+    <h1 class="text-3xl font-bold mb-2">Candlestick patterns — all 61 from the TA-Lib catalogue</h1>
+    <p class="text-gray-700 mb-4">We detect every candlestick pattern in the
+    <strong>TA-Lib</strong> reference implementation — 61 in total — using the same recognizers
+    that ship in the <code>CDL*</code> family of functions (Nison's
+    <em>Japanese Candlestick Charting Techniques</em>, 1991, is the canonical English-language
+    source).</p>
+
+    <!-- ── Bar vocabulary refresher ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">A 90-second refresher on bar anatomy</h2>
+      <div class="grid sm:grid-cols-2 gap-6 items-start">
+        <div>
+          <svg viewBox="0 0 220 220" class="w-48 h-48">
+            <!-- bullish candle -->
+            <line x1="50" y1="20" x2="50" y2="200" stroke="#2a8703" stroke-width="2"/>
+            <rect x="30" y="70" width="40" height="100" fill="#dcfce7" stroke="#2a8703" stroke-width="2"/>
+            <text x="85" y="40"  font-size="10" fill="#5e5e5e">high (upper wick)</text>
+            <text x="85" y="80"  font-size="10" fill="#5e5e5e">close (top of body)</text>
+            <text x="85" y="125" font-size="10" fill="#5e5e5e">body</text>
+            <text x="85" y="175" font-size="10" fill="#5e5e5e">open (bottom of body)</text>
+            <text x="85" y="200" font-size="10" fill="#5e5e5e">low (lower wick)</text>
+            <text x="50" y="218" text-anchor="middle" font-size="11" font-weight="600" fill="#2a8703">Bullish bar</text>
+          </svg>
+          <p class="text-xs text-gray-600 mt-1">Close above open → green/hollow body.</p>
+        </div>
+        <div>
+          <svg viewBox="0 0 220 220" class="w-48 h-48">
+            <line x1="50" y1="20" x2="50" y2="200" stroke="#ea1100" stroke-width="2"/>
+            <rect x="30" y="70" width="40" height="100" fill="#fee2e2" stroke="#ea1100" stroke-width="2"/>
+            <text x="85" y="40"  font-size="10" fill="#5e5e5e">high (upper wick)</text>
+            <text x="85" y="80"  font-size="10" fill="#5e5e5e">open (top of body)</text>
+            <text x="85" y="125" font-size="10" fill="#5e5e5e">body</text>
+            <text x="85" y="175" font-size="10" fill="#5e5e5e">close (bottom of body)</text>
+            <text x="85" y="200" font-size="10" fill="#5e5e5e">low (lower wick)</text>
+            <text x="50" y="218" text-anchor="middle" font-size="11" font-weight="600" fill="#ea1100">Bearish bar</text>
+          </svg>
+          <p class="text-xs text-gray-600 mt-1">Close below open → red/filled body.</p>
+        </div>
+      </div>
+      <div class="formula mt-4">
+        body = |close − open|<br>
+        range = high − low<br>
+        upper_shadow = high − max(open, close)<br>
+        lower_shadow = min(open, close) − low
+      </div>
+    </section>
+
+    <!-- ── The gating filter ── -->
+    <section class="mb-10 bg-amber-50 border border-amber-200 rounded-lg p-5">
+      <h2 class="text-xl font-bold mb-2 text-amber-900">⚠️ The "context matters" filter (read this first)</h2>
+      <p class="text-amber-900">Raw candlestick patterns fire <em>constantly</em>. A hammer in the
+      middle of nowhere is meaningless. Trading wisdom — and Nison's whole book — says: a hammer
+      only matters <strong>near support</strong>; a shooting star only matters <strong>near
+      resistance</strong>. So before any pattern reaches the LLM, we apply this gate:</p>
+
+      <table class="t mt-3">
+        <thead><tr><th>Pattern direction</th><th>Surfaced only if…</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag tag-bull">Bullish</span></td>
+              <td>The bar's <strong>low</strong> sits within <mark class="k">1 × ATR</mark> of the current swing-low.</td></tr>
+          <tr><td><span class="tag tag-bear">Bearish</span></td>
+              <td>The bar's <strong>high</strong> sits within <mark class="k">1 × ATR</mark> of the current swing-high.</td></tr>
+          <tr><td><span class="tag tag-neut">Neutral</span> (dojis, spinning tops)</td>
+              <td>Near <em>either</em> swing extreme — indecision at any pivot is meaningful.</td></tr>
+        </tbody>
+      </table>
+
+      <p class="text-amber-900 mt-3 text-sm">Patterns that don't meet the gate are <strong>dropped
+      silently</strong> — the LLM never sees them. Every surviving pattern is enriched with
+      <code>context</code> (near_support / near_resistance / near_either), the
+      <code>level_price</code> it's near, and the <code>distance_pct</code> to that level.</p>
+    </section>
+
+    <!-- ── Single-bar patterns ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Single-bar patterns</h2>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Indecision / continuation shapes (neutral direction)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Doji</strong></td><td>Open ≈ close. Body ≤ 10% of range.</td>
+              <td>Pure indecision. Buyers and sellers fought to a tie. Meaningful near a pivot.</td></tr>
+          <tr><td><strong>Long-legged doji</strong></td><td>Doji with long upper <em>and</em> lower wicks.</td>
+              <td>Violent indecision — large intraday range but flat close. Trend exhaustion signal.</td></tr>
+          <tr><td><strong>Dragonfly doji</strong></td><td>Doji with long lower wick, no upper wick.</td>
+              <td>Sellers pushed price down hard but buyers rejected it back to open. Bullish-tinted near support.</td></tr>
+          <tr><td><strong>Gravestone doji</strong></td><td>Doji with long upper wick, no lower wick.</td>
+              <td>Mirror of dragonfly. Buyers pushed up, sellers slammed it back. Bearish-tinted near resistance.</td></tr>
+          <tr><td><strong>Rickshaw man</strong></td><td>Long-legged doji with body near range mid-point.</td>
+              <td>Maximum indecision — wicks long, body centred.</td></tr>
+          <tr><td><strong>Spinning top</strong></td><td>Small body, both wicks visible.</td>
+              <td>Tug of war. Weaker version of doji — same idea, slightly less symmetric.</td></tr>
+          <tr><td><strong>High wave</strong></td><td>Very small body, very long wicks both sides.</td>
+              <td>Extreme volatility/indecision. Often appears at trend turning points.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Bullish reversal shapes (after a downtrend)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Hammer</strong></td>
+              <td>Small body at top, lower shadow ≥ 2 × body, upper shadow tiny.</td>
+              <td>Sellers drove price down all session, buyers absorbed and pushed close back near open. Classic bottoming signal at support.</td></tr>
+          <tr><td><strong>Inverted hammer</strong></td>
+              <td>Small body at bottom, upper shadow ≥ 2 × body, lower shadow tiny.</td>
+              <td>Buyers tried to rally but were pushed back; <em>after a downtrend</em>, signals buyer interest at the lows.</td></tr>
+          <tr><td><strong>Takuri</strong></td>
+              <td>Dragonfly-like — even longer lower wick than hammer.</td>
+              <td>Stronger version of dragonfly doji. Strong bullish rejection at the lows.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Bearish reversal shapes (after an uptrend)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Shooting star</strong></td>
+              <td>Small body at bottom, upper shadow ≥ 2 × body. Mirror of inverted hammer.</td>
+              <td>Buyers pushed price up hard, sellers slammed it back to open. Classic topping signal at resistance.</td></tr>
+          <tr><td><strong>Hanging man</strong></td>
+              <td>Same shape as hammer, but appearing <em>after</em> an uptrend.</td>
+              <td>The same long lower wick that signalled a bottom now warns of weakness — sellers have showed up at the highs.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Conviction / continuation shapes</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Marubozu</strong></td>
+              <td>Long body, NO upper or lower shadows. Open = high (bearish) or open = low (bullish).</td>
+              <td>Total domination by one side. Strong continuation signal.</td></tr>
+          <tr><td><strong>Closing marubozu</strong></td>
+              <td>Marubozu where only the closing side touches its extreme; small wick on the opening side.</td>
+              <td>Slightly weaker than full marubozu but same continuation read.</td></tr>
+          <tr><td><strong>Long line</strong></td>
+              <td>Body is unusually long compared to recent bars.</td>
+              <td>Strong directional conviction. Used by TA-Lib internally as a building block for many multi-bar patterns.</td></tr>
+          <tr><td><strong>Short line</strong></td>
+              <td>Body is unusually short compared to recent bars.</td>
+              <td>Pause / hesitation. Building block for harami-style patterns.</td></tr>
+          <tr><td><strong>Belt hold</strong></td>
+              <td>Opens at an extreme (low for bullish, high for bearish) with no shadow on that side, closes far in the opposite direction.</td>
+              <td>One side took control from the open and never let go.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Two-bar patterns ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Two-bar patterns</h2>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Reversal pairs (bullish)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Bullish engulfing</strong></td>
+              <td>Yesterday bearish; today bullish; today's body <em>fully engulfs</em> yesterday's.</td>
+              <td>Buyers overwhelmed sellers in one session. Strong bullish reversal near support.</td></tr>
+          <tr><td><strong>Piercing line</strong></td>
+              <td>Yesterday bearish long body; today bullish, opens below yesterday's low but closes <em>above</em> yesterday's midpoint.</td>
+              <td>Weaker than full engulfing but same family — buyers reclaimed more than half of yesterday's range.</td></tr>
+          <tr><td><strong>Bullish harami</strong></td>
+              <td>Yesterday bearish long body; today small body sitting <em>inside</em> yesterday's body.</td>
+              <td>Selling pressure paused. Indecision after a downtrend. Reversal warning, not confirmation.</td></tr>
+          <tr><td><strong>Harami cross</strong></td>
+              <td>Like harami but today's small body is a doji.</td>
+              <td>Stronger harami signal — full indecision inside the prior body.</td></tr>
+          <tr><td><strong>Homing pigeon</strong></td>
+              <td>Bullish harami where both bars are bearish (today's small bearish body inside yesterday's long bearish body).</td>
+              <td>Bearish momentum decelerating — reversal hint.</td></tr>
+          <tr><td><strong>Matching low</strong></td>
+              <td>Two consecutive bearish bars with identical lows.</td>
+              <td>Sellers tested the same floor twice and failed both times. Support confirmed.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Reversal pairs (bearish)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Bearish engulfing</strong></td>
+              <td>Yesterday bullish; today bearish; today's body fully engulfs yesterday's.</td>
+              <td>Sellers overwhelmed buyers. Mirror of bullish engulfing.</td></tr>
+          <tr><td><strong>Dark cloud cover</strong></td>
+              <td>Yesterday bullish long body; today bearish, opens above yesterday's high but closes <em>below</em> yesterday's midpoint.</td>
+              <td>Mirror of piercing. Sellers reclaimed more than half of yesterday's range.</td></tr>
+          <tr><td><strong>Bearish harami</strong></td>
+              <td>Yesterday bullish long body; today small body inside yesterday's body.</td>
+              <td>Buying pressure paused. Reversal warning at the top.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Continuation pairs (weak / strong)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Separating lines</strong></td>
+              <td>Two opposite-coloured bars open at the same price.</td>
+              <td>The recent counter-move is rejected at the open of the new bar → continuation of prior trend.</td></tr>
+          <tr><td><strong>Counterattack</strong></td>
+              <td>Two opposite-coloured bars closing at the same price.</td>
+              <td>The counter-move reached parity at close — weaker reversal signal than engulfing.</td></tr>
+          <tr><td><strong>In neck</strong></td>
+              <td>In a downtrend: bearish long body then bullish bar closing barely above prior close.</td>
+              <td>Bounce attempt is weak. Continuation of downtrend likely.</td></tr>
+          <tr><td><strong>On neck</strong></td>
+              <td>Like in-neck but the bullish bar closes <em>exactly at</em> prior low.</td>
+              <td>Even weaker bounce. Strong downtrend continuation.</td></tr>
+          <tr><td><strong>Thrusting</strong></td>
+              <td>Downtrend: bullish bar closes into prior body but below its midpoint.</td>
+              <td>Bounce makes it halfway but no further. Bearish continuation.</td></tr>
+          <tr><td><strong>Kicking</strong></td>
+              <td>Two opposite-coloured marubozu bars separated by a gap.</td>
+              <td>Violent regime change — yesterday total bear domination, today total bull (or vice-versa).</td></tr>
+          <tr><td><strong>Kicking by length</strong></td>
+              <td>Kicking where the longer body's direction wins.</td>
+              <td>Same as kicking but emphasises which bar dominates by length.</td></tr>
+          <tr><td><strong>Doji star</strong></td>
+              <td>Long body then a doji that gaps in the direction of the body.</td>
+              <td>Indecision <em>after</em> a strong move — building block for the morning/evening doji stars below.</td></tr>
+          <tr><td><strong>Hikkake</strong></td>
+              <td>An inside bar (harami) followed by a false breakout from the inside bar's range.</td>
+              <td>Classic "trap" pattern (Linda Raschke). The false break sets up a reversal in the opposite direction.</td></tr>
+          <tr><td><strong>Hikkake modified</strong></td>
+              <td>Hikkake with additional confirmation criteria (closer to Bulkowski's "Hikkake confirmed").</td>
+              <td>Stronger hikkake — only fires when the trap is decisively reversed.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Three-bar patterns ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Three-bar patterns</h2>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Reversal stars (the headline category)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Morning star</strong></td>
+              <td>Bar 1 bearish + long body. Bar 2 small body (any color), often gapping down. Bar 3 bullish + long body, closing above midpoint of bar 1.</td>
+              <td>Three-act bullish reversal: capitulation → indecision → recovery. One of Nison's most cited patterns.</td></tr>
+          <tr><td><strong>Morning doji star</strong></td>
+              <td>Same as morning star but bar 2 is specifically a doji.</td>
+              <td>Stronger version — pure indecision at the bottom.</td></tr>
+          <tr><td><strong>Evening star</strong></td>
+              <td>Mirror. Bar 1 bullish long, bar 2 small body, bar 3 bearish long closing below midpoint of bar 1.</td>
+              <td>Three-act bearish reversal at the top.</td></tr>
+          <tr><td><strong>Evening doji star</strong></td>
+              <td>Evening star with a doji as bar 2.</td>
+              <td>Stronger version of evening star.</td></tr>
+          <tr><td><strong>Abandoned baby</strong></td>
+              <td>Like morning/evening star but bar 2 is a doji that <strong>gaps</strong> away from both bar 1 and bar 3 (full price isolation).</td>
+              <td>Rare and powerful reversal. The "abandoned" doji has no overlap with either neighbour.</td></tr>
+          <tr><td><strong>Tri-star</strong></td>
+              <td>Three dojis in a row.</td>
+              <td>Three sessions of total indecision — extreme exhaustion, reversal likely.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Strong continuation triplets</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Three white soldiers</strong></td>
+              <td>Three consecutive bullish long bars, each closing higher than the last, each opening within the prior body.</td>
+              <td>Sustained, methodical buying. Strong bullish continuation or reversal from low base.</td></tr>
+          <tr><td><strong>Three black crows</strong></td>
+              <td>Mirror. Three consecutive bearish long bars each closing lower.</td>
+              <td>Sustained, methodical selling. Strong bearish.</td></tr>
+          <tr><td><strong>Identical three crows</strong></td>
+              <td>Three black crows where each bar opens at the prior bar's close (no overlap).</td>
+              <td>Even more aggressive selling than regular three crows.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Reversal hybrids (engulfing + one more bar)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Three inside up / down</strong></td>
+              <td>Bullish/bearish harami with a confirming third bar in the harami's direction.</td>
+              <td>Confirmed harami → stronger reversal call than harami alone.</td></tr>
+          <tr><td><strong>Three outside up / down</strong></td>
+              <td>Engulfing pattern with a confirming third bar in the engulfing's direction.</td>
+              <td>Confirmed engulfing.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Rare / specialised triplets</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Three stars in the south</strong></td>
+              <td>Three consecutive bearish bars with progressively smaller bodies and shrinking lows.</td>
+              <td>Bearish momentum is exhausting. Rare bullish reversal warning.</td></tr>
+          <tr><td><strong>Unique three river</strong></td>
+              <td>Hammer-like third bar after two bearish bars, with specific overlap rules.</td>
+              <td>Bullish reversal at the bottom.</td></tr>
+          <tr><td><strong>Two crows</strong></td>
+              <td>After uptrend: a bullish bar, then two bearish bars that progressively eat into the bullish one.</td>
+              <td>Sellers showing up after a long run-up. Bearish.</td></tr>
+          <tr><td><strong>Upside gap two crows</strong></td>
+              <td>Like two crows but with an upward gap between the bullish bar and the first crow.</td>
+              <td>Stronger bearish — the gap reversal is particularly damning.</td></tr>
+          <tr><td><strong>Advance block</strong></td>
+              <td>Three bullish bars that progressively shrink in body size and develop upper shadows.</td>
+              <td>The rally is running out of steam. Bearish reversal warning during uptrend.</td></tr>
+          <tr><td><strong>Stalled pattern</strong></td>
+              <td>Three bullish bars where the third has a noticeably smaller body and is "stalled" at the top.</td>
+              <td>Buying exhaustion. Often precedes a pullback.</td></tr>
+          <tr><td><strong>Breakaway</strong></td>
+              <td>Five-bar variant (TA-Lib uses 5 bars here despite the "three-bar" colloquial naming). A gap-led trend leg that ends with a strong reversal bar.</td>
+              <td>The breakaway gap is filled and reversed — strong reversal call.</td></tr>
+          <tr><td><strong>Ladder bottom</strong></td>
+              <td>Four bearish bars stepping down, then a fifth bullish bar that gaps up.</td>
+              <td>Bullish reversal at the bottom of a stepped decline.</td></tr>
+          <tr><td><strong>Stick sandwich</strong></td>
+              <td>Bearish — bullish — bearish, where the first and third close at the same price.</td>
+              <td>Bullish reversal. The third bar "sandwiches" the bullish meat in the middle.</td></tr>
+          <tr><td><strong>Tasuki gap</strong></td>
+              <td>Two same-coloured bars with a gap, then an opposite-coloured bar that partially fills the gap but doesn't close it.</td>
+              <td>The original trend resumes — continuation pattern.</td></tr>
+          <tr><td><strong>Gap side-by-side white</strong></td>
+              <td>Two bullish bars sitting side-by-side after an upward gap.</td>
+              <td>Strong bullish continuation in an uptrend.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Multi-bar (4-5 bar) patterns ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Four- and five-bar patterns</h2>
+
+      <table class="t">
+        <thead><tr><th>Name</th><th>Bars</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Concealing baby swallow</strong></td><td>4</td>
+              <td>Two bearish marubozu, a third bearish bar that opens with a gap down and trades into the prior body, a fourth bearish bar engulfing the third. Rare. Strong bullish reversal at the bottom.</td></tr>
+          <tr><td><strong>Mat hold</strong></td><td>5</td>
+              <td>A long bullish bar, then 3 small bearish/inside bars trading sideways without breaking the bullish bar's low, then a bullish bar that breaks out. Bullish continuation.</td></tr>
+          <tr><td><strong>Rising / falling three methods</strong></td><td>5</td>
+              <td>Same idea as mat hold. Long bar in the direction of trend, three small counter-bars, then resumption. The "pause that refreshes."</td></tr>
+          <tr><td><strong>X side-gap three methods</strong></td><td>5</td>
+              <td>A gap continuation pattern. Two bars in trend direction (with gap), then three counter-trend bars that try and fail to close the gap.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Why TA-Lib? ── -->
+    <section class="mb-10 bg-gray-50 border border-gray-200 rounded p-5">
+      <h2 class="text-xl font-bold mb-2">Why we use TA-Lib's recognizers, not our own</h2>
+      <p>Each of the patterns above is implemented inside TA-Lib's open-source C library
+      (<code>src/ta_func/ta_CDL*.c</code>). Each function returns +100 for a fired bullish pattern,
+      −100 for bearish, or 0 for no pattern. The recognizers were originally written by
+      <strong>Mario Fortier</strong> and have been the de-facto reference implementation since the
+      early 2000s.</p>
+      <p class="mt-2">We don't reinvent the math — we wrap their function calls in pretty names
+      (<code>hammer</code> not <code>CDLHAMMER</code>) and add our own ATR-proximity gating layer
+      on top. There's also a sanity check at startup: if a future TA-Lib release adds or removes a
+      <code>CDL*</code> function, our test suite fails immediately so we can update the registry.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="crossovers.html" class="text-[#0053e2]">← Crossovers</a>
+      <a href="chart_patterns.html" class="text-[#0053e2]">Next: Chart patterns →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("candlesticks.html");</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Technical indicators — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Technical indicators</nav>
+    <h1 class="text-3xl font-bold mb-2">Technical indicators — the four clusters</h1>
+    <p class="text-gray-700 mb-6">Every number on this page is computed deterministically from the
+    daily OHLCV bars. <strong>No LLM is involved at this stage</strong> — the same input always gives
+    the same output. The Large Language Model only enters the picture later when the synthesizer
+    reads the cluster verdicts and writes prose.</p>
+
+    <!-- Cluster overview ── -->
+    <div class="grid sm:grid-cols-2 gap-3 mb-8">
+      <a href="#trend" class="border rounded-lg p-4 hover:border-[#0053e2]"><div class="text-xs text-gray-500 uppercase">Cluster 1</div><div class="font-semibold text-[#0053e2]">Trend →</div><div class="text-xs text-gray-600 mt-1">SMA, EMA, ADX, ±DI</div></a>
+      <a href="#momentum" class="border rounded-lg p-4 hover:border-[#0053e2]"><div class="text-xs text-gray-500 uppercase">Cluster 2</div><div class="font-semibold text-[#0053e2]">Momentum →</div><div class="text-xs text-gray-600 mt-1">RSI, MACD, Stochastic, OBV</div></a>
+      <a href="#volatility" class="border rounded-lg p-4 hover:border-[#0053e2]"><div class="text-xs text-gray-500 uppercase">Cluster 3</div><div class="font-semibold text-[#0053e2]">Volatility →</div><div class="text-xs text-gray-600 mt-1">ATR, Bollinger, TTM Squeeze</div></a>
+      <a href="#levels" class="border rounded-lg p-4 hover:border-[#0053e2]"><div class="text-xs text-gray-500 uppercase">Cluster 4</div><div class="font-semibold text-[#0053e2]">Levels →</div><div class="text-xs text-gray-600 mt-1">Swings, 52w, pivots, VWAP</div></a>
+    </div>
+
+    <!-- Sensitivity preset note -->
+    <div class="bg-gray-50 border border-gray-200 rounded p-4 mb-10 text-sm">
+      <strong>Note on lengths.</strong> All indicator lengths below use the <em>standard</em> sensitivity
+      preset (the default). Two alternative presets exist: <em>sensitive</em> (faster lengths for
+      day-trading) and <em>smooth</em> (slower lengths for positional). They only change the period
+      parameters, not the formulas.
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- TREND CLUSTER -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="trend" class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Cluster 1 — Trend</h2>
+
+      <!-- SMA -->
+      <h3 class="text-xl font-semibold mt-6 mb-2">Simple Moving Average (SMA)</h3>
+      <p>The plain old average of the last N closing prices. The most direct answer to
+      "where has this stock been recently, on average?".</p>
+      <div class="formula">SMA<sub>N</sub> = (close<sub>t</sub> + close<sub>t-1</sub> + … + close<sub>t-N+1</sub>) / N</div>
+      <p>We compute three lengths: <mark class="k">20</mark>, <mark class="k">50</mark>,
+      <mark class="k">200</mark> — short, medium, and long-term gauges (Murphy 1999, industry standard).</p>
+
+      <h4 class="text-base font-semibold mt-4 mb-1">Derived: the "SMA stack"</h4>
+      <p>Per SMA we record a boolean — "is the close above this SMA?" — and a signed
+      percent-distance. The <strong>stack score</strong> is simply the count of SMAs the close is
+      above, from 0 to 3:</p>
+      <table class="t">
+        <thead><tr><th>Stack score</th><th>Meaning</th><th>Tag</th></tr></thead>
+        <tbody>
+          <tr><td>3</td><td>Above all three SMAs — full bullish alignment.</td><td><span class="tag tag-bull">Bullish lean</span></td></tr>
+          <tr><td>2</td><td>Above two; usually below the slowest one.</td><td><span class="tag tag-bull">Bullish lean</span></td></tr>
+          <tr><td>1</td><td>Below two; only the fastest holds.</td><td><span class="tag tag-bear">Bearish lean</span></td></tr>
+          <tr><td>0</td><td>Below all three — full bearish alignment.</td><td><span class="tag tag-bear">Bearish lean</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="example">
+        TCS closed at ₹3,820. SMA20 = 3,780, SMA50 = 3,690, SMA200 = 3,560. Close above all three
+        → stack score = 3 → bullish lean. The next gate (ADX) decides whether that lean
+        becomes a real verdict.
+      </div>
+
+      <!-- EMA -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">Exponential Moving Average (EMA-20)</h3>
+      <p>Same idea as SMA but the most recent bars get more weight. New bars carry weight
+      <code>2 / (N+1)</code>; the previous EMA carries weight <code>1 − 2/(N+1)</code>.</p>
+      <div class="formula">EMA<sub>t</sub> = α × close<sub>t</sub> + (1 − α) × EMA<sub>t-1</sub>,  where α = 2 / (N + 1)</div>
+      <p>Length used: <mark class="k">20</mark> (Pring 2002). The EMA reacts to new prices faster
+      than the SMA of the same length — that's both its strength (early signal) and its weakness (more whipsaws).</p>
+
+      <!-- ADX -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">ADX and the Directional Indicators (Wilder 1978)</h3>
+      <p>The ADX answers a different question than the SMAs: not <em>where</em> the trend is, but
+      <em>how strong</em> it is. Plus and minus DI (the "Directional Indicators") tell you whether
+      buyers or sellers have been in control of the trend.</p>
+
+      <table class="t">
+        <thead><tr><th>Value</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>ADX &lt; 20</td><td><span class="tag tag-neut">No trend</span> Price is meandering. Treat any other signal with extra caution.</td></tr>
+          <tr><td>ADX 20–25</td><td>The "grey zone" (StockCharts convention). Weak trend.</td></tr>
+          <tr><td>ADX 25–40</td><td>Strong trend — Wilder's original threshold for "trend present" was 25.</td></tr>
+          <tr><td>ADX 40+</td><td>Very strong trend. Often near exhaustion.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        We use ADX as a <strong>strength gate</strong>. If ADX is below 20, the trend cluster's
+        verdict is <em>forced to neutral</em> regardless of how bullish the SMA stack looks.
+        A "bullish alignment in a directionless market" is just chop pretending to be a trend.
+      </div>
+
+      <p class="mt-3"><strong>Convergence guard.</strong> ADX is doubly smoothed by Wilder's RMA
+      (an exponentially-weighted average with <code>α = 1/N</code>). The starting bias only decays
+      below 1% after about <code>10×N = 140</code> bars. We refuse to publish ADX before then,
+      because an undercooked ADX value would mislead the strength gate.</p>
+
+      <!-- MA Cross intro - full detail on crossovers page -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">Moving-average crossovers</h3>
+      <p>We detect two canonical crossover pairs (SMA-50/200 and EMA-9/21) on every bar.
+      Because the literature on this topic is rich and the implementation details matter,
+      <a href="crossovers.html" class="text-[#0053e2] underline">they have their own page</a>.
+      Quick preview:</p>
+      <ul class="list-disc pl-6 space-y-1 text-sm">
+        <li><strong>Golden Cross</strong> = SMA-50 crosses <em>above</em> SMA-200 (bullish).</li>
+        <li><strong>Death Cross</strong> = SMA-50 crosses <em>below</em> SMA-200 (bearish).</li>
+        <li><strong>EMA-9/21 cross</strong> = a faster, swing-trader cousin.</li>
+      </ul>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- MOMENTUM -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="momentum" class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Cluster 2 — Momentum</h2>
+
+      <!-- RSI -->
+      <h3 class="text-xl font-semibold mt-6 mb-2">Relative Strength Index (RSI-14)</h3>
+      <p>Wilder's classic. Measures the ratio of up-moves to down-moves over 14 bars and normalises
+      to a 0–100 scale.</p>
+      <div class="formula">
+        RSI = 100 − 100 / (1 + RS),  where  RS = average gain over N bars / average loss over N bars
+      </div>
+
+      <table class="t">
+        <thead><tr><th>Reading</th><th>Wilder's classic interpretation</th><th>Trend-RSI (Cardwell / Brown)</th></tr></thead>
+        <tbody>
+          <tr><td>RSI &gt; 70</td><td><span class="tag tag-bear">Overbought</span> — may pull back.</td><td>Still bullish in an uptrend.</td></tr>
+          <tr><td>RSI 60–70</td><td>Strong, not overbought.</td><td><span class="tag tag-bull">+1 bull vote</span> in our momentum classifier.</td></tr>
+          <tr><td>RSI 40–60</td><td>Neutral middle ground.</td><td>No vote.</td></tr>
+          <tr><td>RSI 30–40</td><td>Weak.</td><td><span class="tag tag-bear">+1 bear vote</span>.</td></tr>
+          <tr><td>RSI &lt; 30</td><td><span class="tag tag-bull">Oversold</span> — may bounce.</td><td>Still bearish in a downtrend.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        We deliberately use the <strong>60/40 trend-RSI cuts</strong> (Andrew Cardwell, popularised
+        by Constance Brown) for voting, not the 70/30 overbought/oversold flags. In an uptrend RSI
+        oscillates between roughly 40 and 80 — using "&gt;70 = bearish" in a strong uptrend would
+        mean fading every single push. The 70/30 flags are still reported separately as <em>regime
+        labels</em> for the LLM to quote.
+      </div>
+
+      <!-- MACD -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">MACD (Appel, late 1970s)</h3>
+      <p>The Moving Average Convergence Divergence is built from three things:</p>
+      <div class="formula">
+        MACD line   = EMA<sub>12</sub>(close) − EMA<sub>26</sub>(close)<br>
+        Signal line = EMA<sub>9</sub>(MACD line)<br>
+        Histogram   = MACD line − Signal line
+      </div>
+
+      <table class="t">
+        <thead><tr><th>Signal</th><th>Detection rule</th><th>Direction</th></tr></thead>
+        <tbody>
+          <tr><td>Bullish MACD cross</td>
+              <td>Histogram flips from ≤ 0 to &gt; 0 on the latest bar.</td>
+              <td><span class="tag tag-bull">+1 bull vote</span></td></tr>
+          <tr><td>Bearish MACD cross</td>
+              <td>Histogram flips from ≥ 0 to &lt; 0 on the latest bar.</td>
+              <td><span class="tag tag-bear">+1 bear vote</span></td></tr>
+          <tr><td>MACD &gt; Signal (no cross today)</td>
+              <td>Still above; consistent positive momentum.</td>
+              <td>+0.5 in matching direction</td></tr>
+        </tbody>
+      </table>
+
+      <div class="example">
+        Yesterday MACD histogram = −0.42. Today it closed at +0.18. That sign flip is a fresh
+        bullish cross → counts as +1 in the momentum vote tally.
+      </div>
+
+      <!-- Stochastic -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">Stochastic Oscillator (Lane, 1950s)</h3>
+      <p>Tells you where today's close sits inside the recent range. 0 = at the lowest low of the
+      window, 100 = at the highest high.</p>
+      <div class="formula">
+        %K  = (close − low<sub>N</sub>) / (high<sub>N</sub> − low<sub>N</sub>) × 100,  N = 14<br>
+        %K is then smoothed over 3 bars (slow %K)<br>
+        %D = 3-bar SMA of (smoothed %K)
+      </div>
+
+      <table class="t">
+        <thead><tr><th>Condition</th><th>Vote</th></tr></thead>
+        <tbody>
+          <tr><td>%K &gt; %D AND both above 50</td><td><span class="tag tag-bull">+0.5 bull</span></td></tr>
+          <tr><td>%K &lt; %D AND both below 50</td><td><span class="tag tag-bear">+0.5 bear</span></td></tr>
+          <tr><td>%K &gt; 80</td><td>Overbought flag (no vote flip; reported as label).</td></tr>
+          <tr><td>%K &lt; 20</td><td>Oversold flag (no vote flip; reported as label).</td></tr>
+        </tbody>
+      </table>
+
+      <!-- OBV -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">On-Balance Volume (Granville 1963)</h3>
+      <p>A running cumulative sum: <strong>add</strong> today's volume if close went up,
+      <strong>subtract</strong> if close went down, <strong>ignore</strong> if flat.</p>
+      <div class="formula">
+        OBV<sub>t</sub> = OBV<sub>t-1</sub> + (sign of close change) × volume<sub>t</sub>
+      </div>
+
+      <p>The absolute level of OBV is meaningless — only the <em>slope</em> tells you something.
+      We compute the 20-bar rate of change:</p>
+      <div class="formula">
+        OBV slope (20) = (OBV<sub>today</sub> − OBV<sub>20 bars ago</sub>) / |OBV<sub>20 bars ago</sub>| × 100
+      </div>
+      <div class="meaning">
+        Positive slope → <span class="tag tag-bull">+0.5 bull vote</span>. Volume is confirming the
+        price direction. Negative slope → <span class="tag tag-bear">+0.5 bear vote</span>.
+      </div>
+
+      <h3 class="text-xl font-semibold mt-8 mb-2">How the momentum vote becomes a verdict</h3>
+      <p>Sum all four contributions (RSI ±1, MACD ±1 or ±0.5, Stoch ±0.5, OBV ±0.5). The signed total
+      becomes the verdict; the absolute total scaled to <code>min(|net| / 3, 0.85)</code> becomes the
+      classifier's confidence. Maximally aligned momentum (all four pointing the same way) caps
+      around 0.83 — we never claim near-certainty from indicators alone.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- VOLATILITY -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="volatility" class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Cluster 3 — Volatility</h2>
+
+      <!-- ATR -->
+      <h3 class="text-xl font-semibold mt-6 mb-2">Average True Range (ATR-14)</h3>
+      <p>The single most important number in the whole system. ATR is the <em>unit</em> in which we
+      express every stop and every target.</p>
+
+      <div class="formula">
+        True Range<sub>t</sub> = max(high − low, |high − prev close|, |low − prev close|)<br>
+        ATR<sub>t</sub> = Wilder smoothing of True Range over 14 bars
+      </div>
+
+      <p>Why all three terms in the True Range max? The second and third handle <strong>gap risk</strong>
+      — a stock that gaps open above yesterday's high has a true range that's bigger than its
+      intra-day high–low spread.</p>
+
+      <div class="example">
+        RELIANCE closes at ₹2,900 with ATR = ₹40. That means the typical daily swing is about
+        1.4% of price. A 2× ATR stop sits ₹80 away, or ~2.8%. That's the unit we use for every
+        risk decision in this stock.
+      </div>
+
+      <div class="meaning">
+        ATR is reported as both a price (₹40) <strong>and</strong> a percent of close
+        (1.4%). The percent feeds the volatility-regime label.
+      </div>
+
+      <!-- Bollinger -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">Bollinger Bands (Bollinger, early 1980s)</h3>
+      <div class="formula">
+        Middle band = SMA(close, 20)<br>
+        Upper band  = Middle + 2 × stdev(close, 20)<br>
+        Lower band  = Middle − 2 × stdev(close, 20)
+      </div>
+
+      <h4 class="text-base font-semibold mt-3 mb-1">Derived: %B</h4>
+      <p>Where the close sits inside the band, normalised to 0–1:</p>
+      <div class="formula">%B = (close − lower) / (upper − lower)</div>
+
+      <table class="t">
+        <thead><tr><th>%B value</th><th>Position</th><th>Direction vote</th></tr></thead>
+        <tbody>
+          <tr><td>&gt; 1.0</td><td>Above upper band (breakout/overstretched)</td><td><span class="tag tag-bull">Bullish</span></td></tr>
+          <tr><td>0.55 – 1.0</td><td>Upper half of band</td><td><span class="tag tag-bull">Bullish lean</span></td></tr>
+          <tr><td>0.45 – 0.55</td><td>Around the middle</td><td><span class="tag tag-neut">Neutral</span></td></tr>
+          <tr><td>0 – 0.45</td><td>Lower half of band</td><td><span class="tag tag-bear">Bearish lean</span></td></tr>
+          <tr><td>&lt; 0</td><td>Below lower band</td><td><span class="tag tag-bear">Bearish</span></td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="text-base font-semibold mt-3 mb-1">Derived: bandwidth</h4>
+      <div class="formula">bandwidth % = (upper − lower) / middle × 100</div>
+      <p>How "wide" the bands are right now, in percent of price. Used to detect the squeeze.</p>
+
+      <!-- Squeezes -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">Two distinct "squeezes" (don't conflate them)</h3>
+      <p>The TA literature uses "squeeze" for two genuinely different ideas. We surface both, separately.</p>
+
+      <div class="grid sm:grid-cols-2 gap-4 my-4">
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="text-xs uppercase text-gray-500">Bollinger bandwidth squeeze</div>
+          <div class="font-semibold mt-1">"Bands are quieter than usual"</div>
+          <p class="text-sm mt-2">Bandwidth is in the <strong>lowest 20%</strong> of its values over the
+          past 60 bars (Bollinger 2001, ch. 11).</p>
+          <p class="text-xs text-gray-500 mt-2"><strong>Role:</strong> diagnostic only. Surfaced in
+          rationale text; does not drive any vote.</p>
+        </div>
+        <div class="border border-[#0053e2] rounded-lg p-4 bg-blue-50">
+          <div class="text-xs uppercase text-[#0053e2]">TTM Squeeze (Carter 2009) ⚡</div>
+          <div class="font-semibold mt-1">"Spring is coiled"</div>
+          <p class="text-sm mt-2">Stricter AND-gate: upper Bollinger band sits <em>inside</em> the
+          upper Keltner channel AND lower BB inside lower KC. Two volatility measures both compressed.</p>
+          <p class="text-xs text-[#0053e2] mt-2"><strong>Role:</strong> actionable. When TTM
+          <code>fires</code> (compression releases), the volatility classifier escalates strength
+          to <strong>strong</strong> regardless of direction — breakout incoming.</p>
+        </div>
+      </div>
+
+      <!-- Volatility verdict -->
+      <h3 class="text-xl font-semibold mt-8 mb-2">The volatility classifier emits three fields</h3>
+      <table class="t">
+        <thead><tr><th>Field</th><th>Values</th><th>Driven by</th></tr></thead>
+        <tbody>
+          <tr><td>Direction</td><td>bullish / neutral / bearish</td><td>%B above 0.55, around 0.50, below 0.45.</td></tr>
+          <tr><td>Strength</td><td>weak / moderate / strong</td><td>Strong = TTM squeeze on/fired. Weak = ATR-% in dead-quiet (&lt;1%) or manic (&gt;6%) tail.</td></tr>
+          <tr><td>Regime</td><td>low / normal / high</td><td>ATR-% of price: &lt;1% low, &gt;4% high.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- LEVELS -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <section id="levels" class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Cluster 4 — Levels</h2>
+
+      <p>Levels are <em>price points</em>, not scores. They are the prices the synthesizer uses to
+      anchor target and stop placement. Five families:</p>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">Swing high / swing low</h3>
+      <p>The highest high and lowest low over the last <mark class="k">30 bars</mark> (≈ 6 trading weeks).
+      The most recent actionable resistance / support.</p>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">52-week high / 52-week low</h3>
+      <p>The highest high and lowest low over the last <mark class="k">252 trading days</mark>. The
+      psychological levels every retail trader watches.</p>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">Classic floor-trader pivots</h3>
+      <p>Computed from the most recent <em>completed</em> daily bar. Standard formulas:</p>
+      <div class="formula">
+        Pivot Point (PP) = (high + low + close) / 3<br>
+        R1 = 2 × PP − low&nbsp; (first resistance)<br>
+        S1 = 2 × PP − high (first support)<br>
+        R2 = PP + (high − low)<br>
+        S2 = PP − (high − low)
+      </div>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">VWAP — rolling and anchored</h3>
+      <p>The Volume-Weighted Average Price treats each daily bar's "typical price" (the average of
+      H, L, C) weighted by that bar's volume. Two flavours:</p>
+      <div class="formula">
+        Typical price (TP) = (high + low + close) / 3<br>
+        Rolling VWAP (20)  = Σ(TP × volume, last 20 bars) / Σ(volume, last 20 bars)<br>
+        Anchored VWAP      = Σ(TP × volume, from anchor date) / Σ(volume, from anchor date)
+      </div>
+      <div class="meaning">
+        VWAP acts as a <strong>dynamic support/resistance line</strong>. Many institutional desks
+        target VWAP for their fills — so when price pulls back to VWAP in an uptrend it often
+        attracts buying. The anchored variant lets us pin VWAP to a specific catalyst day (Budget,
+        post-earnings gap, RBI policy) and watch it ever since.
+      </div>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">"Distance to level" — the derived field</h3>
+      <p>For every level above, we also compute the signed percent distance from current close:
+      <code>(level − close) / close × 100</code>. This is what lets the classifier ask "is price
+      near support?" without re-deriving anything.</p>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">The levels classifier verdict</h3>
+      <p>Find the nearest level in <strong>ATR units</strong> (so it's regime-adjusted, not fixed
+      percent), then:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Close within 0.5 ATR <em>above</em> nearest support → <span class="tag tag-bull">Bullish</span> lean (holding support).</li>
+        <li>Close within 0.5 ATR <em>below</em> nearest resistance → <span class="tag tag-bear">Bearish</span> lean (capped at resistance).</li>
+        <li>No level within 0.5 ATR → <span class="tag tag-neut">Neutral</span> (mid-range, free to move).</li>
+      </ul>
+
+      <div class="example">
+        HDFCBANK close ₹1,650 with ATR = ₹22. Swing-low support sits at ₹1,640.
+        Distance = ₹10 = 0.45 × ATR → close is within 0.5 ATR above support → bullish lean,
+        confidence ~0.6 (linear in proximity).
+      </div>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="data_sources.html" class="text-[#0053e2]">← Data we ingest</a>
+      <a href="crossovers.html" class="text-[#0053e2]">Next: Crossovers →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("indicators.html");</script>
+</body>
+</html>

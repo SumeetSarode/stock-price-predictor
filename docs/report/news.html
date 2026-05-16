@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>News analysis — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › News analysis</nav>
+    <h1 class="text-3xl font-bold mb-2">News analysis — what an LLM does with the headlines</h1>
+    <p class="text-gray-700 mb-8">Headlines without context are a footgun. <em>"Reliance Q4 EPS beats"</em>
+    sounds bullish — but if the guidance in the same release is weaker than expected, the stock
+    often drops. We use an LLM sub-agent to do the reading because it can frame expectations,
+    cross-check against filings, and decide what's actually material.</p>
+
+    <!-- ── Why an agent ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Why a sub-agent and not just "shove headlines into the prompt"</h2>
+      <p>To get this right we need a reader that can:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Decide which news is <strong>material</strong> vs. noise.</li>
+        <li>Read article bodies — not just titles.</li>
+        <li>Compare expectations vs. reality (analyst estimates as the baseline).</li>
+        <li>Cross-check with corporate filings and recent price action.</li>
+        <li>Output a <strong>structured, bounded</strong> assessment, not a free-form essay.</li>
+      </ul>
+      <p class="mt-3">Hence a dedicated Pydantic-AI sub-agent with four tools and a strict output schema.</p>
+    </section>
+
+    <!-- ── Tools ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The four tools the news agent can call</h2>
+      <p>The agent decides which tools to call and in what order. It's a reasoning loop, not a
+      fixed pipeline:</p>
+
+      <table class="t">
+        <thead><tr><th>Tool</th><th>What it returns</th></tr></thead>
+        <tbody>
+          <tr><td><code>fetch_news(ticker, days_back=7)</code></td>
+              <td>List of news articles (title, URL, published-at, source) — no body yet.</td></tr>
+          <tr><td><code>fetch_article_body(url)</code></td>
+              <td>Extracted clean body text for one article (or an error status). Called only for
+                  headlines the agent decides are material.</td></tr>
+          <tr><td><code>fetch_filings(ticker, days_back=30)</code></td>
+              <td>NSE corporate announcements (insider trades, board meetings, results).</td></tr>
+          <tr><td><code>fetch_estimates(ticker)</code></td>
+              <td>Analyst-estimate snapshot (EPS/revenue forecasts, recommendation counts, price-target distribution).</td></tr>
+          <tr><td><code>get_recent_price_action(ticker, days=10)</code></td>
+              <td>Tiny internal helper: <code>{ open, close, pct_change_total, max_drawdown_intra, days_up, days_down }</code> over the last 10 sessions.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Output schema ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">What the news agent emits: the ImpactAssessment</h2>
+
+      <table class="t">
+        <thead><tr><th>Field</th><th>Type</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td><code>direction</code></td><td>bullish / bearish / neutral</td><td>The net directional read across all news + filings + estimates.</td></tr>
+          <tr><td><code>magnitude</code></td><td>low / medium / high</td><td>How much should this <em>shift the synthesizer's confidence</em>? Not raw price magnitude.</td></tr>
+          <tr><td><code>confidence</code></td><td>float [0, 1]</td><td>How sure the agent is of its own read.</td></tr>
+          <tr><td><code>summary</code></td><td>string</td><td>One paragraph of plain English digest.</td></tr>
+          <tr><td><code>catalysts</code></td><td>tuple of Catalyst objects</td><td>Up to 5. Each has: title, source URL, published-at, importance, why_it_matters.</td></tr>
+          <tr><td><code>risks</code></td><td>tuple of Risk objects</td><td>Same shape — things that cut <em>against</em> the direction call.</td></tr>
+          <tr><td><code>articles_considered</code></td><td>int</td><td>How many article bodies the agent actually read.</td></tr>
+          <tr><td><code>filings_considered</code></td><td>int</td><td>How many filings the agent considered.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        Catalysts and risks carry the source URL <strong>explicitly</strong>. The downstream
+        citation guardrail (see Quality Controls page) will reject the whole prediction if the
+        synthesizer cites a URL that doesn't appear here.
+      </div>
+    </section>
+
+    <!-- ── Behaviour rules ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The rules the news agent's prompt enforces</h2>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">1. Materiality filter</h3>
+      <table class="t">
+        <thead><tr><th>Material — keep</th><th>Non-material — drop</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Earnings, M&amp;A, regulatory action, management change, large insider trades, guidance changes.</td>
+            <td>Sector op-eds, generic market commentary, "stock down 2% on no news" stories.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">2. Already-priced-in adjustment</h3>
+      <p>If a story's price impact has already played out in the last 10 days (per the price-action
+      tool), the agent must <strong>downgrade</strong> that headline's importance and explicitly
+      note <em>"already absorbed"</em> in the <code>why_it_matters</code> field.</p>
+
+      <div class="example">
+        Story: "Reliance announces ₹75,000-cr capex plan." Published 8 days ago. Stock is already
+        up 9% in those 8 days. Verdict: bullish news, but mark importance LOW and add
+        "already absorbed in last week's rally" — so the synthesizer doesn't double-count.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">3. Expectation framing</h3>
+      <p>For earnings, the agent compares reported figures against <strong>analyst-estimate
+      consensus</strong>, not against the prior period.</p>
+      <div class="example">
+        EPS came in at ₹28.40 — 5% growth year-over-year. <span class="tag tag-bear">Bearish</span> if
+        estimates expected 12% growth. <span class="tag tag-bull">Bullish</span> if estimates expected 3%.
+        Same number, opposite read.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">4. Catalyst quota</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Hard cap: <strong>at most 5 catalysts</strong> AND at most 5 risks. Forces prioritisation.</li>
+        <li>Minimum floor: if the agent emits <code>bullish</code> or <code>bearish</code>, at least
+            <strong>one catalyst</strong> must be present. Without one, the call <em>must</em> be
+            <code>neutral</code>. Enforced by both the prompt and the schema validator.</li>
+      </ul>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">5. Confidence calibration guidance</h3>
+      <table class="t">
+        <thead><tr><th>Range</th><th>When to use it</th></tr></thead>
+        <tbody>
+          <tr><td>0.00 – 0.30</td><td>Weak signal, mostly noise.</td></tr>
+          <tr><td>0.40 – 0.60</td><td>Moderate signal, multiple sources agree.</td></tr>
+          <tr><td>0.70 – 0.85</td><td>Strong signal, with a clear specific catalyst.</td></tr>
+          <tr><td>&gt; 0.85</td><td>Avoid. Reserved for "smoking gun" cases only.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">6. Hallucination guardrails (baked into the prompt)</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Every catalyst / risk MUST quote a specific URL the agent actually fetched. Inventing sources is forbidden.</li>
+        <li>If <code>fetch_news</code> returns zero articles, the agent returns
+            <code>direction=neutral, magnitude=low, confidence=0.0</code> with empty catalyst/risk
+            tuples and a summary that says so explicitly.</li>
+        <li>If every <code>fetch_article_body</code> call returns <code>status=error</code>,
+            same zero-result behaviour.</li>
+      </ul>
+    </section>
+
+    <!-- ── LLM router ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The resilient LLM chain</h2>
+      <p>The news agent runs on an ordered list of LLM providers. If one fails (rate limit,
+      schema-validation failure, network) it cools down for 60 seconds and the request falls
+      through to the next:</p>
+
+      <ol class="list-decimal pl-6 space-y-1">
+        <li><strong>Gemini 2.5 Flash</strong> (primary)</li>
+        <li><strong>Groq Llama 3.3 70B</strong> (first fallback — extremely low latency)</li>
+        <li><strong>OpenRouter Mistral Large</strong> (final fallback)</li>
+      </ol>
+
+      <p class="mt-3 text-sm text-gray-600">The model that actually produced the assessment is
+      recorded in the prediction's <code>model_chain</code> field, so an auditor can see which
+      provider was responsible.</p>
+    </section>
+
+    <!-- ── Failure handling ── -->
+    <section class="mb-10 bg-amber-50 border border-amber-200 rounded p-5">
+      <h2 class="text-xl font-bold mb-2 text-amber-900">What if the whole news layer fails?</h2>
+      <p class="text-amber-900">We <strong>degrade gracefully</strong>, not fail-fast. The system
+      substitutes a sentinel <code>ImpactAssessment</code>:</p>
+      <div class="formula">
+        direction = neutral<br>
+        magnitude = low<br>
+        confidence = 0.0<br>
+        summary = "news pipeline unavailable"<br>
+        catalysts = ()  ,  risks = ()
+      </div>
+      <p class="text-amber-900 mt-2 text-sm">The prediction is tagged <code>news_impact:degraded</code>
+      in <code>model_chain</code> so consumers can filter. The synthesizer naturally weights
+      technicals more heavily because the news side contributes nothing either way. Per the
+      calibration guardrail, predictions with this tag are capped at <strong>confidence ≤ 0.65</strong>
+      — we can't claim high confidence on a partial input.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="chart_patterns.html" class="text-[#0053e2]">← Chart patterns</a>
+      <a href="synthesis.html" class="text-[#0053e2]">Next: Putting it together →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("news.html");</script>
+</body>
+</html>

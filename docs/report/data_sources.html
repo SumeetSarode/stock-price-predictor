@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Data we ingest — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Data we ingest</nav>
+    <h1 class="text-3xl font-bold mb-2">What goes in: the four data streams</h1>
+    <p class="text-gray-700 mb-8">Predictions are only as good as their inputs. Here is every external
+    source the system reads from, what we keep, what we deliberately throw away, and what happens
+    when a source fails.</p>
+
+    <!-- ── Price data ───────────────────────────────────────── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">1. Price bars (OHLCV, daily)</h2>
+
+      <p>For one ticker we fetch about <mark class="k">two calendar years</mark> of daily bars
+      (≈ 520 trading sessions). Each bar carries the five numbers every chartist already knows:</p>
+
+      <table class="t">
+        <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Open</strong></td><td>First traded price of the session (NSE: 09:15 IST).</td></tr>
+          <tr><td><strong>High</strong></td><td>Highest price touched during the session.</td></tr>
+          <tr><td><strong>Low</strong></td><td>Lowest price touched during the session.</td></tr>
+          <tr><td><strong>Close</strong></td><td>Final traded price (NSE: 15:30 IST).</td></tr>
+          <tr><td><strong>Volume</strong></td><td>Total number of shares traded that session.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Where the bars come from (fallback chain)</h3>
+      <p>We try three providers <strong>in order</strong>. If one fails for a transient reason
+      (rate limit, timeout, empty result) we mark it asleep for 60 seconds and try the next:</p>
+      <ol class="list-decimal pl-6 space-y-1">
+        <li><strong>yfinance</strong> — primary. Yahoo Finance's free OHLCV feed.</li>
+        <li><strong>Stooq</strong> — fallback. Polish data provider that mirrors most global tickers.</li>
+        <li><strong>Alpha Vantage</strong> — final fallback. Requires an API key. Used when both above fail.</li>
+      </ol>
+      <div class="meaning">
+        If every provider has failed in the last 60 seconds, we drop the cooldown and try them
+        all anyway — better to risk a duplicate rate-limit call than to deny the user an answer
+        with cached data clearly available somewhere.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Why two years of bars?</h3>
+      <p>Several indicators need long history before their math stabilises. The biggest offender is
+      the <strong>Average Directional Index (ADX)</strong>: it is "doubly smoothed" by Wilder's
+      averaging, which means the starting bias only decays below 1% after about
+      <mark class="k">10 × length = 140 bars</mark>. Add the 200-bar SMA and a 60-bar squeeze
+      lookback and you need roughly 400 trading days before every number on the page is meaningful.
+      Fetching 520 gives us comfortable headroom.</p>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">In-memory cache</h3>
+      <p>One process-wide cache, keyed by ticker. The first cluster tool that asks for HDFCBANK
+      fetches it once; the other three clusters read from cache. Across-ticker requests run in
+      parallel; same-ticker requests share one fetch via a per-ticker lock. The cache holds the
+      widest date range ever fetched, so narrower requests are pure slices.</p>
+    </section>
+
+    <!-- ── News ─────────────────────────────────────────────── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">2. News headlines (GDELT)</h2>
+
+      <p><strong>What is GDELT?</strong> The <a class="text-[#0053e2] underline" href="https://www.gdeltproject.org/">Global Database of Events, Language and Tone</a>
+      — a non-profit project that indexes news media worldwide in near-real-time. We query its
+      "Doc API 2.0" endpoint, which exposes a rolling 7-day index of stories.</p>
+
+      <table class="t">
+        <thead><tr><th>What we keep</th><th>What we drop</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Title, URL, published timestamp (converted to IST for display), source domain, language.</td>
+            <td>GDELT's pre-computed <em>tone</em> score and its <em>themes</em> taxonomy.
+                We let the LLM read the article itself instead of trusting a third party's sentiment guess.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Two-step fetch</h3>
+      <ol class="list-decimal pl-6 space-y-2">
+        <li><strong>Discovery (<code>fetch_news</code>):</strong> ask GDELT for all articles about ticker X
+            in the last 1–7 days. Get back a list of metadata only (no article body).</li>
+        <li><strong>Extraction (<code>fetch_article_body</code>):</strong> for the headlines the LLM
+            decides are <em>material</em>, fetch the article URL and extract clean text using
+            <code>trafilatura</code> (a Python library that strips ads, nav bars, related-article rails).</li>
+      </ol>
+      <div class="meaning">
+        Extraction failure is <em>normal</em> at scale (paywalls, JavaScript-only sites, bot blocks). We
+        surface those as "<code>status=error</code>" data rather than throwing exceptions. The LLM is
+        told to ignore them and re-prioritise from the remaining material articles.
+      </div>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Language</h3>
+      <p>English-only by default (<code>sourcelang:eng</code>). This is a real limitation — a leak in a
+      Marathi business newspaper may move HDFCBANK 2% intraday and we never see it. Adding Hindi /
+      Marathi feeds is on the Phase-2 backlog.</p>
+    </section>
+
+    <!-- ── Filings ──────────────────────────────────────────── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">3. NSE corporate filings</h2>
+
+      <p>The same "Corporate Information → Announcements" feed that powers NSE's public website. This
+      is the source for things that <em>aren't</em> press releases yet but absolutely move price:</p>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>Insider trades</strong> — promoter buys/sells, often a leading indicator.</li>
+        <li><strong>Board-meeting notices</strong> — typically scheduled 7–14 days before earnings.</li>
+        <li><strong>Result publications</strong> — the actual quarterly numbers when they drop.</li>
+        <li><strong>Regulatory disclosures</strong> — SEBI inquiries, related-party transactions.</li>
+      </ul>
+
+      <div class="bg-red-50 border border-red-200 rounded p-4 my-4 text-sm">
+        <strong class="text-[#ea1100]">⚠️ Fragility note.</strong> This is not a public API. It is the
+        same internal endpoint that NSE's own website calls via JavaScript. We have to prime cookies,
+        forge browser headers, and handle Cloudflare challenges. NSE can (and does) silently change
+        the contract — when they do, this layer goes down until someone notices and patches it.
+      </div>
+    </section>
+
+    <!-- ── Estimates ────────────────────────────────────────── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">4. Analyst estimates</h2>
+
+      <p>Pulled from yfinance's <em>analyst snapshot</em>. Per ticker we keep:</p>
+
+      <table class="t">
+        <thead><tr><th>Category</th><th>Fields</th></tr></thead>
+        <tbody>
+          <tr><td>Earnings forecasts</td>
+              <td>EPS for current quarter, next quarter, current year, next year.</td></tr>
+          <tr><td>Revenue forecasts</td>
+              <td>Same four buckets.</td></tr>
+          <tr><td>Recommendations</td>
+              <td>Count of <span class="tag tag-bull">Strong-Buy</span>
+                  <span class="tag tag-bull">Buy</span>
+                  <span class="tag tag-neut">Hold</span>
+                  <span class="tag tag-bear">Sell</span>
+                  <span class="tag tag-bear">Strong-Sell</span> calls.</td></tr>
+          <tr><td>Price targets</td>
+              <td>Low / median / mean / high across all analyst targets.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        Why this matters: the news LLM uses the estimates as the <strong>expectations baseline</strong>.
+        A 5% EPS <em>growth</em> is bullish if estimates expected 3%, but <strong>bearish</strong> if
+        estimates expected 12%. Without estimates, the LLM has no way to interpret "beat" or "miss".
+      </div>
+
+      <p class="text-sm text-gray-600 mt-3"><strong>Limitation:</strong> yfinance gives us a snapshot only,
+      not a time-series. We cannot detect "estimates raised by 8% over the past week" — which is itself
+      a powerful catalyst type. Adding a historical-estimates source is on the Phase-2 list.</p>
+    </section>
+
+    <!-- ── Recent price action (internal) ───────────────────── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">5. Recent price action (internal helper)</h2>
+
+      <p>A small derived feed (no external API) that summarises the last 10 trading days into one
+      structured object:</p>
+
+      <div class="formula">
+        { open, close, pct_change_total, max_drawdown_intra, days_up, days_down }
+      </div>
+
+      <p>The news LLM uses this for the <strong>already-priced-in</strong> check. If a "beat-and-raise"
+      story dropped a week ago and the stock already ran 6%, the catalyst's forward impact is
+      discounted — the news layer must say "absorbed" rather than "bullish".</p>
+    </section>
+
+    <!-- ── Failure handling ─────────────────────────────────── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">What happens when a source fails</h2>
+
+      <table class="t">
+        <thead><tr><th>If this fails…</th><th>We do this</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Price bars</strong> (all three providers)</td>
+            <td>Abort the prediction. No technicals = no anchor. The user gets a clear error.</td>
+          </tr>
+          <tr>
+            <td><strong>News</strong> (GDELT down or returns empty)</td>
+            <td>Degrade gracefully. We synthesize a "neutral, confidence=0, no catalysts" placeholder
+                and tag the prediction with <code>news_impact:degraded</code> so the user knows.</td>
+          </tr>
+          <tr>
+            <td><strong>Filings</strong> (NSE rejecting our scraping)</td>
+            <td>Surface as "no filings considered". News LLM continues with what it has.</td>
+          </tr>
+          <tr>
+            <td><strong>Estimates</strong> (yfinance snapshot missing)</td>
+            <td>Surface as missing. News LLM continues but cannot do beat-vs-miss framing.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="index.html" class="text-[#0053e2]">← Home</a>
+      <a href="indicators.html" class="text-[#0053e2]">Next: Technical indicators →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("data_sources.html");</script>
+</body>
+</html>

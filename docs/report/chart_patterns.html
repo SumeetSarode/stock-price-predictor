@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chart patterns — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Chart patterns</nav>
+    <h1 class="text-3xl font-bold mb-2">Chart patterns — the five LMW shapes</h1>
+    <p class="text-gray-700 mb-8">Unlike candlesticks (which look at 1–5 adjacent bars), chart
+    patterns span <em>many</em> bars and capture <strong>structural</strong> price action — multi-week
+    swings forming geometric shapes. Our five pattern pairs are taken directly from the academic
+    catalogue in <strong>Lo, Mamaysky &amp; Wang (2000)</strong>, <em>"Foundations of Technical Analysis"</em>,
+    <em>Journal of Finance</em> 55(4).</p>
+
+    <!-- ── Pivot detection ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Step 1 — how we find the swing pivots</h2>
+      <p>Every chart pattern is built on top of <em>swing pivots</em> — local highs and lows in the
+      price series. We use <code>scipy.signal.find_peaks</code> with a minimum separation of
+      <mark class="k">5 bars</mark> between pivots. Anything closer than 5 bars isn't treated as a
+      real pivot.</p>
+
+      <div class="bg-amber-50 border border-amber-200 rounded p-4 my-4 text-sm">
+        <strong>Honest deviation from LMW.</strong> The academic paper uses a Nadaraya–Watson
+        kernel-regression smoother to identify pivots, then applies the geometric definitions to the
+        smoothed series. We use the simpler peak-finder on raw bars instead. The trade-off:
+        <em>cheaper compute, no bandwidth-tuning knob</em>, but slightly more sensitivity to
+        single-bar wicks. The downstream tolerances (1.5%, 0.75%, 22-bar separation) are LMW's
+        — only the pivot-finding step differs.
+      </div>
+    </section>
+
+    <!-- ── Confidence floor ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Step 2 — the confidence floor</h2>
+      <p>Every detected pattern is scored on a 0–1 scale by how cleanly it fits the geometric
+      definition. <strong>Anything below 0.7 is dropped silently.</strong> Below that floor the
+      noise-to-signal ratio is too high to help.</p>
+    </section>
+
+    <!-- ── Double top / bottom ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Double top &amp; double bottom</h2>
+
+      <div class="grid sm:grid-cols-2 gap-6">
+        <div>
+          <svg viewBox="0 0 280 180" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="40" x2="260" y2="40" stroke="#ea1100" stroke-dasharray="4 4"/>
+            <text x="265" y="44" font-size="9" fill="#ea1100">resistance</text>
+            <line x1="20" y1="120" x2="260" y2="120" stroke="#5e5e5e" stroke-dasharray="4 4"/>
+            <text x="265" y="124" font-size="9" fill="#5e5e5e">neckline</text>
+            <polyline points="20,150 60,100 100,40 140,120 180,40 220,80 260,160" fill="none" stroke="#0053e2" stroke-width="2"/>
+            <text x="140" y="170" text-anchor="middle" font-size="10" font-weight="600" fill="#ea1100">Double top (M)</text>
+          </svg>
+        </div>
+        <div>
+          <svg viewBox="0 0 280 180" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="140" x2="260" y2="140" stroke="#2a8703" stroke-dasharray="4 4"/>
+            <text x="265" y="144" font-size="9" fill="#2a8703">support</text>
+            <line x1="20" y1="60" x2="260" y2="60" stroke="#5e5e5e" stroke-dasharray="4 4"/>
+            <text x="265" y="64" font-size="9" fill="#5e5e5e">neckline</text>
+            <polyline points="20,30 60,80 100,140 140,60 180,140 220,100 260,20" fill="none" stroke="#0053e2" stroke-width="2"/>
+            <text x="140" y="170" text-anchor="middle" font-size="10" font-weight="600" fill="#2a8703">Double bottom (W)</text>
+          </svg>
+        </div>
+      </div>
+
+      <h3 class="text-lg font-semibold mt-6 mb-2">Geometric definition (LMW Def. 5)</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Two consecutive swing highs (or lows) at similar prices.</li>
+        <li>The two peaks must be within <mark class="k">1.5%</mark> of their average price.</li>
+        <li>The two peaks must be at least <mark class="k">22 trading days apart</mark> (LMW's
+            operationalisation of Edwards &amp; Magee's "about a month" guidance).</li>
+        <li>A real trough (or peak, for double bottom) must exist <em>between</em> the two extremes.</li>
+      </ul>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Confidence formula</h3>
+      <div class="formula">
+        confidence = peak_similarity × depth_score<br><br>
+        peak_similarity = 1.0 at identical peaks, falling linearly to 0.0 at the 1.5% edge<br>
+        depth_score = min(trough_drop_pct / 5%, 1.0)
+      </div>
+      <p>A trough that drops at least 5% below the average peak scores a 1.0 on depth.</p>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Target projection</h3>
+      <div class="formula">
+        Double top target  = neckline − (resistance − neckline)<br>
+        Double bottom target = neckline + (neckline − support)
+      </div>
+      <div class="meaning">
+        The "measured-move" projection: the breakdown/breakout is expected to travel the same
+        distance as the pattern's height, measured from the neckline.
+      </div>
+
+      <div class="example">
+        Two peaks at ₹1,510 and ₹1,498 (avg = ₹1,504, similarity = high). The trough between them
+        sits at ₹1,420 (5.6% drop). Confidence ≈ 0.96 × 1.0 = 0.96 → easily passes the 0.7 floor.
+        Target on a neckline break = 1,420 − (1,504 − 1,420) = ₹1,336.
+      </div>
+    </section>
+
+    <!-- ── Head and Shoulders ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Head &amp; Shoulders + Inverse H&amp;S</h2>
+
+      <svg viewBox="0 0 320 180" class="w-full h-auto border border-gray-200 rounded mb-4">
+        <line x1="20" y1="120" x2="300" y2="120" stroke="#5e5e5e" stroke-dasharray="4 4"/>
+        <text x="305" y="124" font-size="9" fill="#5e5e5e">neckline</text>
+        <polyline points="20,170 50,140 80,60 110,120 140,30 170,110 200,70 230,120 260,160 300,170"
+                  fill="none" stroke="#0053e2" stroke-width="2"/>
+        <text x="80" y="55" text-anchor="middle" font-size="9" font-weight="600">L-shoulder</text>
+        <text x="140" y="25" text-anchor="middle" font-size="9" font-weight="600">Head</text>
+        <text x="200" y="65" text-anchor="middle" font-size="9" font-weight="600">R-shoulder</text>
+      </svg>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Geometric definition (LMW Def. 1)</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Three consecutive swing highs where the <strong>middle (head)</strong> is taller than the two sides (shoulders).</li>
+        <li>Two shoulders within <mark class="k">1.5%</mark> of their average price.</li>
+        <li>The two neckline troughs (between shoulder1↔head and head↔shoulder2) within <mark class="k">1.5%</mark> of their average.</li>
+        <li>The head must be <mark class="k">≥ 3% above</mark> the higher shoulder (prominence requirement).</li>
+      </ul>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Confidence formula</h3>
+      <div class="formula">
+        confidence = shoulder_similarity × prominence_score × neckline_similarity<br>
+        prominence_score = min(head_prominence_pct / 3%, 1.0)
+      </div>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Target projection</h3>
+      <div class="formula">
+        H&amp;S target          = neckline − (head − neckline)<br>
+        Inverse H&amp;S target  = neckline + (neckline − head)
+      </div>
+
+      <p class="mt-3">The inverse H&amp;S is the mirror: three swing <em>lows</em> with the middle
+      lowest. Same tolerances apply.</p>
+    </section>
+
+    <!-- ── Triangles ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Triangles — ascending, descending, symmetric</h2>
+
+      <div class="grid sm:grid-cols-3 gap-3 my-4">
+        <div class="text-center">
+          <svg viewBox="0 0 200 140" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="40" x2="180" y2="40" stroke="#ea1100" stroke-width="1.5"/>
+            <line x1="20" y1="120" x2="180" y2="60" stroke="#2a8703" stroke-width="1.5"/>
+            <polyline points="20,110 40,50 60,90 80,55 100,80 120,52 140,70 160,48 180,60"
+                      fill="none" stroke="#0053e2" stroke-width="1.5"/>
+          </svg>
+          <div class="text-xs font-semibold mt-1 text-[#2a8703]">Ascending (bullish bias)</div>
+        </div>
+        <div class="text-center">
+          <svg viewBox="0 0 200 140" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="40" x2="180" y2="100" stroke="#ea1100" stroke-width="1.5"/>
+            <line x1="20" y1="120" x2="180" y2="120" stroke="#2a8703" stroke-width="1.5"/>
+            <polyline points="20,50 40,110 60,65 80,115 100,80 120,118 140,90 160,120 180,100"
+                      fill="none" stroke="#0053e2" stroke-width="1.5"/>
+          </svg>
+          <div class="text-xs font-semibold mt-1 text-[#ea1100]">Descending (bearish bias)</div>
+        </div>
+        <div class="text-center">
+          <svg viewBox="0 0 200 140" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="20" x2="180" y2="80" stroke="#ea1100" stroke-width="1.5"/>
+            <line x1="20" y1="120" x2="180" y2="80" stroke="#2a8703" stroke-width="1.5"/>
+            <polyline points="20,30 40,110 60,50 80,100 100,65 120,90 140,72 160,85 180,80"
+                      fill="none" stroke="#0053e2" stroke-width="1.5"/>
+          </svg>
+          <div class="text-xs font-semibold mt-1 text-gray-700">Symmetric (neutral)</div>
+        </div>
+      </div>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Detection method</h3>
+      <p>Fit a least-squares line through the last 5 swing highs (the upper trendline) and 5 swing
+      lows (the lower trendline). Then classify:</p>
+      <table class="t">
+        <thead><tr><th>Type</th><th>Upper line</th><th>Lower line</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Ascending</strong></td><td>Flat (≤ 0.75% spread)</td><td>Rising (positive slope)</td></tr>
+          <tr><td><strong>Descending</strong></td><td>Falling (negative slope)</td><td>Flat (≤ 0.75% spread)</td></tr>
+          <tr><td><strong>Symmetric</strong></td><td>Falling</td><td>Rising</td></tr>
+        </tbody>
+      </table>
+
+      <p class="mt-2"><strong>"Flat" definition (LMW Def. 4):</strong> the spread between the highest
+      and lowest pivot price on that trendline is ≤ <mark class="k">0.75%</mark> of their mean.</p>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Confidence</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Baseline <strong>0.7</strong> for any matching geometry.</li>
+        <li>Symmetric triangles get a <em>symmetry bonus</em>: confidence rises toward 1.0 the more
+            mirror-equal the two slopes are.</li>
+      </ul>
+
+      <div class="formula">
+        symmetry_ratio = min(|upper_slope|, |lower_slope|) / max(|upper_slope|, |lower_slope|)<br>
+        symmetric_confidence = clamp(0.5 + 0.5 × symmetry_ratio, 0.5, 1.0)
+      </div>
+    </section>
+
+    <!-- ── Broadening ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Broadening tops / bottoms (megaphone)</h2>
+
+      <svg viewBox="0 0 280 160" class="w-full max-w-md h-auto border border-gray-200 rounded mb-3">
+        <line x1="20" y1="80" x2="260" y2="20" stroke="#ea1100" stroke-width="1.5"/>
+        <line x1="20" y1="80" x2="260" y2="140" stroke="#2a8703" stroke-width="1.5"/>
+        <polyline points="20,80 50,30 80,120 110,40 140,130 170,30 200,140 230,25 260,150"
+                  fill="none" stroke="#0053e2" stroke-width="1.5"/>
+      </svg>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Geometric definition (LMW Def. 2)</h3>
+      <p>The mirror of a triangle — the upper line <em>rises</em>, the lower line <em>falls</em>.
+      Pivots are getting more extreme over time, not converging.</p>
+      <div class="meaning">
+        Broadening patterns indicate <strong>rising volatility and emotional trading</strong> — often
+        seen near market tops in retail-heavy stocks where each new swing is bigger than the last.
+        Edwards &amp; Magee (and our backtest backlog) treat them as <em>bearish-biased reversal</em>
+        signals when they appear in an uptrend.
+      </div>
+    </section>
+
+    <!-- ── Rectangles ── -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold border-b border-[#0053e2] pb-2 mb-4">Rectangles (sideways consolidation)</h2>
+
+      <svg viewBox="0 0 280 140" class="w-full max-w-md h-auto border border-gray-200 rounded mb-3">
+        <line x1="20" y1="30" x2="260" y2="30" stroke="#ea1100" stroke-width="1.5"/>
+        <line x1="20" y1="110" x2="260" y2="110" stroke="#2a8703" stroke-width="1.5"/>
+        <polyline points="20,70 40,35 60,105 80,40 100,108 120,32 140,105 160,38 180,108 200,35 220,108 240,40 260,70"
+                  fill="none" stroke="#0053e2" stroke-width="1.5"/>
+      </svg>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Geometric definition (LMW Def. 4)</h3>
+      <p>Both the upper and lower trendlines are <strong>flat</strong> (≤ 0.75% spread). Price
+      oscillates between fixed support and fixed resistance.</p>
+      <div class="meaning">
+        Rectangles are continuation-or-reversal patterns — the direction is undetermined until the
+        breakout. Our agent reports the rectangle and the breakout direction (when it fires) as
+        separate signals; the synthesizer is not told to assume one over the other.
+      </div>
+    </section>
+
+    <!-- ── What we deliberately don't implement ── -->
+    <section class="mb-10 bg-gray-50 border border-gray-200 rounded p-5">
+      <h2 class="text-xl font-bold mb-2">Patterns we deliberately don't implement</h2>
+      <p>LMW (2000) excluded these from their canonical catalogue, and we follow suit:</p>
+      <ul class="list-disc pl-6 space-y-1 text-sm">
+        <li><strong>Cup &amp; handle</strong> — no closed-form geometric definition with published tolerances.</li>
+        <li><strong>Flags, pennants</strong> — Bulkowski (2005) reports &lt; 50% reliability on 5-year S&amp;P backtests.</li>
+        <li><strong>Wedges</strong> — overlap heavily with triangles and broadening; redundant given
+            we already detect those families.</li>
+        <li><strong>Elliott wave counts, harmonic patterns (Gartley, Bat, Butterfly)</strong> —
+            require human pattern-completion judgement that a deterministic detector handles poorly.</li>
+        <li><strong>Fibonacci retracements</strong> — useful as a derived overlay but require an
+            anchor-point human decision. Tracked in the Phase-2 backlog.</li>
+      </ul>
+      <p class="mt-2 text-sm text-gray-600">If a domain expert tells us a missing pattern is
+      table-stakes for NSE large-caps, we'll happily add it after a backtest.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="candlesticks.html" class="text-[#0053e2]">← Candlestick patterns</a>
+      <a href="news.html" class="text-[#0053e2]">Next: News analysis →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("chart_patterns.html");</script>
+</body>
+</html>

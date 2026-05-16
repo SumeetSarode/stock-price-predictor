@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>How We Predict — Walkthrough Home</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <!-- Main -->
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <header class="mb-10">
+      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold">Prediction Walkthrough</div>
+      <h1 class="text-4xl font-bold mt-1 mb-3">How we make stock predictions</h1>
+      <p class="text-lg text-gray-700">A complete, plain-English walkthrough of the data we read,
+      the indicators we compute, the patterns we hunt for, and the way we combine all of it
+      into a single, time-boxed call for one NSE-listed stock.</p>
+      <p class="mt-3 text-sm text-gray-500">No code, no jargon-without-explanation. Aimed at someone who
+      knows technical analysis and the news cycle, but does not read software.</p>
+    </header>
+
+    <!-- TL;DR card -->
+    <section class="bg-blue-50 border border-blue-100 rounded-lg p-6 mb-10">
+      <h2 class="text-xl font-semibold text-[#0053e2] mb-3">📌 Five-line summary</h2>
+      <ol class="list-decimal pl-5 space-y-1 text-gray-800">
+        <li>For one stock at a time, we ask: <em>where is price likely to go over the next 1, 5, 10, and 21 trading days?</em></li>
+        <li>We answer with five numbers per horizon: <strong>direction</strong>, <strong>entry zone</strong>,
+            <strong>target</strong>, <strong>stop-loss</strong>, and <strong>confidence</strong>.</li>
+        <li>The answer is built from two parallel reads: a <strong>technical view</strong>
+            (chart math) and a <strong>news view</strong> (LLM reading actual headlines &amp; filings).</li>
+        <li>Both reads are passed to a <strong>synthesizer</strong> that weighs them differently per horizon
+            (news matters more daily, trend matters more monthly) and writes the final prediction.</li>
+        <li>Before shipping, every prediction passes four <strong>guardrail checks</strong>
+            (grounding, citation, internal consistency, calibration). One retry, then abort.</li>
+      </ol>
+    </section>
+
+    <!-- Architecture diagram (inline SVG, no external assets) -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-4">The two-phase pipeline at a glance</h2>
+      <div class="border border-gray-200 rounded-lg p-4 bg-white">
+        <svg viewBox="0 0 760 360" class="w-full h-auto" role="img" aria-label="Two-phase prediction pipeline">
+          <!-- Phase 1 box -->
+          <rect x="20" y="20" width="340" height="320" rx="10" fill="#f0f7ff" stroke="#0053e2" stroke-width="1.5"/>
+          <text x="190" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#0053e2">Phase 1 — Gather (parallel)</text>
+          <text x="190" y="64" text-anchor="middle" font-size="11" fill="#5e5e5e">Horizon-agnostic: one read serves all four horizons</text>
+
+          <!-- Tech view box -->
+          <rect x="40" y="90" width="135" height="220" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+          <text x="107" y="112" text-anchor="middle" font-size="12" font-weight="600">Technical view</text>
+          <text x="107" y="138" text-anchor="middle" font-size="10" fill="#475569">~520 daily bars</text>
+          <text x="107" y="158" text-anchor="middle" font-size="10" fill="#475569">↓</text>
+          <text x="107" y="178" text-anchor="middle" font-size="10" fill="#475569">Trend signals</text>
+          <text x="107" y="194" text-anchor="middle" font-size="10" fill="#475569">Momentum signals</text>
+          <text x="107" y="210" text-anchor="middle" font-size="10" fill="#475569">Volatility signals</text>
+          <text x="107" y="226" text-anchor="middle" font-size="10" fill="#475569">Levels (S/R, VWAP)</text>
+          <text x="107" y="246" text-anchor="middle" font-size="10" fill="#475569">Candlestick patterns</text>
+          <text x="107" y="262" text-anchor="middle" font-size="10" fill="#475569">Chart patterns</text>
+          <text x="107" y="288" text-anchor="middle" font-size="10" font-style="italic" fill="#0053e2">4 cluster verdicts</text>
+
+          <!-- News view box -->
+          <rect x="205" y="90" width="135" height="220" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+          <text x="272" y="112" text-anchor="middle" font-size="12" font-weight="600">News impact</text>
+          <text x="272" y="138" text-anchor="middle" font-size="10" fill="#475569">GDELT headlines</text>
+          <text x="272" y="154" text-anchor="middle" font-size="10" fill="#475569">+ article bodies</text>
+          <text x="272" y="170" text-anchor="middle" font-size="10" fill="#475569">+ NSE filings</text>
+          <text x="272" y="186" text-anchor="middle" font-size="10" fill="#475569">+ analyst estimates</text>
+          <text x="272" y="202" text-anchor="middle" font-size="10" fill="#475569">+ recent price action</text>
+          <text x="272" y="228" text-anchor="middle" font-size="10" fill="#475569">read by an LLM</text>
+          <text x="272" y="246" text-anchor="middle" font-size="10" fill="#475569">(materiality filter,</text>
+          <text x="272" y="260" text-anchor="middle" font-size="10" fill="#475569">expectation framing)</text>
+          <text x="272" y="288" text-anchor="middle" font-size="10" font-style="italic" fill="#0053e2">Direction + magnitude</text>
+        </svg>
+
+        <svg viewBox="0 0 760 360" class="w-full h-auto mt-2" role="img" aria-label="Phase 2 fan-out">
+          <!-- Arrow -->
+          <line x1="20" y1="40" x2="700" y2="40" stroke="#0053e2" stroke-width="2" marker-end="url(#arr)"/>
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0053e2"/>
+            </marker>
+          </defs>
+          <text x="360" y="30" text-anchor="middle" font-size="13" font-weight="600" fill="#0053e2">Phase 2 — Synthesize (parallel fan-out)</text>
+
+          <!-- Four horizon cards -->
+          <g font-size="11" font-weight="600">
+            <rect x="20"  y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="105" y="92"  text-anchor="middle" fill="#0053e2">DAILY • 1 bar</text>
+            <text x="105" y="112" text-anchor="middle" fill="#475569" font-weight="400">News weight 65%</text>
+            <text x="105" y="128" text-anchor="middle" fill="#475569" font-weight="400">Tech weight 35%</text>
+            <text x="105" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.5–1.0×ATR</text>
+            <text x="105" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 0.75–1.5×ATR</text>
+            <text x="105" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.90</text>
+
+            <rect x="200" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="285" y="92"  text-anchor="middle" fill="#0053e2">WEEKLY • 5 bars</text>
+            <text x="285" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 50% / Tech 50%</text>
+            <text x="285" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.7–1.5×ATR</text>
+            <text x="285" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.0–2.0×ATR</text>
+            <text x="285" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.85</text>
+
+            <rect x="380" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="465" y="92"  text-anchor="middle" fill="#0053e2">BIWEEKLY • 10 bars</text>
+            <text x="465" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 40% / Tech 60%</text>
+            <text x="465" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.0–2.0×ATR</text>
+            <text x="465" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.5–3.0×ATR</text>
+            <text x="465" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.80</text>
+
+            <rect x="560" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="645" y="92"  text-anchor="middle" fill="#0053e2">MONTHLY • 21 bars</text>
+            <text x="645" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 30% / Tech 70%</text>
+            <text x="645" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.5–2.5×ATR</text>
+            <text x="645" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 2.0–4.0×ATR</text>
+            <text x="645" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.75</text>
+          </g>
+        </svg>
+      </div>
+      <p class="text-sm text-gray-600 mt-3">
+        Same indicators, same news read, same RSI value — fed into four parallel
+        synthesizer calls that each produce one horizon's prediction. The synthesizer
+        is the same LLM each time; only the prompt's horizon label, the per-horizon
+        weights, and the per-horizon ATR bands change.
+      </p>
+    </section>
+
+    <!-- Navigation cards -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-4">Where to go next</h2>
+      <div class="grid sm:grid-cols-2 gap-4">
+
+        <a href="data_sources.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 1</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Data we ingest →</div>
+          <p class="text-sm text-gray-600 mt-2">Where prices come from (and the fallback chain).
+          Where news comes from (GDELT). Filings, estimates, recent price action.</p>
+        </a>
+
+        <a href="indicators.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 2</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Technical indicators →</div>
+          <p class="text-sm text-gray-600 mt-2">All four clusters: trend (SMA/EMA/ADX),
+          momentum (RSI/MACD/Stoch/OBV), volatility (ATR/Bollinger/squeeze), levels (pivots, 52w, VWAP).</p>
+        </a>
+
+        <a href="crossovers.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 3</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Crossovers →</div>
+          <p class="text-sm text-gray-600 mt-2">Golden Cross, Death Cross, EMA-9/21, MACD cross — what we detect,
+          how we vote them, and how much we actually trust them.</p>
+        </a>
+
+        <a href="candlesticks.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 4</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Candlestick patterns →</div>
+          <p class="text-sm text-gray-600 mt-2">All 61 patterns from the TA-Lib catalogue, grouped by
+          bars and direction. Plus the "near support/resistance" gating filter.</p>
+        </a>
+
+        <a href="chart_patterns.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 5</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Chart patterns →</div>
+          <p class="text-sm text-gray-600 mt-2">Head &amp; shoulders, double tops/bottoms, triangles, broadening,
+          rectangles — geometric tolerances from Lo–Mamaysky–Wang (2000).</p>
+        </a>
+
+        <a href="news.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 6</div>
+          <div class="text-lg font-semibold text-[#0053e2]">News analysis →</div>
+          <p class="text-sm text-gray-600 mt-2">How an LLM reads the news, filters materiality,
+          frames expectations against estimates, and emits a structured impact assessment.</p>
+        </a>
+
+        <a href="synthesis.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 7</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Putting it together →</div>
+          <p class="text-sm text-gray-600 mt-2">Per-horizon weighting, target placement, stop placement,
+          confidence math, the NEUTRAL escape hatch.</p>
+        </a>
+
+        <a href="horizons.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 8</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Horizons &amp; targets →</div>
+          <p class="text-sm text-gray-600 mt-2">Why ATR is the unit. Stop/target band tables. Risk-reward floor.
+          Worst-fill vs. midpoint RR.</p>
+        </a>
+
+        <a href="guardrails.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 9</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Quality controls →</div>
+          <p class="text-sm text-gray-600 mt-2">Four guardrail tiers: grounding, citation, consistency,
+          calibration. What we reject, what we retry, what we abort.</p>
+        </a>
+
+        <a href="example.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Section 10</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Worked example →</div>
+          <p class="text-sm text-gray-600 mt-2">A hypothetical RELIANCE WEEKLY prediction, traced end-to-end
+          from raw bars to final five numbers.</p>
+        </a>
+
+        <a href="glossary.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition sm:col-span-2">
+          <div class="text-xs uppercase tracking-wider text-gray-500">Reference</div>
+          <div class="text-lg font-semibold text-[#0053e2]">Glossary →</div>
+          <p class="text-sm text-gray-600 mt-2">Every term, abbreviation, and threshold used in this report — alphabetical.</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- Caveats panel -->
+    <section class="border border-amber-200 bg-amber-50 rounded-lg p-5 mb-10">
+      <h2 class="text-lg font-semibold text-amber-900 mb-2">⚠️ A few honest caveats up front</h2>
+      <ul class="list-disc pl-6 space-y-1 text-sm text-amber-900">
+        <li><strong>This is educational output, not investment advice.</strong> Every prediction we ship
+            sets <code>not_advice = True</code> and <code>is_educational = True</code> in the schema.</li>
+        <li>Many thresholds (the 60/40 trend-RSI cut, the 1.0/4.0% ATR-percent regime bands,
+            the candlestick proximity gate) are <em>literature-bracketed but not yet NSE-backtested</em>.
+            They are defensible, not empirically proven on your data.</li>
+        <li>The news layer reads GDELT, which is an English-language news graph. Vernacular Indian
+            sources may underweight. Material moves can happen on a Marathi news leak that we never see.</li>
+        <li>We use <strong>daily bars only</strong>. Same-bar target/stop hits cannot be disambiguated;
+            we conservatively count them as stop hits.</li>
+        <li>The corporate filings feed scrapes NSE's website (no public API). It is the most fragile
+            part of the pipeline and can go silent for hours if NSE rotates their bot-detection rules.</li>
+      </ul>
+    </section>
+
+    <footer class="report-foot">
+      Generated by Thor 🐶 for Sumeet · Self-contained HTML report ·
+      Source of truth: <code>docs/pred_logic.md</code>
+    </footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("index.html");</script>
+</body>
+</html>

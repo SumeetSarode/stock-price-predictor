@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Crossovers — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Crossovers</nav>
+    <h1 class="text-3xl font-bold mb-2">Crossovers — Golden Cross, Death Cross, EMA, MACD</h1>
+    <p class="text-gray-700 mb-8">Probably the most-asked-about set of signals in retail TA. We
+    detect them rigorously, vote them <em>conservatively</em>, and report them <em>honestly</em>
+    — including when nothing has happened.</p>
+
+    <!-- ── The L3 contract ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">What we report for every crossover pair</h2>
+      <p>For each pair (e.g. SMA-50/200) we emit a five-field record on every bar — not just a
+      "yes/no" when an event fires:</p>
+
+      <table class="t">
+        <thead><tr><th>Field</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><code>current</code></td>
+              <td>Is the short MA currently <em>above</em> or <em>below</em> the long MA?
+                  The "regime".</td></tr>
+          <tr><td><code>last_event</code></td>
+              <td>The last time these two MAs crossed — was it <em>bullish</em> or
+                  <em>bearish</em>?</td></tr>
+          <tr><td><code>bars_since_event</code></td>
+              <td>How many trading days ago was that cross? (3 = fresh, 47 = stale, 750 = ancient.)</td></tr>
+          <tr><td><code>short_ma</code> / <code>long_ma</code></td>
+              <td>The two MA values at the latest bar — useful for "how close to a cross are we?"</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        Why all five fields and not just "cross today: yes/no"? Because a simple yes/no returns
+        "no" 99% of the time, which is uninformative — and invites the LLM to <em>infer</em> a
+        cross from the SMA stack alone (which is wrong). With this richer report the agent always
+        has something true to say: "fresh cross today", "in-regime since 47 bars ago", or "no cross
+        in 750 bars of available history".
+      </div>
+    </section>
+
+    <!-- ── Golden / Death Cross ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The Golden Cross and the Death Cross (SMA-50 / SMA-200)</h2>
+
+      <table class="t">
+        <thead><tr><th>Name</th><th>Definition</th><th>Implied bias</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Golden Cross</strong></td>
+              <td>SMA-50 crosses <em>above</em> SMA-200 on the latest bar.</td>
+              <td><span class="tag tag-bull">Bullish regime change</span></td></tr>
+          <tr><td><strong>Death Cross</strong></td>
+              <td>SMA-50 crosses <em>below</em> SMA-200 on the latest bar.</td>
+              <td><span class="tag tag-bear">Bearish regime change</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="example">
+        On the bar before yesterday, SMA-50 = 1,802 and SMA-200 = 1,810 → short below long.
+        Yesterday SMA-50 = 1,808 and SMA-200 = 1,809 → still below.
+        Today SMA-50 = 1,815 and SMA-200 = 1,810 → short now above long.
+        That sign flip <strong>today</strong> = a Golden Cross with <code>bars_since_event = 0</code>.
+      </div>
+
+      <h3 class="text-xl font-semibold mt-6 mb-2">Naming discipline</h3>
+      <p>Only the canonical <strong>SMA-50/200</strong> pair earns the marketing name "Golden Cross"
+      / "Death Cross" in our agent's prose. Any other pair (EMA-9/21, custom user-requested pairs)
+      gets generic phrasing like "bullish EMA-9/21 cross". This matches Murphy (1999) ch. 9 — the
+      term is reserved for SMA-50/200.</p>
+    </section>
+
+    <!-- ── The honest empirical caveat ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">⚠️ How much does the Golden Cross actually predict?</h2>
+
+      <p>This is the part of the report that an honest practitioner pays attention to. The crossover
+      signal is famous, but the academic record on its <em>alpha</em> is mixed and has weakened
+      sharply over time on liquid large-caps. Three published studies you can look up:</p>
+
+      <table class="t">
+        <thead><tr><th>Study</th><th>Finding</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Brock, Lakonishok &amp; LeBaron (1992)</strong>,
+                  <em>Journal of Finance</em> 47(5)</td>
+              <td>On the Dow 1897–1986, the 50/200 SMA crossover gave a statistically significant
+                  ~0.045% per buy-day excess return. <strong>Did not include transaction costs.</strong></td></tr>
+          <tr><td><strong>Sullivan, Timmermann &amp; White (1999)</strong>,
+                  <em>Journal of Finance</em> 54(5)</td>
+              <td>Re-tested BLL using White's Reality Check to correct for testing thousands of
+                  rules. The 50/200 edge <strong>does not replicate out-of-sample</strong>
+                  (1987–1996).</td></tr>
+          <tr><td><strong>Zakamulin (2014)</strong>, <em>J. Asset Management</em></td>
+              <td>The 50/200 SMA-crossover Sharpe ratio drops from ~0.6 pre-1970 to ~0.1 post-1990
+                  on US equity indices.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        <strong>The honest takeaway.</strong> We ship the Golden / Death Cross primarily as a
+        <em>truth-telling, user-expectation</em> feature — users ask the agent about it, the agent
+        should answer accurately ("yes, fired 12 bars ago" / "no cross in 750 bars"). It is
+        <strong>not</strong> a high-conviction directional signal on its own. The vote weights below
+        reflect this conservative reading.
+      </div>
+
+      <p class="text-sm text-gray-600 mt-3">🔬 <strong>NSE backtest pending.</strong> The studies
+      above are all US/global equity. NIFTY 50 constituents have not been backtested for these
+      specific weights. The numbers below are placeholders informed by the US literature, to be
+      revisited once we have NSE backtest data.</p>
+    </section>
+
+    <!-- ── Vote weights ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">How crossovers vote in the trend verdict</h2>
+
+      <p>The trend cluster's verdict is built from three things in order: the SMA stack (§Indicators),
+      the ADX strength gate, and the DI confirmation. The crossover then acts as a
+      <strong>nudge</strong> — it can push a <em>neutral</em> base verdict to bullish or bearish,
+      but it cannot override a verdict already locked in by the stack + DI.</p>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">Vote rules</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Only <strong>fresh</strong> crosses contribute — defined as
+            <code>bars_since_event ≤ 5</code>. Stale crosses appear in the rationale only
+            ("Golden Cross regime since 47 bars ago, stale; not voting").</li>
+        <li>Vote weights:
+          <ul class="list-disc pl-6 mt-1 space-y-1">
+            <li><strong>SMA-50/200 fresh cross:</strong> <mark class="k">±0.5</mark></li>
+            <li><strong>EMA-9/21 fresh cross:</strong> <mark class="k">±0.3</mark> (faster pair = more whipsaws → lower weight)</li>
+            <li>Custom pairs: 0.0 by default (rationale only, no vote, until weights added)</li>
+          </ul>
+        </li>
+        <li>The net vote magnitude must be <strong>≥ 0.5</strong> to nudge a neutral verdict.</li>
+        <li>The DI direction <strong>vetoes</strong> conflicting nudges. A bullish cross will not
+            nudge to bullish if <code>−DI &gt; +DI</code>.</li>
+      </ul>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">Conflict by design</h3>
+      <p>What happens when the two pairs disagree on the same bar — say SMA-50/200 bullish but
+      EMA-9/21 bearish?</p>
+      <div class="formula">net vote = +0.5 + (−0.3) = +0.2 → below the 0.5 threshold → no nudge.</div>
+      <div class="meaning">
+        That's the right answer. SMA-bullish-but-EMA-bearish is the textbook fingerprint of a
+        <em>pullback within an uptrend</em> — the long-term trend is up, the short-term swing is
+        down. The agent reports both events but the verdict stays neutral, which protects against
+        whipsaw entries.
+      </div>
+    </section>
+
+    <!-- ── MACD cross ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The MACD cross (lives in the momentum cluster)</h2>
+
+      <p>The MACD has its own crossover concept — between the MACD line and its signal line.
+      Detection is the same idea as the MA crosses, but on the MACD histogram:</p>
+
+      <table class="t">
+        <thead><tr><th>Event</th><th>Detection on histogram</th><th>Momentum vote</th></tr></thead>
+        <tbody>
+          <tr><td>Bullish MACD cross</td>
+              <td>Histogram was ≤ 0 yesterday, &gt; 0 today.</td>
+              <td><span class="tag tag-bull">+1 bull vote</span></td></tr>
+          <tr><td>Bearish MACD cross</td>
+              <td>Histogram was ≥ 0 yesterday, &lt; 0 today.</td>
+              <td><span class="tag tag-bear">+1 bear vote</span></td></tr>
+        </tbody>
+      </table>
+
+      <p>And if no cross fires today but the MACD line is still on one side of the signal:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>MACD &gt; signal (no cross today) → <span class="tag tag-bull">+0.5 bull</span> — momentum still positive.</li>
+        <li>MACD &lt; signal (no cross today) → <span class="tag tag-bear">+0.5 bear</span> — momentum still negative.</li>
+      </ul>
+    </section>
+
+    <!-- ── EMA-9/21: the swing trader's cross ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">The EMA-9/21 cross — the swing trader's faster cousin</h2>
+
+      <p>Why also detect the EMA-9/21 pair? Because a lot of swing traders use it instead of
+      SMA-50/200 — it triggers <em>much</em> sooner (often weeks before a Golden Cross does),
+      at the cost of more whipsaws.</p>
+
+      <div class="example">
+        Same stock, same period. The SMA-50 might cross above the SMA-200 in early February.
+        The EMA-9 typically crossed above the EMA-21 sometime in late November — three months
+        earlier. The EMA cross caught the early move; the SMA cross confirmed the regime. Both
+        are useful, for different reasons.
+      </div>
+
+      <p>The EMA pair carries half the vote weight of the SMA pair (<mark class="k">±0.3</mark>
+      vs. <mark class="k">±0.5</mark>) precisely because it whips around more.</p>
+    </section>
+
+    <!-- ── Putting it together — emitted signal strings ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">What the trend cluster actually says</h2>
+      <p>Some examples of the verbatim signal strings the trend cluster emits, which the synthesizer
+      LLM can quote in its rationale:</p>
+      <ul class="list-disc pl-6 space-y-1 text-sm">
+        <li><code>"Golden Cross fired 3 bars ago"</code> — fresh, contributes +0.5 to the vote.</li>
+        <li><code>"Death Cross regime since 47 bars ago (stale; not voting)"</code></li>
+        <li><code>"bullish EMA-9/21 cross fired today"</code> — fresh, contributes +0.3.</li>
+        <li><code>"No sma-50-200 cross in available history (currently above)"</code></li>
+        <li><code>"Verdict nudged bullish by fresh MA cross vote (+0.8)"</code></li>
+      </ul>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="indicators.html" class="text-[#0053e2]">← Technical indicators</a>
+      <a href="candlesticks.html" class="text-[#0053e2]">Next: Candlestick patterns →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("crossovers.html");</script>
+</body>
+</html>

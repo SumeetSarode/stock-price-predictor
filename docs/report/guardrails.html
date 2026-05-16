@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quality controls — How We Predict</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <nav class="text-xs text-gray-500 mb-2"><a href="index.html" class="text-[#0053e2]">Home</a> › Quality controls</nav>
+    <h1 class="text-3xl font-bold mb-2">Quality controls — the four guardrail tiers</h1>
+    <p class="text-gray-700 mb-8">The synthesizer is an LLM, and an LLM will occasionally produce
+    predictions that are wrong in mechanical ways: levels in the wrong order, signals it didn't
+    actually see, RR violations, miscalibrated confidence. The guardrail layer catches these
+    <strong>deterministically</strong> after synthesis but before persistence.</p>
+
+    <!-- ── Pipeline ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">How the pipeline works</h2>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Four tiers run <strong>in order</strong>. The first failing tier short-circuits the rest.</li>
+        <li>If any tier fails, the synthesizer is invoked <strong>once more</strong> with the
+            failure messages appended ("Your previous attempt failed these checks: […]. Fix them.").</li>
+        <li>If the retry also fails, the whole prediction call for that horizon raises a hard error.
+            No "partial / half-correct" predictions ever ship.</li>
+        <li>We don't re-run the gather phase on retry — the technical view and news assessment
+            haven't changed.</li>
+      </ul>
+    </section>
+
+    <!-- ── Tier 1 — grounding ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Tier 1 — Grounding</h2>
+      <p class="italic mb-3">Question: "Are the prediction's basic numbers internally consistent
+      with their inputs?"</p>
+
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Close-price echo</td>
+              <td>The close the prediction quotes must equal the technical-view close to within 0.01%.
+                  Catches the LLM hallucinating a different "current price".</td></tr>
+          <tr><td>Bars-used echo</td>
+              <td>The number of bars the prediction says it analysed must equal what was actually
+                  delivered. Catches under-reporting.</td></tr>
+          <tr><td>Entry-zone width sanity</td>
+              <td>Width must be ≤ 0.5 × ATR. Catches "I emitted a zone that's actually a 5% range"
+                  — which would make worst-fill RR meaningless.</td></tr>
+          <tr><td>Entry-zone touches close</td>
+              <td>The current close must lie within [zone_low − 0.10 ATR, zone_high + 0.10 ATR].
+                  Catches the LLM placing the band far from current price.</td></tr>
+          <tr><td>Direction-level sanity</td>
+              <td>BULLISH: target &gt; zone_high AND stop &lt; zone_high.<br>
+                  BEARISH: target &lt; zone_low AND stop &gt; zone_low.</td></tr>
+          <tr><td>ATR-distance sanity for stop</td>
+              <td>Stop distance must be between 0.5 × ATR and 3.0 × ATR. Too tight → noise will
+                  trigger it; too far → RR can't possibly be met.</td></tr>
+          <tr><td>NEUTRAL claims neutrality</td>
+              <td>If direction is NEUTRAL, computed RR must equal exactly 1.0 by convention.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Tier 2 — citation ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Tier 2 — Citation</h2>
+      <p class="italic mb-3">Question: "Did the LLM cite signals it actually saw — or did it make
+      them up?"</p>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Vocabulary construction</h3>
+      <p>Before checking, we build the <strong>allowed vocabulary</strong> for this prediction by
+      concatenating:</p>
+      <ul class="list-disc pl-6 space-y-1 text-sm">
+        <li>Every signal string from each cluster classifier.</li>
+        <li>Every candlestick pattern name (e.g. "hammer", "bullish_engulfing").</li>
+        <li>Every chart pattern name (e.g. "head_and_shoulders", "ascending_triangle").</li>
+        <li>Every catalyst's title and source URL from the news assessment.</li>
+        <li>Every risk's title and source URL.</li>
+        <li>Standard indicator names ("RSI", "MACD", "ADX", "ATR", "BB", "%B", "OBV", "SMA", "EMA",
+            "+DI", "−DI", "%K", "%D").</li>
+      </ul>
+
+      <h3 class="text-lg font-semibold mt-4 mb-2">Checks</h3>
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Rationale token grounding</td>
+              <td>At least <strong>80%</strong> of meaningful tokens in the rationale must appear in
+                  the allowed vocabulary. Catches "Fibonacci retracement" when no Fibonacci tool ran.</td></tr>
+          <tr><td>contributing_signals match</td>
+              <td>Each entry must either substring-match a vocabulary phrase, OR have ≥70% of its
+                  non-stop-word tokens in the vocabulary. Catches "strong dividend history"
+                  (a fundamental, not in our outputs).</td></tr>
+          <tr><td>conflicting_signals match</td>
+              <td>Same rule, symmetric.</td></tr>
+          <tr><td>Catalyst URL anchoring</td>
+              <td>Any URL in the rationale or signals must match a URL in the news assessment's
+                  catalysts or risks. Catches hallucinated sources.</td></tr>
+          <tr><td>Forbidden vocabulary</td>
+              <td>The rationale must contain none of: <code>guarantee, certain, definitely,
+                  risk-free, easy money, multibagger</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Tier 3 — consistency ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Tier 3 — Consistency</h2>
+      <p class="italic mb-3">Question: "Does the prediction internally hang together?"</p>
+
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Direction ↔ rationale agreement</td>
+              <td>The rationale must contain a keyword consistent with the declared direction.
+                  BULLISH rationale must mention at least one of: <em>up, rise, rally, breakout, buy,
+                  long, support holding, momentum positive, trend up.</em> Mirror set for BEARISH and
+                  NEUTRAL.</td></tr>
+          <tr><td>Confidence ↔ disagreement consistency</td>
+              <td>If there are more conflicting signals than contributing signals, confidence must
+                  be ≤ 0.55. Catches "high-conviction" calls that enumerate more conflicts than supports.</td></tr>
+          <tr><td>Confidence ↔ news magnitude</td>
+              <td>If news magnitude is HIGH AND news confidence ≥ 0.70 AND the synthesizer's
+                  direction agrees with the news direction, synthesizer confidence must be ≥ 0.55.
+                  Can't claim to have ignored a clear signal that aligned with the call.</td></tr>
+          <tr><td>NEUTRAL when sharply split</td>
+              <td>If 2+ clusters are bullish AND 2+ are bearish, AND news direction disagrees with
+                  the synthesizer's call, the synthesizer <em>must</em> emit NEUTRAL.</td></tr>
+          <tr><td>NEUTRAL claims no edge</td>
+              <td>NEUTRAL predictions cannot use the words <em>buy / sell / long / short</em> in
+                  rationale or contributing_signals.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Tier 4 — calibration ── -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3">Tier 4 — Calibration</h2>
+      <p class="italic mb-3">Question: "Is the confidence number reasonable given the prediction's structure?"</p>
+
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Horizon ceiling</td>
+              <td>confidence ≤ the horizon's ceiling: 0.90 daily, 0.85 weekly, 0.80 biweekly, 0.75 monthly.</td></tr>
+          <tr><td>Risk-reward floor</td>
+              <td>risk_reward ≥ 1.5 for BULLISH/BEARISH. NEUTRAL bypasses (RR = 1.0 by convention).</td></tr>
+          <tr><td>NEUTRAL confidence ceiling</td>
+              <td>NEUTRAL → confidence ≤ 0.65. Claiming high confidence in "no edge" is a contradiction.</td></tr>
+          <tr><td>Fallback-target confidence reduction</td>
+              <td>If the rationale mentions "ATR projection" (i.e. the no-level fallback was used),
+                  confidence must be ≤ 0.70.</td></tr>
+          <tr><td>News-bounded confidence on short horizons</td>
+              <td>DAILY: synthesizer confidence ≤ news_confidence + 0.10.<br>
+                  WEEKLY: ≤ news_confidence + 0.15.<br>
+                  Catches "I'm 0.85 sure on a daily call when news layer was 0.30 sure".</td></tr>
+          <tr><td>Degraded news cap</td>
+              <td>If <code>news_impact:degraded</code> is in the model chain, confidence must be ≤ 0.65.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── On retry ── -->
+    <section class="mb-10 bg-blue-50 border border-blue-100 rounded p-5">
+      <h2 class="text-xl font-bold mb-2 text-[#0053e2]">Why one retry, not many</h2>
+      <p>Empirically, when the first attempt violates a guardrail, the second attempt with the
+      failure message in the prompt usually succeeds. Beyond one retry we've seen diminishing
+      returns and a tendency for the LLM to <em>play whack-a-mole</em> with the rules rather than
+      re-think the prediction. One retry is the cost-vs-quality sweet spot.</p>
+    </section>
+
+    <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+      <a href="horizons.html" class="text-[#0053e2]">← Horizons &amp; targets</a>
+      <a href="example.html" class="text-[#0053e2]">Next: Worked example →</a>
+    </div>
+
+    <footer class="report-foot">Self-contained HTML report · Generated by Thor 🐶</footer>
+  </main>
+</div>
+
+<script src="assets/nav.js"></script>
+<script>injectNav("guardrails.html");</script>
+</body>
+</html>
