@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Candlestick Gallery — All 61 Patterns</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .pcard { transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+  .pcard:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -10px rgba(0,83,226,.20); border-color: #0053e2; }
+  .pcanvas { background: linear-gradient(180deg, #fafbfd 0%, #f3f5f9 100%); border-radius: 8px; }
+  .dirpill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .03em;
+  }
+  .dir-bull { background: #dcfce7; color: #166534; }
+  .dir-bear { background: #fee2e2; color: #991b1b; }
+  .dir-neut { background: #f1f5f9; color: #475569; }
+  .dir-cont { background: #dbeafe; color: #1e40af; }
+  .bartag   { background: #fef9c3; color: #854d0e; padding: 2px 8px; border-radius: 999px;
+              font-size: 11px; font-weight: 600; }
+  .filter-btn.active { background: #0053e2; color: white; border-color: #0053e2; }
+</style>
+</head>
+<body class="bg-white text-gray-900">
+
+<main class="max-w-7xl mx-auto px-6 lg:px-10 py-10">
+
+  <!-- Page banner -->
+  <header class="page-banner">
+    <div class="banner-inner">
+      <div class="crumb"><a href="index.html">← Home</a> &nbsp;·&nbsp;
+        <a href="candlesticks.html">Candlestick deep-dive</a> &nbsp;·&nbsp; Visual gallery</div>
+      <h1>The full candlestick gallery</h1>
+      <p class="lede">Every one of the <strong>61 patterns</strong> we detect, drawn to scale with
+      its bar configuration, direction, and a one-sentence reading. Click a category chip below to filter.</p>
+    </div>
+  </header>
+
+  <!-- Filter bar -->
+  <div class="mb-8 flex flex-wrap gap-2 items-center">
+    <span class="text-xs uppercase tracking-wider text-gray-500 font-semibold mr-2">Filter:</span>
+    <button class="filter-btn active px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-full" data-filter="all">All 61</button>
+    <button class="filter-btn px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-full" data-filter="bull">Bullish</button>
+    <button class="filter-btn px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-full" data-filter="bear">Bearish</button>
+    <button class="filter-btn px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-full" data-filter="neut">Neutral / indecision</button>
+    <button class="filter-btn px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-full" data-filter="cont">Continuation</button>
+    <span class="ml-auto text-sm text-gray-500"><span id="visibleCount">61</span> visible</span>
+  </div>
+
+  <!-- Quick reading guide -->
+  <div class="grid sm:grid-cols-3 gap-4 mb-10 text-sm">
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <div class="font-semibold mb-1 text-gray-800">🟢 Green bar</div>
+      <div class="text-gray-600">Bullish — close above open. Buyers won the session.</div>
+    </div>
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <div class="font-semibold mb-1 text-gray-800">🔴 Red bar</div>
+      <div class="text-gray-600">Bearish — close below open. Sellers won the session.</div>
+    </div>
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <div class="font-semibold mb-1 text-gray-800">⚪ Doji (thin line)</div>
+      <div class="text-gray-600">Open ≈ close. Indecision — meaningful near a pivot.</div>
+    </div>
+  </div>
+
+  <!-- ── Single-bar section ── -->
+  <section class="mb-12" id="sec-1bar">
+    <h2 class="text-2xl font-bold border-b-2 border-[#0053e2] pb-2 mb-5">Single-bar patterns (17)</h2>
+    <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" data-grid="1"></div>
+  </section>
+
+  <!-- ── Two-bar section ── -->
+  <section class="mb-12" id="sec-2bar">
+    <h2 class="text-2xl font-bold border-b-2 border-[#0053e2] pb-2 mb-5">Two-bar patterns (15)</h2>
+    <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" data-grid="2"></div>
+  </section>
+
+  <!-- ── Three-bar section ── -->
+  <section class="mb-12" id="sec-3bar">
+    <h2 class="text-2xl font-bold border-b-2 border-[#0053e2] pb-2 mb-5">Three-bar patterns (22)</h2>
+    <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" data-grid="3"></div>
+  </section>
+
+  <!-- ── Four-and-five-bar section ── -->
+  <section class="mb-12" id="sec-multibar">
+    <h2 class="text-2xl font-bold border-b-2 border-[#0053e2] pb-2 mb-5">Four- and five-bar patterns (7)</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-grid="multi"></div>
+  </section>
+
+  <footer class="report-foot mt-16">
+    Self-contained gallery · Generated by Thor 🐶 ·
+    <a href="candlesticks.html" class="text-[#0053e2]">← back to candlestick deep-dive</a>
+  </footer>
+</main>
+
+<!-- ─────────────────────────────────────────────────────────────
+     PATTERN DATA + RENDERER
+     Each pattern carries its candle specs as a list of
+     { o, h, l, c }  on a shared 0-100 price scale.
+     The renderer auto-scales to fit the SVG.
+   ─────────────────────────────────────────────────────────────── -->
+<script>
+const BULL = "#2a8703", BEAR = "#ea1100", DOJI = "#475569";
+
+function makeSVG(candles, opts = {}) {
+  const n = candles.length;
+  const w = opts.w || 200, h = opts.h || 110;
+  const pad = 8;
+  const slotW = (w - pad*2) / n;
+  const bodyW = Math.min(slotW * 0.55, 22);
+  // Auto-scale price
+  let pMin = Infinity, pMax = -Infinity;
+  for (const c of candles) { pMin = Math.min(pMin, c.l); pMax = Math.max(pMax, c.h); }
+  const range = pMax - pMin || 1;
+  const yPad = 10;
+  const yOf = p => yPad + (h - 2*yPad) * (1 - (p - pMin) / range);
+
+  let svg = `<svg viewBox="0 0 ${w} ${h}" class="w-full h-full" preserveAspectRatio="xMidYMid meet">`;
+  candles.forEach((c, i) => {
+    const cx = pad + slotW*(i + 0.5);
+    const bull = c.c > c.o + 0.5;
+    const bear = c.c < c.o - 0.5;
+    const color = bull ? BULL : bear ? BEAR : DOJI;
+    const fill  = bull ? "#dcfce7" : bear ? "#fee2e2" : "#e2e8f0";
+    // Wick
+    svg += `<line x1="${cx}" y1="${yOf(c.h)}" x2="${cx}" y2="${yOf(c.l)}" stroke="${color}" stroke-width="1.4"/>`;
+    // Body
+    if (bull || bear) {
+      const top = yOf(Math.max(c.o, c.c));
+      const bot = yOf(Math.min(c.o, c.c));
+      svg += `<rect x="${cx - bodyW/2}" y="${top}" width="${bodyW}" height="${Math.max(bot - top, 1)}"
+              fill="${fill}" stroke="${color}" stroke-width="1.4" rx="0.5"/>`;
+    } else {
+      // Doji — horizontal line at open/close level
+      svg += `<line x1="${cx - bodyW/2}" y1="${yOf(c.o)}" x2="${cx + bodyW/2}" y2="${yOf(c.o)}"
+              stroke="${color}" stroke-width="2"/>`;
+    }
+  });
+  return svg + `</svg>`;
+}
+
+const PATTERNS = [
+  // ╭───────────────────── SINGLE-BAR (17) ──────────────────╮
+  { k:"doji", name:"Doji", bars:1, dir:"neut",
+    desc:"Open ≈ close. Pure indecision; buyers and sellers fought to a tie. Meaningful only near a pivot.",
+    c:[{o:50,h:75,l:25,c:50.3}] },
+  { k:"long_legged_doji", name:"Long-Legged Doji", bars:1, dir:"neut",
+    desc:"Doji with very long upper AND lower shadows. Violent indecision — often signals trend exhaustion.",
+    c:[{o:50,h:92,l:8,c:50.3}] },
+  { k:"dragonfly_doji", name:"Dragonfly Doji", bars:1, dir:"bull",
+    desc:"Doji at the top of the range with no upper wick. Sellers pushed down hard but buyers rejected back to open. Bullish near support.",
+    c:[{o:80,h:82,l:18,c:80.3}] },
+  { k:"gravestone_doji", name:"Gravestone Doji", bars:1, dir:"bear",
+    desc:"Doji at the bottom with no lower wick. Buyers pushed up, sellers slammed it back. Bearish near resistance.",
+    c:[{o:20,h:85,l:18,c:20.3}] },
+  { k:"rickshaw_man", name:"Rickshaw Man", bars:1, dir:"neut",
+    desc:"Long-legged doji with body centred in the range. Maximum indecision — wicks long, body dead middle.",
+    c:[{o:50,h:92,l:8,c:50.3}] },
+  { k:"spinning_top", name:"Spinning Top", bars:1, dir:"neut",
+    desc:"Small body with both wicks visible. Tug-of-war — weaker than a doji but same family.",
+    c:[{o:45,h:78,l:22,c:55}] },
+  { k:"high_wave", name:"High Wave", bars:1, dir:"neut",
+    desc:"Very small body with very long wicks both sides. Extreme volatility & indecision — often at turning points.",
+    c:[{o:47,h:95,l:5,c:53}] },
+  { k:"hammer", name:"Hammer", bars:1, dir:"bull",
+    desc:"Small body at top, lower shadow ≥ 2× body, tiny upper shadow. Classic bottoming signal at support.",
+    c:[{o:72,h:78,l:18,c:78}] },
+  { k:"inverted_hammer", name:"Inverted Hammer", bars:1, dir:"bull",
+    desc:"Small body at bottom, upper shadow ≥ 2× body. After a downtrend, signals buyer interest at the lows.",
+    c:[{o:22,h:80,l:18,c:28}] },
+  { k:"takuri", name:"Takuri", bars:1, dir:"bull",
+    desc:"Dragonfly-like, even longer lower wick than a hammer. Strong bullish rejection at the lows.",
+    c:[{o:78,h:80,l:12,c:80}] },
+  { k:"shooting_star", name:"Shooting Star", bars:1, dir:"bear",
+    desc:"Mirror of inverted hammer — small body at bottom, long upper shadow. Topping signal at resistance.",
+    c:[{o:28,h:82,l:22,c:20}] },
+  { k:"hanging_man", name:"Hanging Man", bars:1, dir:"bear",
+    desc:"Hammer shape but appearing after an UPTREND. Sellers showed up at the highs — warning.",
+    c:[{o:78,h:82,l:22,c:72}] },
+  { k:"marubozu", name:"Marubozu", bars:1, dir:"bull",
+    desc:"Long body, NO upper or lower shadow. Open = low, close = high (or mirror). Total domination by one side.",
+    c:[{o:15,h:85,l:15,c:85}] },
+  { k:"closing_marubozu", name:"Closing Marubozu", bars:1, dir:"bull",
+    desc:"Marubozu where only the closing side touches its extreme; small wick on the opening side. Slightly weaker.",
+    c:[{o:18,h:85,l:10,c:85}] },
+  { k:"long_line", name:"Long Line", bars:1, dir:"bull",
+    desc:"Body unusually long versus recent bars. Strong directional conviction; building block for many multi-bar patterns.",
+    c:[{o:15,h:88,l:12,c:85}] },
+  { k:"short_line", name:"Short Line", bars:1, dir:"neut",
+    desc:"Body unusually short versus recent bars. Pause / hesitation; building block for harami-style patterns.",
+    c:[{o:48,h:58,l:42,c:55}] },
+  { k:"belt_hold", name:"Belt Hold", bars:1, dir:"bull",
+    desc:"Opens at an extreme (low for bullish), no shadow on that side, closes far in the opposite direction. One side took control from the open.",
+    c:[{o:12,h:82,l:12,c:78}] },
+
+  // ╭────────────────────── TWO-BAR (15) ────────────────────╮
+  { k:"engulfing", name:"Engulfing", bars:2, dir:"bull",
+    desc:"Today's body fully engulfs yesterday's body in opposite direction. Strong reversal near support/resistance. (Bullish shown; bearish is mirror.)",
+    c:[{o:70,h:72,l:38,c:40}, {o:35,h:82,l:33,c:78}] },
+  { k:"harami", name:"Harami", bars:2, dir:"bull",
+    desc:"Today's small body sits INSIDE yesterday's long body. Trend pressure paused — reversal warning, not confirmation.",
+    c:[{o:82,h:84,l:18,c:20}, {o:42,h:58,l:38,c:55}] },
+  { k:"harami_cross", name:"Harami Cross", bars:2, dir:"bull",
+    desc:"Harami where today's small body is specifically a doji. Stronger version of harami — full indecision inside the prior body.",
+    c:[{o:82,h:84,l:18,c:20}, {o:48,h:60,l:36,c:48.3}] },
+  { k:"piercing", name:"Piercing Line", bars:2, dir:"bull",
+    desc:"After a bearish long body: today opens below yesterday's low but closes ABOVE yesterday's midpoint. Weaker than full engulfing.",
+    c:[{o:75,h:78,l:28,c:30}, {o:20,h:62,l:18,c:60}] },
+  { k:"dark_cloud_cover", name:"Dark Cloud Cover", bars:2, dir:"bear",
+    desc:"Mirror of piercing. After bullish long body: today opens above yesterday's high but closes BELOW yesterday's midpoint.",
+    c:[{o:25,h:75,l:22,c:70}, {o:82,h:85,l:38,c:40}] },
+  { k:"homing_pigeon", name:"Homing Pigeon", bars:2, dir:"bull",
+    desc:"Bullish harami where BOTH bars are bearish — today's small bearish body inside yesterday's long bearish body. Bearish momentum decelerating.",
+    c:[{o:85,h:87,l:25,c:28}, {o:68,h:70,l:42,c:45}] },
+  { k:"matching_low", name:"Matching Low", bars:2, dir:"bull",
+    desc:"Two consecutive bearish bars closing at IDENTICAL lows. Sellers tested the same floor twice and failed — support confirmed.",
+    c:[{o:75,h:78,l:28,c:30}, {o:58,h:60,l:28,c:30}] },
+  { k:"separating_lines", name:"Separating Lines", bars:2, dir:"cont",
+    desc:"Two opposite-coloured bars opening at the SAME price. The counter-move was rejected at the open of the new bar → continuation of the prior trend.",
+    c:[{o:72,h:75,l:28,c:30}, {o:72,h:90,l:70,c:88}] },
+  { k:"counterattack", name:"Counterattack", bars:2, dir:"bull",
+    desc:"Two opposite-coloured bars closing at the SAME price. The counter-move reached parity at close — weaker reversal than engulfing.",
+    c:[{o:82,h:85,l:30,c:32}, {o:10,h:35,l:8,c:32}] },
+  { k:"in_neck", name:"In Neck", bars:2, dir:"cont",
+    desc:"In a downtrend: bearish long body then a bullish bar closing barely above yesterday's close. Bounce is weak — continuation likely.",
+    c:[{o:75,h:78,l:28,c:30}, {o:22,h:34,l:20,c:32}] },
+  { k:"on_neck", name:"On Neck", bars:2, dir:"cont",
+    desc:"Like in-neck but the bullish bar closes EXACTLY at yesterday's low/close. Even weaker bounce — strong downtrend continuation.",
+    c:[{o:75,h:78,l:28,c:30}, {o:22,h:32,l:20,c:30}] },
+  { k:"thrusting", name:"Thrusting", bars:2, dir:"cont",
+    desc:"Downtrend: bullish bar closes into prior body but BELOW its midpoint. Bounce makes it halfway but no further. Bearish continuation.",
+    c:[{o:82,h:85,l:30,c:32}, {o:22,h:50,l:20,c:48}] },
+  { k:"kicking", name:"Kicking", bars:2, dir:"bull",
+    desc:"Two opposite-coloured marubozu bars separated by a price GAP. Violent regime change — yesterday total bear domination, today total bull.",
+    c:[{o:55,h:55,l:15,c:15}, {o:65,h:92,l:65,c:92}] },
+  { k:"kicking_by_length", name:"Kicking by Length", bars:2, dir:"bull",
+    desc:"Kicking pattern where the LONGER body's direction wins the call. Same shape as kicking but emphasises which marubozu dominates.",
+    c:[{o:48,h:48,l:30,c:30}, {o:60,h:95,l:60,c:95}] },
+  { k:"doji_star", name:"Doji Star", bars:2, dir:"neut",
+    desc:"Long body then a doji that GAPS in the direction of the body. Indecision after a strong move — building block for morning/evening doji stars.",
+    c:[{o:80,h:82,l:25,c:28}, {o:18,h:24,l:10,c:18.3}] },
+
+  // ╭───────────────────── THREE-BAR (22) ───────────────────╮
+  { k:"morning_star", name:"Morning Star", bars:3, dir:"bull",
+    desc:"Bearish long + small body (any colour, often gapping down) + bullish long closing above bar-1's midpoint. Three-act bullish reversal.",
+    c:[{o:80,h:82,l:42,c:45}, {o:38,h:42,l:32,c:35}, {o:42,h:78,l:40,c:75}] },
+  { k:"morning_doji_star", name:"Morning Doji Star", bars:3, dir:"bull",
+    desc:"Morning star where bar 2 is specifically a doji. Stronger version — pure indecision at the bottom before the recovery.",
+    c:[{o:80,h:82,l:42,c:45}, {o:36,h:40,l:30,c:36.3}, {o:42,h:78,l:40,c:75}] },
+  { k:"evening_star", name:"Evening Star", bars:3, dir:"bear",
+    desc:"Mirror of morning star. Bullish long + small body + bearish long closing below bar-1's midpoint. Three-act bearish reversal at the top.",
+    c:[{o:22,h:60,l:20,c:58}, {o:65,h:70,l:60,c:67}, {o:60,h:62,l:25,c:28}] },
+  { k:"evening_doji_star", name:"Evening Doji Star", bars:3, dir:"bear",
+    desc:"Evening star with a doji as bar 2. Stronger version — pure indecision at the top before the breakdown.",
+    c:[{o:22,h:60,l:20,c:58}, {o:64,h:70,l:60,c:64.3}, {o:60,h:62,l:25,c:28}] },
+  { k:"abandoned_baby", name:"Abandoned Baby", bars:3, dir:"bull",
+    desc:"Star where bar 2 (a doji) GAPS away from both neighbours — full price isolation, no overlap. Rare and powerful reversal.",
+    c:[{o:80,h:82,l:55,c:58}, {o:42,h:46,l:38,c:42.3}, {o:65,h:90,l:62,c:88}] },
+  { k:"tristar", name:"Tristar", bars:3, dir:"bull",
+    desc:"Three dojis in a row. Three sessions of total indecision — extreme exhaustion, reversal likely. (Direction depends on prior trend.)",
+    c:[{o:55,h:65,l:45,c:55.3}, {o:52,h:62,l:42,c:52.3}, {o:54,h:64,l:44,c:54.3}] },
+  { k:"three_white_soldiers", name:"Three White Soldiers", bars:3, dir:"bull",
+    desc:"Three consecutive bullish long bars, each closing higher than the last, each opening within the prior body. Sustained methodical buying.",
+    c:[{o:22,h:48,l:20,c:45}, {o:38,h:65,l:36,c:62}, {o:55,h:85,l:53,c:82}] },
+  { k:"three_black_crows", name:"Three Black Crows", bars:3, dir:"bear",
+    desc:"Mirror of three white soldiers. Three consecutive bearish long bars each closing lower. Sustained methodical selling.",
+    c:[{o:80,h:82,l:55,c:58}, {o:62,h:64,l:38,c:42}, {o:45,h:48,l:18,c:22}] },
+  { k:"identical_three_crows", name:"Identical Three Crows", bars:3, dir:"bear",
+    desc:"Three black crows where each bar opens EXACTLY at the prior bar's close (no overlap). Even more aggressive selling.",
+    c:[{o:80,h:82,l:60,c:62}, {o:62,h:64,l:42,c:44}, {o:44,h:46,l:22,c:24}] },
+  { k:"three_inside", name:"Three Inside", bars:3, dir:"bull",
+    desc:"Bullish/bearish harami with a confirming third bar in the harami's direction. Confirmed harami → stronger reversal.",
+    c:[{o:80,h:82,l:25,c:28}, {o:42,h:55,l:38,c:52}, {o:55,h:80,l:52,c:78}] },
+  { k:"three_outside", name:"Three Outside", bars:3, dir:"bull",
+    desc:"Engulfing pattern with a confirming third bar in the engulfing's direction. Confirmed engulfing — strong reversal.",
+    c:[{o:60,h:62,l:38,c:40}, {o:38,h:75,l:35,c:72}, {o:72,h:90,l:70,c:88}] },
+  { k:"three_stars_in_south", name:"Three Stars in the South", bars:3, dir:"bull",
+    desc:"Three consecutive bearish bars with progressively SMALLER bodies and shrinking lows. Bearish momentum is exhausting — rare bullish reversal warning.",
+    c:[{o:85,h:88,l:22,c:25}, {o:62,h:65,l:30,c:32}, {o:48,h:50,l:35,c:38}] },
+  { k:"unique_three_river", name:"Unique Three River", bars:3, dir:"bull",
+    desc:"Bearish long + bearish hammer-like middle (deep wick, lower than bar 1's low) + small third bar that doesn't break the middle's low. Bullish reversal.",
+    c:[{o:82,h:85,l:40,c:42}, {o:52,h:55,l:25,c:48}, {o:45,h:50,l:42,c:44}] },
+  { k:"two_crows", name:"Two Crows", bars:3, dir:"bear",
+    desc:"After an uptrend: a bullish bar, then two bearish bars that progressively eat into the bullish one. Sellers showing up after a long run-up.",
+    c:[{o:32,h:75,l:30,c:72}, {o:80,h:82,l:60,c:62}, {o:65,h:68,l:42,c:45}] },
+  { k:"upside_gap_two_crows", name:"Upside Gap Two Crows", bars:3, dir:"bear",
+    desc:"Two crows variant with an upward GAP between the bullish bar and the first crow. The gap reversal makes this version particularly damning.",
+    c:[{o:32,h:65,l:30,c:62}, {o:82,h:85,l:72,c:74}, {o:78,h:80,l:55,c:58}] },
+  { k:"advance_block", name:"Advance Block", bars:3, dir:"bear",
+    desc:"Three bullish bars that progressively SHRINK in body size and develop upper shadows. The rally is running out of steam — bearish reversal warning during uptrend.",
+    c:[{o:22,h:52,l:20,c:50}, {o:42,h:70,l:40,c:65}, {o:60,h:80,l:58,c:72}] },
+  { k:"stalled_pattern", name:"Stalled Pattern", bars:3, dir:"bear",
+    desc:"Three bullish bars where the third has a noticeably smaller body and is 'stalled' near the top. Buying exhaustion — often precedes a pullback.",
+    c:[{o:22,h:48,l:20,c:45}, {o:42,h:72,l:40,c:68}, {o:70,h:78,l:68,c:73}] },
+  { k:"stick_sandwich", name:"Stick Sandwich", bars:3, dir:"bull",
+    desc:"Bearish — bullish — bearish, where the first and third bars close at the SAME price. Bullish reversal; the third 'sandwiches' the bullish meat.",
+    c:[{o:78,h:80,l:30,c:32}, {o:35,h:62,l:32,c:60}, {o:65,h:68,l:30,c:32}] },
+  { k:"hikkake", name:"Hikkake", bars:3, dir:"bull",
+    desc:"Inside bar (harami) followed by a false breakout from the inside bar's range. Classic 'trap' pattern (Raschke) — the false break sets up a reversal the other way.",
+    c:[{o:55,h:80,l:25,c:30}, {o:42,h:60,l:38,c:55}, {o:48,h:52,l:18,c:22}] },
+  { k:"hikkake_modified", name:"Hikkake Modified", bars:3, dir:"bull",
+    desc:"Hikkake with additional confirmation criteria — fires only when the trap is decisively reversed (closer to Bulkowski's 'Hikkake confirmed').",
+    c:[{o:55,h:80,l:25,c:30}, {o:42,h:60,l:38,c:55}, {o:30,h:35,l:12,c:15}] },
+  { k:"tasuki_gap", name:"Tasuki Gap", bars:3, dir:"cont",
+    desc:"Two same-coloured bars with a GAP, then an opposite-coloured bar that partially fills the gap but doesn't close it. Original trend resumes — continuation.",
+    c:[{o:22,h:42,l:20,c:40}, {o:55,h:75,l:52,c:72}, {o:68,h:70,l:48,c:50}] },
+  { k:"gap_side_by_side_white", name:"Gap Side-by-Side White", bars:3, dir:"cont",
+    desc:"Two bullish bars side-by-side after an upward gap (same/similar opens, both green). Strong bullish continuation in an uptrend.",
+    c:[{o:22,h:38,l:20,c:35}, {o:55,h:72,l:52,c:68}, {o:55,h:72,l:52,c:70}] },
+
+  // ╭──────────────── FOUR & FIVE-BAR (7) ──────────────────╮
+  { k:"three_line_strike", name:"Three Line Strike", bars:4, dir:"bull",
+    desc:"Three bears stepping down, then a single bullish bar that ENGULFS all three. The fourth bar 'strikes' through the prior three — reversal.",
+    c:[{o:85,h:88,l:65,c:68}, {o:65,h:68,l:48,c:50}, {o:48,h:50,l:30,c:32}, {o:30,h:90,l:28,c:88}] },
+  { k:"concealing_baby_swallow", name:"Concealing Baby Swallow", bars:4, dir:"bull",
+    desc:"Two bearish marubozu, a third bearish bar opening with a gap-down that trades into the prior body, a fourth bearish bar engulfing the third. Rare — strong bullish reversal at the bottom.",
+    c:[{o:85,h:85,l:62,c:62}, {o:62,h:62,l:42,c:42}, {o:32,h:55,l:28,c:30}, {o:40,h:42,l:18,c:20}] },
+  { k:"breakaway", name:"Breakaway", bars:5, dir:"bull",
+    desc:"Long bar, then a gap and 3 small bars continuing the prior trend, then a strong bar that reverses it all by closing back into the original gap. Strong reversal.",
+    c:[{o:80,h:82,l:58,c:60}, {o:50,h:55,l:44,c:46}, {o:46,h:48,l:38,c:40}, {o:40,h:42,l:32,c:34}, {o:34,h:82,l:32,c:78}] },
+  { k:"ladder_bottom", name:"Ladder Bottom", bars:5, dir:"bull",
+    desc:"Four bearish bars stepping methodically down, then a fifth bullish bar that GAPS UP. Bullish reversal at the bottom of a stepped decline.",
+    c:[{o:85,h:88,l:68,c:70}, {o:70,h:72,l:55,c:58}, {o:58,h:60,l:42,c:45}, {o:45,h:48,l:30,c:32}, {o:42,h:80,l:40,c:78}] },
+  { k:"mat_hold", name:"Mat Hold", bars:5, dir:"bull",
+    desc:"Long bullish bar, then 3 small bearish/inside bars trading sideways without breaking the bullish bar's low, then a bullish bar that breaks out. Bullish continuation.",
+    c:[{o:18,h:62,l:16,c:60}, {o:62,h:65,l:48,c:52}, {o:54,h:58,l:42,c:48}, {o:50,h:55,l:38,c:42}, {o:48,h:90,l:45,c:88}] },
+  { k:"rise_fall_three_methods", name:"Rising/Falling Three Methods", bars:5, dir:"cont",
+    desc:"Long bar in trend direction, three small COUNTER-bars staying within the long bar's range, then resumption. The 'pause that refreshes'.",
+    c:[{o:18,h:75,l:16,c:72}, {o:65,h:70,l:48,c:50}, {o:58,h:62,l:42,c:44}, {o:50,h:55,l:35,c:38}, {o:42,h:88,l:40,c:85}] },
+  { k:"x_side_gap_three_methods", name:"X Side-Gap Three Methods", bars:5, dir:"cont",
+    desc:"A gap continuation pattern. Two bars in trend direction (with a gap between), then three counter-trend bars that try and fail to close the gap.",
+    c:[{o:18,h:38,l:16,c:35}, {o:55,h:72,l:52,c:70}, {o:65,h:68,l:50,c:52}, {o:58,h:60,l:42,c:45}, {o:50,h:55,l:38,c:42}] },
+];
+
+// ── Render ──────────────────────────────────────────────────
+function dirLabel(d) {
+  return d === "bull" ? "Bullish reversal"
+       : d === "bear" ? "Bearish reversal"
+       : d === "cont" ? "Continuation"
+       : "Indecision / neutral";
+}
+function cardHTML(p) {
+  const svg = makeSVG(p.c, { w: 200 + (p.bars - 1) * 28, h: 110 });
+  const dc = "dir-" + p.dir;
+  return `
+    <div class="pcard bg-white border border-gray-200 rounded-xl p-4" data-dir="${p.dir}">
+      <div class="pcanvas border border-gray-200 mb-3" style="height:130px; display:flex; align-items:center; justify-content:center; padding:6px;">
+        ${svg}
+      </div>
+      <div class="flex items-center gap-2 flex-wrap mb-1">
+        <span class="dirpill ${dc}">${dirLabel(p.dir)}</span>
+        <span class="bartag">${p.bars} bar${p.bars > 1 ? "s" : ""}</span>
+      </div>
+      <h3 class="font-bold text-base">${p.name}</h3>
+      <p class="text-sm text-gray-600 mt-1 leading-relaxed">${p.desc}</p>
+      <div class="text-[10px] uppercase tracking-wider text-gray-400 mt-2 font-mono">${p.k}</div>
+    </div>
+  `;
+}
+
+(function render() {
+  const buckets = { "1": [], "2": [], "3": [], "multi": [] };
+  for (const p of PATTERNS) {
+    if (p.bars === 1) buckets["1"].push(p);
+    else if (p.bars === 2) buckets["2"].push(p);
+    else if (p.bars === 3) buckets["3"].push(p);
+    else buckets["multi"].push(p);
+  }
+  for (const [k, list] of Object.entries(buckets)) {
+    const host = document.querySelector(`[data-grid="${k}"]`);
+    if (host) host.innerHTML = list.map(cardHTML).join("");
+  }
+  // Filter buttons
+  const btns = document.querySelectorAll(".filter-btn");
+  btns.forEach(b => b.addEventListener("click", () => {
+    btns.forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    const f = b.dataset.filter;
+    let visible = 0;
+    document.querySelectorAll(".pcard").forEach(card => {
+      const show = f === "all" || card.dataset.dir === f;
+      card.style.display = show ? "" : "none";
+      if (show) visible++;
+    });
+    document.getElementById("visibleCount").textContent = visible;
+  }));
+})();
+</script>
+</body>
+</html>
