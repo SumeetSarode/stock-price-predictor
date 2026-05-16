@@ -178,6 +178,28 @@ class PredictionError(RuntimeError):
     """
 
 
+class SynthesisParseError(PredictionError):
+    """Raised when the synthesizer LLM returned content that cannot be
+    parsed as a Prediction.
+
+    Distinct from the parent so that the guardrail retry loop can catch
+    this (recoverable: re-sample the LLM) without also catching the
+    loop's own exhaustion error (which IS a PredictionError but must
+    flow through to the caller).
+
+    Common causes:
+      - Groq returned 200 OK with empty content (silent structured-output
+        validation failure -- distinct from the BadRequestError-wrapped
+        `json_validate_failed` path handled in llm/resilient.py).
+      - Model emitted a markdown fence around the JSON.
+      - Response was truncated by max_tokens.
+
+    Recovery: re-invoke the synthesizer. Either the same model produces
+    cleaner output on a fresh sample, or (if cooled-down) the resilient
+    chain has fallen to a different model with stronger JSON discipline.
+    """
+
+
 # ─────────────────────────────────────────────────────────────
 # Agent invocation helpers
 # Each takes a typed input and returns the agent's typed output.
@@ -294,22 +316,33 @@ async def run_synthesizer_agent(
     try:
         return Prediction.model_validate_json(raw)
     except Exception as e:
-        raise PredictionError(
+        raise SynthesisParseError(
             f"synthesizer agent returned invalid Prediction JSON: {e}"
         ) from e
 
 
 async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
-    """Run the synthesizer + guardrails with up to 2 retries on hallucination.
+    """Run the synthesizer + guardrails with up to 2 retries.
 
     Flow:
       1. Call synthesizer.
       2. validate_all(prediction, si).
-      3. If HallucinationError, retry up to _MAX_GUARDRAIL_RETRIES more
-         times, each time feeding the most recent error back into the
-         prompt as actionable feedback.
+      3. If HallucinationError OR SynthesisParseError, retry up to
+         _MAX_GUARDRAIL_RETRIES more times, each time feeding the most
+         recent error back into the prompt as actionable feedback.
       4. If all attempts fail, raise PredictionError wrapping the last
-         HallucinationError.
+         error.
+
+    Why catch BOTH error classes here:
+      - HallucinationError: LLM produced valid JSON but violated a
+        grounding/citation/consistency/calibration rule. Retry with
+        the rule violation as feedback.
+      - SynthesisParseError: LLM produced unparseable content (empty
+        string from Groq's silent structured-output failure, markdown
+        fence around JSON, truncated response). Retry: stochastic
+        re-sampling almost always recovers, and if the underlying
+        model is now cooled down, the resilient chain transparently
+        falls back to a different provider.
 
     Why up to 3 total attempts (was 2): empirically, the synthesizer
     LLM's outputs vary stochastically across attempts. With a single
@@ -321,21 +354,35 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
     ambiguous inputs.
 
     Raises:
-        PredictionError: every retry failed (with last guardrail msg as
-            cause), OR synth raised PredictionError directly.
+        PredictionError: every retry failed (with last error as cause).
     """
     feedback: str | None = None
-    last_error: HallucinationError | None = None
+    last_error: Exception | None = None
 
     for attempt in range(1, _MAX_GUARDRAIL_ATTEMPTS + 1):
-        prediction = await run_synthesizer_agent(si, feedback=feedback)
         try:
+            prediction = await run_synthesizer_agent(si, feedback=feedback)
             validate_all(prediction, si)
             if attempt > 1:
                 logger.info(
-                    f"retry succeeded on attempt {attempt} after guardrail feedback"
+                    f"retry succeeded on attempt {attempt} after synthesis feedback"
                 )
             return prediction
+        except SynthesisParseError as e:
+            # LLM returned garbage (empty / markdown-fenced / truncated).
+            # No partial Prediction to inspect; just nudge the model.
+            last_error = e
+            feedback = (
+                f"Your previous response could not be parsed as JSON: {e}. "
+                f"Emit ONLY a single JSON object that exactly matches the "
+                f"Prediction schema. No markdown fences, no commentary, "
+                f"no leading or trailing text."
+            )
+            if attempt < _MAX_GUARDRAIL_ATTEMPTS:
+                logger.warning(
+                    f"synthesizer parse failure on attempt {attempt}: {e}. "
+                    f"Retrying (attempt {attempt + 1}/{_MAX_GUARDRAIL_ATTEMPTS})."
+                )
         except HallucinationError as e:
             last_error = e
             feedback = str(e)
@@ -348,7 +395,7 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
     # All attempts exhausted.
     assert last_error is not None  # loop body always sets it on the failure path
     raise PredictionError(
-        f"Synthesizer failed guardrails {_MAX_GUARDRAIL_ATTEMPTS}×. "
+        f"Synthesizer failed {_MAX_GUARDRAIL_ATTEMPTS}×. "
         f"Last error: {last_error}"
     ) from last_error
 

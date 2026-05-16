@@ -22,6 +22,7 @@ from price_predictor.prediction import (
     Prediction,
     PredictionError,
     SynthesisInput,
+    SynthesisParseError,
     synthesize_with_guardrails,
     validate_all,
     validate_calibration,
@@ -458,6 +459,57 @@ class TestSynthesizeWithGuardrails:
         with pytest.raises(PredictionError, match="3×"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
         assert mock_synth.await_count == 3  # tried 3×, then gave up
+
+    # ─────────────────────────────────────────────────────────────
+    # SynthesisParseError retry path — regression for TCS.NS daily prod
+    # failure (2026-05-16). Symptom: Groq returned an empty / unparseable
+    # response from the synthesizer, run_synthesizer_agent raised
+    # SynthesisParseError, and the old retry loop (which only caught
+    # HallucinationError) let it escape on attempt 1 with no recovery.
+    # ─────────────────────────────────────────────────────────────
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_retry_succeeds_after_parse_failure(self, mock_synth):
+        """Empty/garbage LLM response on attempt 1 → retry → clean parse."""
+        parse_err = SynthesisParseError(
+            "synthesizer agent returned invalid Prediction JSON: "
+            "Invalid JSON: expected value at line 1 column 1"
+        )
+        good = _make_pred()
+        mock_synth.side_effect = [parse_err, good]
+
+        result = asyncio.run(synthesize_with_guardrails(_make_si()))
+        assert result is good
+        assert mock_synth.await_count == 2
+        # Retry MUST surface the parse error in the feedback so the LLM
+        # knows to emit clean JSON next time.
+        retry_feedback = mock_synth.call_args_list[1].kwargs.get("feedback")
+        assert retry_feedback is not None
+        assert "JSON" in retry_feedback
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_retry_succeeds_after_mixed_parse_then_guardrail_failure(self, mock_synth):
+        """Realistic cascade: parse-fail → guardrail-fail → clean."""
+        parse_err = SynthesisParseError("unparseable")
+        bad = _make_pred(target_value=1599.0)  # grounding fail
+        good = _make_pred()
+        mock_synth.side_effect = [parse_err, bad, good]
+
+        result = asyncio.run(synthesize_with_guardrails(_make_si()))
+        assert result is good
+        assert mock_synth.await_count == 3
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_three_parse_failures_raise_prediction_error(self, mock_synth):
+        """If every attempt yields unparseable JSON, give up with context."""
+        parse_err = SynthesisParseError("unparseable")
+        mock_synth.side_effect = [parse_err, parse_err, parse_err]
+
+        with pytest.raises(PredictionError, match="3×"):
+            asyncio.run(synthesize_with_guardrails(_make_si()))
+        assert mock_synth.await_count == 3
 
 
 # ────────────────────────────────────────────

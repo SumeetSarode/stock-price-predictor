@@ -43,6 +43,7 @@ from price_predictor.prediction.horizon_constants import (
 )
 from price_predictor.prediction.predictor import (
     PredictionError,
+    SynthesisParseError,
     predict,
     run_news_impact_agent,
     run_synthesizer_agent,
@@ -87,6 +88,7 @@ __all__ = [
     "compose_technical_view",
     # orchestrator + guardrails (3.4.2 commits 4-5)
     "PredictionError",
+    "SynthesisParseError",
     "HallucinationError",
     "predict",
     "run_news_impact_agent",
