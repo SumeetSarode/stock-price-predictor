@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>How We Predict — Complete Walkthrough (single-file edition)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  /* Sticky TOC + active-link highlight */
+  .toc-link { display:block; padding:4px 10px; font-size:0.85rem; color:#5e5e5e;
+              border-left:3px solid transparent; text-decoration:none; }
+  .toc-link:hover { color:#0053e2; background:#f0f7ff; }
+  .toc-link.active { color:#0053e2; border-left-color:#0053e2; background:#eff6ff; font-weight:600; }
+  .toc-section { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em;
+                 color:#94a3b8; padding:14px 10px 4px; font-weight:700; }
+  h2.section-h { scroll-margin-top: 1rem; padding-top: 0.5rem; }
+  h3.sub-h    { scroll-margin-top: 1rem; }
+  /* Print: hide nav, expand content */
+  @media print {
+    aside, .print-hide { display:none !important; }
+    main { max-width:none !important; }
+    a { color:inherit; text-decoration:none; }
+  }
+</style>
+</head>
+<body class="bg-white">
+
+<div class="flex min-h-screen">
+
+  <!-- ── Sticky sidebar TOC ───────────────────────────────────── -->
+  <aside class="hidden lg:block w-72 shrink-0 border-r border-gray-200 bg-gray-50 print-hide">
+    <div class="sticky top-0 max-h-screen overflow-y-auto p-4">
+      <div class="mb-4 pb-3 border-b border-gray-200">
+        <div class="text-xs uppercase tracking-wider text-gray-500">Single-file walkthrough</div>
+        <div class="text-base font-bold text-[#0053e2]">How we predict</div>
+        <a href="index.html" class="text-xs text-gray-500 hover:text-[#0053e2]">↩ multi-page version</a>
+      </div>
+
+      <nav id="toc">
+        <div class="toc-section">Overview</div>
+        <a class="toc-link" href="#intro">Five-line summary</a>
+        <a class="toc-link" href="#architecture">Two-phase pipeline</a>
+
+        <div class="toc-section">Inputs</div>
+        <a class="toc-link" href="#data">Data we ingest</a>
+
+        <div class="toc-section">Math (deterministic)</div>
+        <a class="toc-link" href="#trend">Trend cluster</a>
+        <a class="toc-link" href="#momentum">Momentum cluster</a>
+        <a class="toc-link" href="#volatility">Volatility cluster</a>
+        <a class="toc-link" href="#levels">Levels cluster</a>
+        <a class="toc-link" href="#crossovers">Crossovers (Golden, Death, MACD)</a>
+        <a class="toc-link" href="#candlesticks">Candlesticks (all 61)</a>
+        <a class="toc-link" href="#chart-patterns">Chart patterns</a>
+
+        <div class="toc-section">LLM agents</div>
+        <a class="toc-link" href="#news">News analysis</a>
+        <a class="toc-link" href="#synthesis">Synthesizer</a>
+
+        <div class="toc-section">Mechanics</div>
+        <a class="toc-link" href="#horizons">Horizons &amp; targets</a>
+        <a class="toc-link" href="#guardrails">Quality controls</a>
+
+        <div class="toc-section">Reference</div>
+        <a class="toc-link" href="#example">Worked example</a>
+        <a class="toc-link" href="#glossary">Glossary</a>
+      </nav>
+
+      <div class="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-500">
+        <p>Self-contained. Print-friendly (Ctrl+P / ⌘P drops the sidebar).</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main content ─────────────────────────────────────────── -->
+  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- INTRO / TL;DR -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <header id="intro" class="mb-10">
+      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold">Prediction Walkthrough · single-file edition</div>
+      <h1 class="text-4xl font-bold mt-1 mb-3">How we make stock predictions</h1>
+      <p class="text-lg text-gray-700">A complete, plain-English walkthrough of the data we read,
+      the indicators we compute, the patterns we hunt for, and the way we combine all of it into a
+      single, time-boxed call for one NSE-listed stock.</p>
+      <p class="mt-2 text-sm text-gray-500">No code. No jargon-without-explanation. Aimed at someone
+      who knows technical analysis and the news cycle, but does not read software.</p>
+    </header>
+
+    <section class="bg-blue-50 border border-blue-100 rounded-lg p-6 mb-10">
+      <h2 class="text-xl font-semibold text-[#0053e2] mb-3">📌 Five-line summary</h2>
+      <ol class="list-decimal pl-5 space-y-1 text-gray-800">
+        <li>For one stock at a time, we ask: <em>where is price likely to go over the next 1, 5, 10, and 21 trading days?</em></li>
+        <li>We answer with five numbers per horizon: <strong>direction</strong>, <strong>entry zone</strong>,
+            <strong>target</strong>, <strong>stop-loss</strong>, <strong>confidence</strong>.</li>
+        <li>The answer is built from two parallel reads: a <strong>technical view</strong>
+            (chart math) and a <strong>news view</strong> (an LLM reading actual headlines &amp; filings).</li>
+        <li>Both reads are passed to a <strong>synthesizer</strong> that weighs them differently per
+            horizon (news matters more daily, trend matters more monthly) and writes the final prediction.</li>
+        <li>Before shipping, every prediction passes four <strong>guardrail checks</strong>
+            (grounding, citation, consistency, calibration). One retry, then abort.</li>
+      </ol>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ARCHITECTURE -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="architecture" class="mb-12">
+      <h2 class="text-2xl font-bold section-h mb-4">The two-phase pipeline at a glance</h2>
+      <div class="border border-gray-200 rounded-lg p-4 bg-white">
+        <svg viewBox="0 0 760 360" class="w-full h-auto" role="img" aria-label="Two-phase prediction pipeline">
+          <rect x="20" y="20" width="340" height="320" rx="10" fill="#f0f7ff" stroke="#0053e2" stroke-width="1.5"/>
+          <text x="190" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#0053e2">Phase 1 — Gather (parallel)</text>
+          <text x="190" y="64" text-anchor="middle" font-size="11" fill="#5e5e5e">Horizon-agnostic: one read serves all four horizons</text>
+
+          <rect x="40" y="90" width="135" height="220" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+          <text x="107" y="112" text-anchor="middle" font-size="12" font-weight="600">Technical view</text>
+          <text x="107" y="138" text-anchor="middle" font-size="10" fill="#475569">~520 daily bars</text>
+          <text x="107" y="158" text-anchor="middle" font-size="10" fill="#475569">↓</text>
+          <text x="107" y="178" text-anchor="middle" font-size="10" fill="#475569">Trend signals</text>
+          <text x="107" y="194" text-anchor="middle" font-size="10" fill="#475569">Momentum signals</text>
+          <text x="107" y="210" text-anchor="middle" font-size="10" fill="#475569">Volatility signals</text>
+          <text x="107" y="226" text-anchor="middle" font-size="10" fill="#475569">Levels (S/R, VWAP)</text>
+          <text x="107" y="246" text-anchor="middle" font-size="10" fill="#475569">Candlestick patterns</text>
+          <text x="107" y="262" text-anchor="middle" font-size="10" fill="#475569">Chart patterns</text>
+          <text x="107" y="288" text-anchor="middle" font-size="10" font-style="italic" fill="#0053e2">4 cluster verdicts</text>
+
+          <rect x="205" y="90" width="135" height="220" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+          <text x="272" y="112" text-anchor="middle" font-size="12" font-weight="600">News impact</text>
+          <text x="272" y="138" text-anchor="middle" font-size="10" fill="#475569">GDELT headlines</text>
+          <text x="272" y="154" text-anchor="middle" font-size="10" fill="#475569">+ article bodies</text>
+          <text x="272" y="170" text-anchor="middle" font-size="10" fill="#475569">+ NSE filings</text>
+          <text x="272" y="186" text-anchor="middle" font-size="10" fill="#475569">+ analyst estimates</text>
+          <text x="272" y="202" text-anchor="middle" font-size="10" fill="#475569">+ recent price action</text>
+          <text x="272" y="228" text-anchor="middle" font-size="10" fill="#475569">read by an LLM</text>
+          <text x="272" y="246" text-anchor="middle" font-size="10" fill="#475569">(materiality filter,</text>
+          <text x="272" y="260" text-anchor="middle" font-size="10" fill="#475569">expectation framing)</text>
+          <text x="272" y="288" text-anchor="middle" font-size="10" font-style="italic" fill="#0053e2">Direction + magnitude</text>
+        </svg>
+
+        <svg viewBox="0 0 760 360" class="w-full h-auto mt-2" role="img" aria-label="Phase 2 fan-out">
+          <line x1="20" y1="40" x2="700" y2="40" stroke="#0053e2" stroke-width="2" marker-end="url(#arr)"/>
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0053e2"/>
+            </marker>
+          </defs>
+          <text x="360" y="30" text-anchor="middle" font-size="13" font-weight="600" fill="#0053e2">Phase 2 — Synthesize (parallel fan-out)</text>
+
+          <g font-size="11" font-weight="600">
+            <rect x="20"  y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="105" y="92"  text-anchor="middle" fill="#0053e2">DAILY • 1 bar</text>
+            <text x="105" y="112" text-anchor="middle" fill="#475569" font-weight="400">News weight 65%</text>
+            <text x="105" y="128" text-anchor="middle" fill="#475569" font-weight="400">Tech weight 35%</text>
+            <text x="105" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.5–1.0×ATR</text>
+            <text x="105" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 0.75–1.5×ATR</text>
+            <text x="105" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.90</text>
+
+            <rect x="200" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="285" y="92"  text-anchor="middle" fill="#0053e2">WEEKLY • 5 bars</text>
+            <text x="285" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 50% / Tech 50%</text>
+            <text x="285" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.7–1.5×ATR</text>
+            <text x="285" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.0–2.0×ATR</text>
+            <text x="285" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.85</text>
+
+            <rect x="380" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="465" y="92"  text-anchor="middle" fill="#0053e2">BIWEEKLY • 10 bars</text>
+            <text x="465" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 40% / Tech 60%</text>
+            <text x="465" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.0–2.0×ATR</text>
+            <text x="465" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.5–3.0×ATR</text>
+            <text x="465" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.80</text>
+
+            <rect x="560" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
+            <text x="645" y="92"  text-anchor="middle" fill="#0053e2">MONTHLY • 21 bars</text>
+            <text x="645" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 30% / Tech 70%</text>
+            <text x="645" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.5–2.5×ATR</text>
+            <text x="645" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 2.0–4.0×ATR</text>
+            <text x="645" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.75</text>
+          </g>
+        </svg>
+      </div>
+      <p class="text-sm text-gray-600 mt-3">Same indicators, same news read, same RSI value — fed
+      into four parallel synthesizer calls that each produce one horizon's prediction. The
+      synthesizer is the same LLM each time; only the prompt's horizon label, the per-horizon
+      weights, and the per-horizon ATR bands change.</p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- DATA WE INGEST -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="data" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">1 · Data we ingest</h2>
+
+      <h3 id="data-prices" class="text-2xl font-semibold sub-h mt-6 mb-2">Price bars (OHLCV, daily)</h3>
+      <p>For one ticker we fetch about <mark class="k">two calendar years</mark> of daily bars
+      (≈ 520 trading sessions). Each bar carries the five numbers every chartist knows:</p>
+      <table class="t">
+        <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Open</strong></td><td>First traded price of the session (NSE: 09:15 IST).</td></tr>
+          <tr><td><strong>High</strong></td><td>Highest price touched during the session.</td></tr>
+          <tr><td><strong>Low</strong></td><td>Lowest price touched during the session.</td></tr>
+          <tr><td><strong>Close</strong></td><td>Final traded price (NSE: 15:30 IST).</td></tr>
+          <tr><td><strong>Volume</strong></td><td>Total number of shares traded.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="text-lg font-semibold mt-5 mb-2">Fallback chain (resilient fetcher)</h4>
+      <ol class="list-decimal pl-6 space-y-1">
+        <li><strong>yfinance</strong> — primary. Yahoo Finance's free OHLCV feed.</li>
+        <li><strong>Stooq</strong> — fallback. Polish data provider that mirrors most global tickers.</li>
+        <li><strong>Alpha Vantage</strong> — final fallback. Requires an API key.</li>
+      </ol>
+      <div class="meaning">If a provider fails transiently, it's marked asleep for 60 seconds and
+      we move to the next. If every provider has failed recently, we drop the cooldown and try them
+      all anyway — better to risk a duplicate rate-limit call than to deny the user an answer.</div>
+
+      <h4 class="text-lg font-semibold mt-5 mb-2">Why two years of bars?</h4>
+      <p>Several indicators need long history before their math stabilises. The biggest offender is
+      ADX: it's doubly smoothed by Wilder's averaging, which means the starting bias only decays
+      below 1% after about <mark class="k">10 × length = 140 bars</mark>. Add the 200-bar SMA and a
+      60-bar squeeze lookback and you need roughly 400 trading days before every number on the page
+      is meaningful. 520 gives comfortable headroom.</p>
+
+      <h3 id="data-news" class="text-2xl font-semibold sub-h mt-8 mb-2">News headlines (GDELT)</h3>
+      <p>The <a class="text-[#0053e2] underline" href="https://www.gdeltproject.org/">Global Database of Events, Language and Tone</a>
+      — a non-profit project that indexes news media worldwide in near-real-time. We query its Doc API 2.0
+      endpoint (rolling 7-day index).</p>
+      <table class="t">
+        <thead><tr><th>What we keep</th><th>What we drop</th></tr></thead>
+        <tbody>
+          <tr><td>Title, URL, published timestamp (converted to IST), source domain, language.</td>
+              <td>GDELT's pre-computed <em>tone</em> score and <em>themes</em> taxonomy — we let the LLM read the article itself instead of trusting a third-party sentiment guess.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="text-lg font-semibold mt-4 mb-2">Two-step fetch</h4>
+      <ol class="list-decimal pl-6 space-y-2">
+        <li><strong>Discovery</strong> (<code>fetch_news</code>): ask GDELT for all articles about
+            ticker X in the last 1–7 days. Get back metadata only.</li>
+        <li><strong>Extraction</strong> (<code>fetch_article_body</code>): for the headlines the
+            LLM decides are <em>material</em>, fetch the URL and extract clean text using
+            <code>trafilatura</code> (strips ads, nav, related-article rails).</li>
+      </ol>
+      <div class="meaning">Extraction failure is <em>normal</em> at scale (paywalls, JS-only sites,
+      bot blocks). We surface those as <code>status=error</code> data rather than throwing exceptions.</div>
+      <p class="mt-2"><strong>Language:</strong> English-only by default. A leak in a vernacular Indian
+      paper may move HDFCBANK 2% intraday and we never see it. Phase-2 backlog.</p>
+
+      <h3 id="data-filings" class="text-2xl font-semibold sub-h mt-8 mb-2">NSE corporate filings</h3>
+      <p>The same "Corporate Information → Announcements" feed that powers NSE's website. Sources:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>Insider trades</strong> — promoter buys/sells, often a leading indicator.</li>
+        <li><strong>Board-meeting notices</strong> — typically 7–14 days before earnings.</li>
+        <li><strong>Result publications</strong> — the actual quarterly numbers when they drop.</li>
+        <li><strong>Regulatory disclosures</strong> — SEBI inquiries, related-party transactions.</li>
+      </ul>
+      <div class="bg-red-50 border border-red-200 rounded p-4 my-4 text-sm">
+        <strong class="text-[#ea1100]">⚠️ Fragility note.</strong> This is not a public API. We prime
+        cookies, forge browser headers, and handle Cloudflare challenges. NSE can (and does) silently
+        change the contract — when they do, this layer goes down until someone notices and patches it.
+      </div>
+
+      <h3 id="data-estimates" class="text-2xl font-semibold sub-h mt-8 mb-2">Analyst estimates</h3>
+      <p>Pulled from yfinance's analyst snapshot. Per ticker we keep EPS/revenue forecasts (current
+      quarter, next quarter, current year, next year), recommendation counts (Strong-Buy / Buy /
+      Hold / Sell / Strong-Sell), and price-target distribution (low / median / mean / high).</p>
+      <div class="meaning">The news LLM uses estimates as the <strong>expectations baseline</strong>.
+      A 5% EPS <em>growth</em> is bullish if estimates expected 3%, but <strong>bearish</strong> if
+      estimates expected 12%. Without estimates, the LLM has no way to interpret "beat" or "miss".</div>
+
+      <h3 id="data-failure" class="text-2xl font-semibold sub-h mt-8 mb-2">What happens when a source fails</h3>
+      <table class="t">
+        <thead><tr><th>If this fails…</th><th>We do this</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Price bars</strong> (all three providers)</td><td>Abort the prediction. No technicals = no anchor.</td></tr>
+          <tr><td><strong>News</strong> (GDELT down or empty)</td><td>Degrade gracefully. Synthesize a "neutral, confidence=0, no catalysts" placeholder and tag the prediction with <code>news_impact:degraded</code>.</td></tr>
+          <tr><td><strong>Filings</strong></td><td>Surface as "no filings considered". News LLM continues with what it has.</td></tr>
+          <tr><td><strong>Estimates</strong></td><td>Surface as missing. News LLM continues but cannot do beat-vs-miss framing.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ════ TREND CLUSTER ════ -->
+    <section id="trend" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">2 · Trend cluster</h2>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Simple Moving Average (SMA)</h3>
+      <p>The plain average of the last N closing prices.</p>
+      <div class="formula">SMA<sub>N</sub> = (close<sub>t</sub> + close<sub>t−1</sub> + … + close<sub>t−N+1</sub>) / N</div>
+      <p>We compute three lengths: <mark class="k">20</mark>, <mark class="k">50</mark>,
+      <mark class="k">200</mark> — short, medium, long-term gauges (Murphy 1999).</p>
+
+      <h4 class="text-base font-semibold mt-4 mb-1">The SMA stack</h4>
+      <p>Per SMA we record "is close above this SMA?" and "% distance to it". The <strong>stack
+      score</strong> is the count of SMAs the close is above (0–3):</p>
+      <table class="t">
+        <thead><tr><th>Score</th><th>Meaning</th><th>Tag</th></tr></thead>
+        <tbody>
+          <tr><td>3</td><td>Above all three SMAs — full bullish alignment.</td><td><span class="tag tag-bull">Bullish lean</span></td></tr>
+          <tr><td>2</td><td>Above two; usually below the slowest one.</td><td><span class="tag tag-bull">Bullish lean</span></td></tr>
+          <tr><td>1</td><td>Below two; only the fastest holds.</td><td><span class="tag tag-bear">Bearish lean</span></td></tr>
+          <tr><td>0</td><td>Below all three.</td><td><span class="tag tag-bear">Bearish lean</span></td></tr>
+        </tbody>
+      </table>
+      <div class="example">TCS close ₹3,820. SMA20 = 3,780, SMA50 = 3,690, SMA200 = 3,560.
+      Close above all three → stack = 3 → bullish lean. The next gate (ADX) decides whether that lean
+      becomes a real verdict.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Exponential Moving Average (EMA-20)</h3>
+      <p>Same idea as SMA, but recent bars get more weight.</p>
+      <div class="formula">EMA<sub>t</sub> = α × close<sub>t</sub> + (1 − α) × EMA<sub>t−1</sub>,  α = 2 / (N + 1)</div>
+      <p>Length: <mark class="k">20</mark> (Pring 2002). Faster than SMA — strength is early signal,
+      weakness is more whipsaws.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">ADX and the Directional Indicators (Wilder 1978)</h3>
+      <p>The ADX answers a different question than the SMAs: not <em>where</em> the trend is, but
+      <em>how strong</em> it is. +DI and −DI tell you whether buyers or sellers have been in control.</p>
+      <table class="t">
+        <thead><tr><th>Value</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>ADX &lt; 20</td><td><span class="tag tag-neut">No trend</span> Price meandering. Treat any other signal with extra caution.</td></tr>
+          <tr><td>ADX 20–25</td><td>Grey zone (StockCharts convention). Weak trend.</td></tr>
+          <tr><td>ADX 25–40</td><td>Strong trend — Wilder's original 25 threshold.</td></tr>
+          <tr><td>ADX 40+</td><td>Very strong. Often near exhaustion.</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">We use ADX as a <strong>strength gate</strong>. If ADX is below 20,
+      the trend cluster's verdict is <em>forced to neutral</em> regardless of how bullish the SMA stack looks.
+      A "bullish alignment in a directionless market" is just chop pretending to be a trend.</div>
+      <p class="mt-3 text-sm"><strong>Convergence guard:</strong> ADX is doubly Wilder-smoothed; we
+      refuse to publish it until 140 bars exist, because an undercooked ADX value would mislead the gate.</p>
+    </section>
+
+    <!-- ════ MOMENTUM ════ -->
+    <section id="momentum" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">3 · Momentum cluster</h2>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Relative Strength Index (RSI-14)</h3>
+      <p>Wilder's classic. Ratio of up-moves to down-moves over 14 bars, normalised to 0–100.</p>
+      <div class="formula">RSI = 100 − 100 / (1 + RS),  RS = avg gain / avg loss over N bars</div>
+      <table class="t">
+        <thead><tr><th>Reading</th><th>Wilder's classic</th><th>Trend-RSI (Cardwell/Brown)</th></tr></thead>
+        <tbody>
+          <tr><td>&gt; 70</td><td><span class="tag tag-bear">Overbought</span></td><td>Still bullish in an uptrend.</td></tr>
+          <tr><td>60–70</td><td>Strong, not overbought.</td><td><span class="tag tag-bull">+1 bull vote</span></td></tr>
+          <tr><td>40–60</td><td>Neutral middle ground.</td><td>No vote.</td></tr>
+          <tr><td>30–40</td><td>Weak.</td><td><span class="tag tag-bear">+1 bear vote</span></td></tr>
+          <tr><td>&lt; 30</td><td><span class="tag tag-bull">Oversold</span></td><td>Still bearish in a downtrend.</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">We use the <strong>60/40 trend-RSI cuts</strong> for voting, not the
+      70/30 overbought/oversold flags. In an uptrend RSI oscillates 40–80 — using "&gt;70 = bearish"
+      in a strong uptrend would mean fading every push. 70/30 flags are still reported as regime labels.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">MACD (Appel, late 1970s)</h3>
+      <div class="formula">
+        MACD line   = EMA<sub>12</sub>(close) − EMA<sub>26</sub>(close)<br>
+        Signal line = EMA<sub>9</sub>(MACD line)<br>
+        Histogram   = MACD line − Signal line
+      </div>
+      <table class="t">
+        <thead><tr><th>Signal</th><th>Detection rule</th><th>Vote</th></tr></thead>
+        <tbody>
+          <tr><td>Bullish MACD cross</td><td>Histogram flips from ≤ 0 to &gt; 0.</td><td><span class="tag tag-bull">+1 bull</span></td></tr>
+          <tr><td>Bearish MACD cross</td><td>Histogram flips from ≥ 0 to &lt; 0.</td><td><span class="tag tag-bear">+1 bear</span></td></tr>
+          <tr><td>MACD &gt; Signal (no fresh cross)</td><td>Still above; consistent positive momentum.</td><td>+0.5 matching direction</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Stochastic Oscillator (Lane, 1950s)</h3>
+      <p>Where today's close sits inside the recent range. 0 = at the lowest low, 100 = at the highest high.</p>
+      <div class="formula">
+        %K = (close − low<sub>N</sub>) / (high<sub>N</sub> − low<sub>N</sub>) × 100,  N = 14<br>
+        %K then smoothed over 3 bars (slow %K). %D = 3-bar SMA of slow %K.
+      </div>
+      <table class="t">
+        <thead><tr><th>Condition</th><th>Vote</th></tr></thead>
+        <tbody>
+          <tr><td>%K &gt; %D AND both above 50</td><td><span class="tag tag-bull">+0.5 bull</span></td></tr>
+          <tr><td>%K &lt; %D AND both below 50</td><td><span class="tag tag-bear">+0.5 bear</span></td></tr>
+          <tr><td>%K &gt; 80 / &lt; 20</td><td>Overbought / oversold flag (no vote flip; reported as label).</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">On-Balance Volume (Granville 1963)</h3>
+      <p>Running cumulative sum: <strong>add</strong> today's volume if close went up,
+      <strong>subtract</strong> if down, <strong>ignore</strong> if flat.</p>
+      <div class="formula">OBV<sub>t</sub> = OBV<sub>t−1</sub> + (sign of close change) × volume<sub>t</sub></div>
+      <p>Absolute level is meaningless — only the slope matters. We compute the 20-bar slope:</p>
+      <div class="formula">OBV slope (20) = (OBV<sub>today</sub> − OBV<sub>20 bars ago</sub>) / |OBV<sub>20 bars ago</sub>| × 100</div>
+      <div class="meaning">Positive slope → <span class="tag tag-bull">+0.5 bull</span>. Volume confirming price.
+      Negative slope → <span class="tag tag-bear">+0.5 bear</span>.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">How the momentum vote becomes a verdict</h3>
+      <p>Sum all four contributions (RSI ±1, MACD ±1 or ±0.5, Stoch ±0.5, OBV ±0.5). Signed total
+      becomes the verdict; <code>min(|net| / 3, 0.85)</code> becomes the classifier's confidence.
+      Maximally aligned momentum caps at ~0.83 — we never claim near-certainty from indicators alone.</p>
+    </section>
+
+    <!-- ════ VOLATILITY ════ -->
+    <section id="volatility" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">4 · Volatility cluster</h2>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Average True Range (ATR-14) — the most important number</h3>
+      <p>The single most important number in the whole system. ATR is the <em>unit</em> in which
+      every stop and target is expressed.</p>
+      <div class="formula">
+        True Range<sub>t</sub> = max(high − low, |high − prev close|, |low − prev close|)<br>
+        ATR<sub>t</sub> = Wilder smoothing of True Range over 14 bars
+      </div>
+      <p>The second and third terms handle <strong>gap risk</strong>: a stock that gaps open above
+      yesterday's high has a true range bigger than its intraday spread.</p>
+      <div class="example">RELIANCE close ₹2,900 with ATR ₹40. Typical daily swing ≈ 1.4% of price.
+      A 2 × ATR stop sits ₹80 away (~2.8%). That's the unit we use for every risk decision in this stock.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Bollinger Bands (Bollinger, early 1980s)</h3>
+      <div class="formula">
+        Middle = SMA(close, 20)<br>
+        Upper  = Middle + 2 × stdev(close, 20)<br>
+        Lower  = Middle − 2 × stdev(close, 20)
+      </div>
+      <h4 class="text-base font-semibold mt-3 mb-1">%B — location of close inside the band</h4>
+      <div class="formula">%B = (close − lower) / (upper − lower)</div>
+      <table class="t">
+        <thead><tr><th>%B</th><th>Position</th><th>Vote</th></tr></thead>
+        <tbody>
+          <tr><td>&gt; 1.0</td><td>Above upper band (breakout)</td><td><span class="tag tag-bull">Bullish</span></td></tr>
+          <tr><td>0.55 – 1.0</td><td>Upper half</td><td><span class="tag tag-bull">Bullish lean</span></td></tr>
+          <tr><td>0.45 – 0.55</td><td>Middle</td><td><span class="tag tag-neut">Neutral</span></td></tr>
+          <tr><td>0 – 0.45</td><td>Lower half</td><td><span class="tag tag-bear">Bearish lean</span></td></tr>
+          <tr><td>&lt; 0</td><td>Below lower band</td><td><span class="tag tag-bear">Bearish</span></td></tr>
+        </tbody>
+      </table>
+      <h4 class="text-base font-semibold mt-3 mb-1">Bandwidth</h4>
+      <div class="formula">bandwidth % = (upper − lower) / middle × 100</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Two distinct squeezes (do not conflate)</h3>
+      <div class="grid sm:grid-cols-2 gap-4 my-4">
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="text-xs uppercase text-gray-500">Bollinger bandwidth squeeze</div>
+          <div class="font-semibold mt-1">"Bands are quieter than usual"</div>
+          <p class="text-sm mt-2">Bandwidth in the <strong>lowest 20%</strong> of values over the
+          past 60 bars (Bollinger 2001, ch. 11). <strong>Diagnostic only</strong> — surfaced in rationale, no vote.</p>
+        </div>
+        <div class="border border-[#0053e2] rounded-lg p-4 bg-blue-50">
+          <div class="text-xs uppercase text-[#0053e2]">TTM Squeeze (Carter 2009) ⚡</div>
+          <div class="font-semibold mt-1">"Spring is coiled"</div>
+          <p class="text-sm mt-2">Stricter AND-gate: upper Bollinger band sits <em>inside</em> the
+          upper Keltner channel AND lower BB inside lower KC. <strong>Actionable</strong> — when
+          TTM <code>fires</code>, strength escalates to <strong>strong</strong>.</p>
+        </div>
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">The volatility classifier emits three fields</h3>
+      <table class="t">
+        <thead><tr><th>Field</th><th>Values</th><th>Driven by</th></tr></thead>
+        <tbody>
+          <tr><td>Direction</td><td>bullish / neutral / bearish</td><td>%B above 0.55 / around 0.5 / below 0.45.</td></tr>
+          <tr><td>Strength</td><td>weak / moderate / strong</td><td>Strong = TTM on/fired. Weak = ATR-% dead-quiet (&lt;1%) or manic (&gt;6%).</td></tr>
+          <tr><td>Regime</td><td>low / normal / high</td><td>ATR-% of price: &lt;1% low, &gt;4% high.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ════ LEVELS ════ -->
+    <section id="levels" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">5 · Levels cluster</h2>
+      <p>Levels are <em>price points</em>, not scores. They anchor target and stop placement.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Swing high / swing low</h3>
+      <p>The highest high and lowest low over the last <mark class="k">30 bars</mark> (≈ 6 weeks). Most recent actionable resistance / support.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">52-week high / low</h3>
+      <p>Highest high and lowest low over <mark class="k">252 trading days</mark>. Psychological levels every retail trader watches.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Classic floor-trader pivots</h3>
+      <div class="formula">
+        Pivot Point (PP) = (high + low + close) / 3<br>
+        R1 = 2 × PP − low (first resistance)<br>
+        S1 = 2 × PP − high (first support)<br>
+        R2 = PP + (high − low)<br>
+        S2 = PP − (high − low)
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">VWAP — rolling and anchored</h3>
+      <div class="formula">
+        Typical price (TP) = (high + low + close) / 3<br>
+        Rolling VWAP (20) = Σ(TP × vol, last 20 bars) / Σ(vol, last 20 bars)<br>
+        Anchored VWAP     = Σ(TP × vol, from anchor date) / Σ(vol, from anchor)
+      </div>
+      <div class="meaning">VWAP acts as a <strong>dynamic support/resistance line</strong>. Institutional
+      desks target VWAP for fills, so when price pulls back to VWAP in an uptrend it often attracts buying.
+      The anchored variant pins VWAP to a specific catalyst day (Budget, post-earnings gap, RBI policy).</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">The levels classifier verdict</h3>
+      <p>Find the nearest level in <strong>ATR units</strong> (regime-adjusted), then:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Within 0.5 ATR <em>above</em> nearest support → <span class="tag tag-bull">Bullish</span> (holding support).</li>
+        <li>Within 0.5 ATR <em>below</em> nearest resistance → <span class="tag tag-bear">Bearish</span> (capped at resistance).</li>
+        <li>No level within 0.5 ATR → <span class="tag tag-neut">Neutral</span> (mid-range).</li>
+      </ul>
+      <div class="example">HDFCBANK close ₹1,650 with ATR ₹22. Swing-low support at ₹1,640.
+      Distance = ₹10 = 0.45 × ATR → bullish lean, confidence ~0.6.</div>
+    </section>
+
+    <!-- ════ CROSSOVERS ════ -->
+    <section id="crossovers" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">6 · Crossovers — Golden, Death, EMA, MACD</h2>
+      <p>Probably the most-asked-about set of signals in retail TA. We detect them rigorously, vote
+      them <em>conservatively</em>, and report them <em>honestly</em> — including when nothing has happened.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">What we report for every crossover pair</h3>
+      <p>For each pair (e.g. SMA-50/200) we emit a five-field record on every bar — not just a yes/no when an event fires:</p>
+      <table class="t">
+        <thead><tr><th>Field</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><code>current</code></td><td>Is the short MA currently above or below the long MA? The "regime".</td></tr>
+          <tr><td><code>last_event</code></td><td>The last time these two MAs crossed — was it bullish or bearish?</td></tr>
+          <tr><td><code>bars_since_event</code></td><td>How many trading days ago. (3 = fresh, 47 = stale, 750 = ancient.)</td></tr>
+          <tr><td><code>short_ma</code> / <code>long_ma</code></td><td>Latest values — useful for "how close to a cross?"</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">Why all five fields and not just "cross today: yes/no"? Because a simple
+      yes/no returns "no" 99% of the time — uninformative — and invites the LLM to <em>infer</em> a
+      cross from the SMA stack alone (which is wrong). With this richer report the agent always has
+      something true to say.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Golden Cross and Death Cross (SMA-50 / SMA-200)</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Definition</th><th>Implied bias</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Golden Cross</strong></td><td>SMA-50 crosses <em>above</em> SMA-200 on the latest bar.</td><td><span class="tag tag-bull">Bullish regime change</span></td></tr>
+          <tr><td><strong>Death Cross</strong></td><td>SMA-50 crosses <em>below</em> SMA-200 on the latest bar.</td><td><span class="tag tag-bear">Bearish regime change</span></td></tr>
+        </tbody>
+      </table>
+      <div class="example">Day before yesterday SMA-50 = 1,802, SMA-200 = 1,810 (short below long).
+      Yesterday SMA-50 = 1,808, SMA-200 = 1,809 (still below).
+      Today SMA-50 = 1,815, SMA-200 = 1,810 (short now above). Today's sign flip = Golden Cross with
+      <code>bars_since_event = 0</code>.</div>
+      <p>Only the canonical <strong>SMA-50/200</strong> pair earns the marketing name in agent prose.
+      EMA-9/21 and custom pairs get generic phrasing like "bullish EMA-9/21 cross".</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">⚠️ How much does the Golden Cross actually predict?</h3>
+      <p>The crossover signal is famous, but the academic record on its <em>alpha</em> has weakened
+      sharply on liquid large-caps. Three published studies you can look up:</p>
+      <table class="t">
+        <thead><tr><th>Study</th><th>Finding</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Brock, Lakonishok &amp; LeBaron (1992)</strong>, <em>J. Finance</em> 47(5)</td>
+              <td>Dow 1897–1986, 50/200 SMA crossover gave statistically significant ~0.045% per buy-day excess return. <strong>Excluded transaction costs.</strong></td></tr>
+          <tr><td><strong>Sullivan, Timmermann &amp; White (1999)</strong>, <em>J. Finance</em> 54(5)</td>
+              <td>Re-tested BLL using White's Reality Check across 7,846 trading rules. 50/200 edge <strong>does not replicate</strong> out-of-sample (1987–1996).</td></tr>
+          <tr><td><strong>Zakamulin (2014)</strong>, <em>J. Asset Management</em></td>
+              <td>50/200 SMA-crossover Sharpe drops from ~0.6 pre-1970 to ~0.1 post-1990 on US equity indices.</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning"><strong>Honest takeaway.</strong> We ship the Golden / Death Cross primarily
+      as a <em>truth-telling, user-expectation</em> feature — users ask the agent about it, the agent
+      should answer accurately. It is <strong>not</strong> a high-conviction directional signal on its own.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">How crossovers vote</h3>
+      <p>The trend cluster's verdict is built from SMA stack → ADX gate → DI confirmation. The
+      crossover then acts as a <strong>nudge</strong>: it can push a <em>neutral</em> base verdict
+      to bullish or bearish, but it cannot override a verdict already locked in by the stack + DI.</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Only <strong>fresh</strong> crosses vote (<code>bars_since_event ≤ 5</code>). Stale crosses are reported but don't vote.</li>
+        <li>Vote weights: SMA-50/200 fresh cross = <mark class="k">±0.5</mark>;
+            EMA-9/21 fresh cross = <mark class="k">±0.3</mark> (faster pair = more whipsaws).</li>
+        <li>Net vote magnitude must be <strong>≥ 0.5</strong> to nudge.</li>
+        <li>DI direction <strong>vetoes</strong> conflicting nudges (a bullish cross won't nudge bullish if −DI &gt; +DI).</li>
+      </ul>
+      <h4 class="text-base font-semibold mt-4 mb-1">Conflict by design</h4>
+      <p>When the two pairs disagree (SMA-50/200 bullish + EMA-9/21 bearish):</p>
+      <div class="formula">net vote = +0.5 + (−0.3) = +0.2 → below 0.5 threshold → no nudge.</div>
+      <div class="meaning">That's the right answer. SMA-bullish-but-EMA-bearish is the textbook
+      fingerprint of a <em>pullback within an uptrend</em>. The agent reports both events but the
+      verdict stays neutral, which protects against whipsaw entries.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">The MACD cross (momentum cluster)</h3>
+      <p>Same idea as MA crosses, but on the MACD histogram. Detection rules:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Histogram ≤ 0 yesterday, &gt; 0 today → <span class="tag tag-bull">Bullish cross +1</span></li>
+        <li>Histogram ≥ 0 yesterday, &lt; 0 today → <span class="tag tag-bear">Bearish cross +1</span></li>
+        <li>No fresh cross but MACD &gt; Signal → <span class="tag tag-bull">+0.5 bull</span> (momentum still positive)</li>
+        <li>No fresh cross but MACD &lt; Signal → <span class="tag tag-bear">+0.5 bear</span></li>
+      </ul>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">EMA-9/21 — the swing trader's faster cousin</h3>
+      <div class="example">Same stock, same period. SMA-50 might cross above SMA-200 in early February.
+      The EMA-9 typically crossed above EMA-21 in late November — three months earlier. EMA cross caught
+      the early move; SMA cross confirmed the regime. Both useful, different reasons.</div>
+      <p>The EMA pair carries half the vote weight (±0.3 vs. ±0.5) precisely because it whips around more.</p>
+    </section>
+
+    <!-- ════ CANDLESTICKS ════ -->
+    <section id="candlesticks" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">7 · Candlestick patterns — all 61</h2>
+      <p>We detect every candlestick pattern in TA-Lib's reference implementation — 61 in total —
+      using the same recognizers that ship in the <code>CDL*</code> family. Nison's
+      <em>Japanese Candlestick Charting Techniques</em> (1991) is the canonical English-language source.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Bar anatomy refresher</h3>
+      <div class="grid sm:grid-cols-2 gap-6 items-start">
+        <div>
+          <svg viewBox="0 0 220 220" class="w-48 h-48">
+            <line x1="50" y1="20" x2="50" y2="200" stroke="#2a8703" stroke-width="2"/>
+            <rect x="30" y="70" width="40" height="100" fill="#dcfce7" stroke="#2a8703" stroke-width="2"/>
+            <text x="85" y="40"  font-size="10" fill="#5e5e5e">high (upper wick)</text>
+            <text x="85" y="80"  font-size="10" fill="#5e5e5e">close (top of body)</text>
+            <text x="85" y="125" font-size="10" fill="#5e5e5e">body</text>
+            <text x="85" y="175" font-size="10" fill="#5e5e5e">open (bottom of body)</text>
+            <text x="85" y="200" font-size="10" fill="#5e5e5e">low (lower wick)</text>
+            <text x="50" y="218" text-anchor="middle" font-size="11" font-weight="600" fill="#2a8703">Bullish bar</text>
+          </svg>
+        </div>
+        <div>
+          <svg viewBox="0 0 220 220" class="w-48 h-48">
+            <line x1="50" y1="20" x2="50" y2="200" stroke="#ea1100" stroke-width="2"/>
+            <rect x="30" y="70" width="40" height="100" fill="#fee2e2" stroke="#ea1100" stroke-width="2"/>
+            <text x="85" y="40"  font-size="10" fill="#5e5e5e">high (upper wick)</text>
+            <text x="85" y="80"  font-size="10" fill="#5e5e5e">open (top of body)</text>
+            <text x="85" y="125" font-size="10" fill="#5e5e5e">body</text>
+            <text x="85" y="175" font-size="10" fill="#5e5e5e">close (bottom of body)</text>
+            <text x="85" y="200" font-size="10" fill="#5e5e5e">low (lower wick)</text>
+            <text x="50" y="218" text-anchor="middle" font-size="11" font-weight="600" fill="#ea1100">Bearish bar</text>
+          </svg>
+        </div>
+      </div>
+      <div class="formula mt-3">body = |close − open| &nbsp; range = high − low &nbsp; upper_shadow = high − max(open, close) &nbsp; lower_shadow = min(open, close) − low</div>
+
+      <div class="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-5">
+        <h3 class="text-lg font-bold mb-2 text-amber-900">⚠️ Context matters — the gating filter</h3>
+        <p class="text-amber-900">Raw candlestick patterns fire <em>constantly</em>. A hammer in the
+        middle of nowhere is meaningless. Before any pattern reaches the LLM:</p>
+        <table class="t mt-3">
+          <thead><tr><th>Direction</th><th>Surfaced only if…</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag tag-bull">Bullish</span></td><td>Bar's <strong>low</strong> within <mark class="k">1 × ATR</mark> of current swing-low.</td></tr>
+            <tr><td><span class="tag tag-bear">Bearish</span></td><td>Bar's <strong>high</strong> within <mark class="k">1 × ATR</mark> of current swing-high.</td></tr>
+            <tr><td><span class="tag tag-neut">Neutral</span> (dojis, spinning tops)</td><td>Near <em>either</em> swing extreme — indecision at any pivot is meaningful.</td></tr>
+          </tbody>
+        </table>
+        <p class="text-amber-900 mt-3 text-sm">Patterns that don't meet the gate are
+        <strong>dropped silently</strong>. Every surviving pattern is enriched with <code>context</code>,
+        <code>level_price</code>, and <code>distance_pct</code>.</p>
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-8 mb-2">Single-bar patterns</h3>
+      <h4 class="font-semibold mt-3 mb-1">Indecision / continuation (neutral direction)</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Doji</strong></td><td>Open ≈ close. Body ≤ 10% of range.</td><td>Pure indecision. Buyers/sellers fought to a tie. Meaningful near a pivot.</td></tr>
+          <tr><td><strong>Long-legged doji</strong></td><td>Doji with long upper AND lower wicks.</td><td>Violent indecision. Trend exhaustion.</td></tr>
+          <tr><td><strong>Dragonfly doji</strong></td><td>Doji with long lower wick, no upper.</td><td>Sellers pushed down hard, buyers rejected back to open. Bullish-tinted near support.</td></tr>
+          <tr><td><strong>Gravestone doji</strong></td><td>Doji with long upper wick, no lower.</td><td>Mirror of dragonfly. Bearish-tinted near resistance.</td></tr>
+          <tr><td><strong>Rickshaw man</strong></td><td>Long-legged doji, body near range midpoint.</td><td>Maximum indecision.</td></tr>
+          <tr><td><strong>Spinning top</strong></td><td>Small body, both wicks visible.</td><td>Tug of war — weaker version of doji.</td></tr>
+          <tr><td><strong>High wave</strong></td><td>Very small body, very long wicks.</td><td>Extreme volatility/indecision.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="font-semibold mt-4 mb-1">Bullish reversal shapes (after a downtrend)</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Hammer</strong></td><td>Small body at top, lower shadow ≥ 2 × body, tiny upper shadow.</td><td>Classic bottoming signal at support.</td></tr>
+          <tr><td><strong>Inverted hammer</strong></td><td>Small body at bottom, upper shadow ≥ 2 × body.</td><td>After a downtrend, signals buyer interest at the lows.</td></tr>
+          <tr><td><strong>Takuri</strong></td><td>Dragonfly-like with even longer lower wick.</td><td>Strong bullish rejection at the lows.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="font-semibold mt-4 mb-1">Bearish reversal shapes (after an uptrend)</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Shooting star</strong></td><td>Mirror of inverted hammer.</td><td>Classic topping signal at resistance.</td></tr>
+          <tr><td><strong>Hanging man</strong></td><td>Hammer shape but appearing after an uptrend.</td><td>Sellers showed up at the highs — warning.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="font-semibold mt-4 mb-1">Conviction / continuation</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Marubozu</strong></td><td>Long body, no shadows. Open = high (bearish) or open = low (bullish).</td><td>Total domination by one side.</td></tr>
+          <tr><td><strong>Closing marubozu</strong></td><td>Only the closing side touches the extreme; small wick on opening side.</td><td>Slightly weaker than full marubozu.</td></tr>
+          <tr><td><strong>Long line</strong></td><td>Body unusually long vs recent bars.</td><td>Strong directional conviction.</td></tr>
+          <tr><td><strong>Short line</strong></td><td>Body unusually short vs recent bars.</td><td>Pause / hesitation.</td></tr>
+          <tr><td><strong>Belt hold</strong></td><td>Opens at extreme with no shadow on that side, closes far in opposite direction.</td><td>One side took control from open.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-8 mb-2">Two-bar patterns</h3>
+      <h4 class="font-semibold mt-3 mb-1">Bullish reversals</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Bullish engulfing</strong></td><td>Yesterday bearish, today bullish, today's body fully engulfs yesterday's.</td><td>Strong bullish reversal near support.</td></tr>
+          <tr><td><strong>Piercing line</strong></td><td>Today bullish, opens below yesterday's low but closes above yesterday's midpoint.</td><td>Weaker than full engulfing.</td></tr>
+          <tr><td><strong>Bullish harami</strong></td><td>Today's small body sits inside yesterday's long bearish body.</td><td>Selling pressure paused. Reversal warning.</td></tr>
+          <tr><td><strong>Harami cross</strong></td><td>Harami where today's small body is a doji.</td><td>Stronger harami signal.</td></tr>
+          <tr><td><strong>Homing pigeon</strong></td><td>Bullish harami where both bars are bearish.</td><td>Bearish momentum decelerating.</td></tr>
+          <tr><td><strong>Matching low</strong></td><td>Two consecutive bearish bars with identical lows.</td><td>Support confirmed.</td></tr>
+        </tbody>
+      </table>
+      <h4 class="font-semibold mt-4 mb-1">Bearish reversals</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Bearish engulfing</strong></td><td>Mirror of bullish engulfing.</td><td>Sellers overwhelmed buyers.</td></tr>
+          <tr><td><strong>Dark cloud cover</strong></td><td>Mirror of piercing line.</td><td>Sellers reclaimed &gt;50% of yesterday's range.</td></tr>
+          <tr><td><strong>Bearish harami</strong></td><td>Today's small body inside yesterday's long bullish body.</td><td>Buying pressure paused.</td></tr>
+        </tbody>
+      </table>
+      <h4 class="font-semibold mt-4 mb-1">Continuation pairs</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Separating lines</strong></td><td>Two opposite-coloured bars open at the same price.</td><td>Counter-move rejected — trend continues.</td></tr>
+          <tr><td><strong>Counterattack</strong></td><td>Two opposite-coloured bars close at the same price.</td><td>Weaker than engulfing.</td></tr>
+          <tr><td><strong>In neck / On neck / Thrusting</strong></td><td>Family of weak bounces inside a downtrend.</td><td>Bearish continuation.</td></tr>
+          <tr><td><strong>Kicking / Kicking by length</strong></td><td>Two opposite marubozu separated by a gap.</td><td>Violent regime change.</td></tr>
+          <tr><td><strong>Doji star</strong></td><td>Long body then a gap-doji.</td><td>Indecision after a strong move. Star-pattern building block.</td></tr>
+          <tr><td><strong>Hikkake / Hikkake modified</strong></td><td>Inside bar then false breakout (Linda Raschke's trap).</td><td>Reversal in opposite direction to the false break.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-8 mb-2">Three-bar patterns</h3>
+      <h4 class="font-semibold mt-3 mb-1">Reversal stars (the headline category)</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Morning star</strong></td><td>Bearish long, small body (any color), bullish long closing above bar 1 midpoint.</td><td>Three-act bullish reversal: capitulation → indecision → recovery.</td></tr>
+          <tr><td><strong>Morning doji star</strong></td><td>Morning star where bar 2 is a doji.</td><td>Stronger version.</td></tr>
+          <tr><td><strong>Evening star</strong></td><td>Mirror of morning star.</td><td>Three-act bearish reversal at the top.</td></tr>
+          <tr><td><strong>Evening doji star</strong></td><td>Evening star with doji as bar 2.</td><td>Stronger version.</td></tr>
+          <tr><td><strong>Abandoned baby</strong></td><td>Star with bar 2 gapping away from both neighbours (full price isolation).</td><td>Rare and powerful reversal.</td></tr>
+          <tr><td><strong>Tri-star</strong></td><td>Three dojis in a row.</td><td>Extreme exhaustion — reversal likely.</td></tr>
+        </tbody>
+      </table>
+      <h4 class="font-semibold mt-4 mb-1">Strong continuation triplets</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Three white soldiers</strong></td><td>Three consecutive bullish long bars, each closing higher.</td><td>Sustained methodical buying.</td></tr>
+          <tr><td><strong>Three black crows</strong></td><td>Mirror.</td><td>Sustained methodical selling.</td></tr>
+          <tr><td><strong>Identical three crows</strong></td><td>Three black crows where each bar opens at the prior bar's close.</td><td>Even more aggressive selling.</td></tr>
+        </tbody>
+      </table>
+      <h4 class="font-semibold mt-4 mb-1">Reversal hybrids (engulfing + confirmation)</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Shape</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Three inside up / down</strong></td><td>Harami + confirming third bar.</td><td>Confirmed harami — stronger reversal.</td></tr>
+          <tr><td><strong>Three outside up / down</strong></td><td>Engulfing + confirming third bar.</td><td>Confirmed engulfing.</td></tr>
+        </tbody>
+      </table>
+      <h4 class="font-semibold mt-4 mb-1">Rare / specialised triplets</h4>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Direction</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Three stars in the south</strong></td><td>Bullish reversal</td><td>Three bearish bars with progressively smaller bodies and shrinking lows — momentum exhausting.</td></tr>
+          <tr><td><strong>Unique three river</strong></td><td>Bullish reversal</td><td>Hammer-like third bar after two bearish bars.</td></tr>
+          <tr><td><strong>Two crows</strong></td><td>Bearish</td><td>After uptrend: bullish bar then two bearish bars eating into it.</td></tr>
+          <tr><td><strong>Upside gap two crows</strong></td><td>Bearish</td><td>Two crows with an upward gap between bullish bar and first crow.</td></tr>
+          <tr><td><strong>Advance block</strong></td><td>Bearish reversal</td><td>Three bullish bars that progressively shrink and develop upper shadows.</td></tr>
+          <tr><td><strong>Stalled pattern</strong></td><td>Bearish</td><td>Three bullish bars with the third stalled at the top.</td></tr>
+          <tr><td><strong>Breakaway</strong></td><td>Reversal</td><td>Five-bar variant. Gap-led trend leg ends with a strong reversal bar.</td></tr>
+          <tr><td><strong>Ladder bottom</strong></td><td>Bullish reversal</td><td>Four bearish bars stepping down, then a fifth bullish gap-up bar.</td></tr>
+          <tr><td><strong>Stick sandwich</strong></td><td>Bullish reversal</td><td>Bearish–bullish–bearish, where first &amp; third close at the same price.</td></tr>
+          <tr><td><strong>Tasuki gap</strong></td><td>Continuation</td><td>Two same-colour bars with a gap, then partial gap-fill.</td></tr>
+          <tr><td><strong>Gap side-by-side white</strong></td><td>Bullish continuation</td><td>Two bullish bars side-by-side after an upward gap.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-8 mb-2">Four- and five-bar patterns</h3>
+      <table class="t">
+        <thead><tr><th>Name</th><th>Bars</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Concealing baby swallow</strong></td><td>4</td><td>Two bearish marubozu, then progressively engulfing structure. Rare. Strong bullish reversal at bottom.</td></tr>
+          <tr><td><strong>Mat hold</strong></td><td>5</td><td>Long bullish + 3 small bearish/inside + bullish breakout. Bullish continuation.</td></tr>
+          <tr><td><strong>Rising / falling three methods</strong></td><td>5</td><td>Long bar in trend direction, three small counter-bars, then resumption. "Pause that refreshes."</td></tr>
+          <tr><td><strong>X side-gap three methods</strong></td><td>5</td><td>Two bars with gap, then three counter-bars that try and fail to close the gap.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ════ CHART PATTERNS ════ -->
+    <section id="chart-patterns" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">8 · Chart patterns — the five LMW shapes</h2>
+      <p>Unlike candlesticks, chart patterns span many bars and capture <strong>structural</strong>
+      price action. Our five pairs come from <strong>Lo, Mamaysky &amp; Wang (2000)</strong>,
+      <em>"Foundations of Technical Analysis"</em>, <em>Journal of Finance</em> 55(4).</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Pivot detection (and how we deviate from LMW)</h3>
+      <p>Every chart pattern is built on swing pivots. We use <code>scipy.signal.find_peaks</code>
+      with a minimum separation of <mark class="k">5 bars</mark>.</p>
+      <div class="bg-amber-50 border border-amber-200 rounded p-4 my-3 text-sm">
+        <strong>Honest deviation.</strong> The LMW paper uses a Nadaraya–Watson kernel smoother to
+        identify pivots. We use peak-finding on raw bars instead — cheaper compute, no bandwidth
+        knob, but more sensitivity to single-bar wicks. The geometric tolerances (1.5%, 0.75%, 22-bar)
+        are still LMW's.
+      </div>
+      <p><strong>Confidence floor:</strong> any detected pattern with confidence &lt; <mark class="k">0.7</mark> is dropped silently.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Double top &amp; double bottom</h3>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <svg viewBox="0 0 280 180" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="40" x2="260" y2="40" stroke="#ea1100" stroke-dasharray="4 4"/>
+            <text x="265" y="44" font-size="9" fill="#ea1100">resistance</text>
+            <line x1="20" y1="120" x2="260" y2="120" stroke="#5e5e5e" stroke-dasharray="4 4"/>
+            <text x="265" y="124" font-size="9" fill="#5e5e5e">neckline</text>
+            <polyline points="20,150 60,100 100,40 140,120 180,40 220,80 260,160" fill="none" stroke="#0053e2" stroke-width="2"/>
+            <text x="140" y="170" text-anchor="middle" font-size="10" font-weight="600" fill="#ea1100">Double top (M)</text>
+          </svg>
+        </div>
+        <div>
+          <svg viewBox="0 0 280 180" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="140" x2="260" y2="140" stroke="#2a8703" stroke-dasharray="4 4"/>
+            <text x="265" y="144" font-size="9" fill="#2a8703">support</text>
+            <line x1="20" y1="60" x2="260" y2="60" stroke="#5e5e5e" stroke-dasharray="4 4"/>
+            <text x="265" y="64" font-size="9" fill="#5e5e5e">neckline</text>
+            <polyline points="20,30 60,80 100,140 140,60 180,140 220,100 260,20" fill="none" stroke="#0053e2" stroke-width="2"/>
+            <text x="140" y="170" text-anchor="middle" font-size="10" font-weight="600" fill="#2a8703">Double bottom (W)</text>
+          </svg>
+        </div>
+      </div>
+      <h4 class="font-semibold mt-4 mb-1">Geometric definition (LMW Def. 5)</h4>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Two consecutive swing highs (or lows) within <mark class="k">1.5%</mark> of their average.</li>
+        <li>At least <mark class="k">22 trading days apart</mark>.</li>
+        <li>A real trough (or peak) must exist <em>between</em> the two extremes.</li>
+      </ul>
+      <h4 class="font-semibold mt-3 mb-1">Confidence + target</h4>
+      <div class="formula">
+        confidence = peak_similarity × depth_score<br>
+        depth_score = min(trough_drop_pct / 5%, 1.0)<br><br>
+        Double top target  = neckline − (resistance − neckline)<br>
+        Double bottom target = neckline + (neckline − support)
+      </div>
+      <div class="example">Two peaks at ₹1,510 and ₹1,498 (avg ₹1,504). Trough at ₹1,420 (5.6% drop).
+      Confidence ≈ 0.96 × 1.0 = 0.96. Target on neckline break = 1,420 − (1,504 − 1,420) = ₹1,336.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Head &amp; Shoulders + Inverse H&amp;S</h3>
+      <svg viewBox="0 0 320 180" class="w-full h-auto border border-gray-200 rounded mb-3">
+        <line x1="20" y1="120" x2="300" y2="120" stroke="#5e5e5e" stroke-dasharray="4 4"/>
+        <text x="305" y="124" font-size="9" fill="#5e5e5e">neckline</text>
+        <polyline points="20,170 50,140 80,60 110,120 140,30 170,110 200,70 230,120 260,160 300,170" fill="none" stroke="#0053e2" stroke-width="2"/>
+        <text x="80" y="55" text-anchor="middle" font-size="9" font-weight="600">L-shoulder</text>
+        <text x="140" y="25" text-anchor="middle" font-size="9" font-weight="600">Head</text>
+        <text x="200" y="65" text-anchor="middle" font-size="9" font-weight="600">R-shoulder</text>
+      </svg>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Three consecutive swing highs where the middle (head) is taller than the two shoulders.</li>
+        <li>Shoulders within <mark class="k">1.5%</mark> of their average.</li>
+        <li>Two neckline troughs within <mark class="k">1.5%</mark> of their average.</li>
+        <li>Head <mark class="k">≥ 3% above</mark> the higher shoulder (prominence requirement).</li>
+      </ul>
+      <div class="formula">
+        confidence = shoulder_similarity × prominence_score × neckline_similarity<br><br>
+        H&amp;S target          = neckline − (head − neckline)<br>
+        Inverse H&amp;S target  = neckline + (neckline − head)
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Triangles — ascending, descending, symmetric</h3>
+      <div class="grid sm:grid-cols-3 gap-3 my-3">
+        <div class="text-center">
+          <svg viewBox="0 0 200 140" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="40" x2="180" y2="40" stroke="#ea1100" stroke-width="1.5"/>
+            <line x1="20" y1="120" x2="180" y2="60" stroke="#2a8703" stroke-width="1.5"/>
+            <polyline points="20,110 40,50 60,90 80,55 100,80 120,52 140,70 160,48 180,60" fill="none" stroke="#0053e2" stroke-width="1.5"/>
+          </svg>
+          <div class="text-xs font-semibold mt-1 text-[#2a8703]">Ascending (bullish)</div>
+        </div>
+        <div class="text-center">
+          <svg viewBox="0 0 200 140" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="40" x2="180" y2="100" stroke="#ea1100" stroke-width="1.5"/>
+            <line x1="20" y1="120" x2="180" y2="120" stroke="#2a8703" stroke-width="1.5"/>
+            <polyline points="20,50 40,110 60,65 80,115 100,80 120,118 140,90 160,120 180,100" fill="none" stroke="#0053e2" stroke-width="1.5"/>
+          </svg>
+          <div class="text-xs font-semibold mt-1 text-[#ea1100]">Descending (bearish)</div>
+        </div>
+        <div class="text-center">
+          <svg viewBox="0 0 200 140" class="w-full h-auto border border-gray-200 rounded">
+            <line x1="20" y1="20" x2="180" y2="80" stroke="#ea1100" stroke-width="1.5"/>
+            <line x1="20" y1="120" x2="180" y2="80" stroke="#2a8703" stroke-width="1.5"/>
+            <polyline points="20,30 40,110 60,50 80,100 100,65 120,90 140,72 160,85 180,80" fill="none" stroke="#0053e2" stroke-width="1.5"/>
+          </svg>
+          <div class="text-xs font-semibold mt-1 text-gray-700">Symmetric (neutral)</div>
+        </div>
+      </div>
+      <p>Fit least-squares lines through the last 5 swing highs (upper) and 5 swing lows (lower):</p>
+      <table class="t">
+        <thead><tr><th>Type</th><th>Upper line</th><th>Lower line</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Ascending</strong></td><td>Flat (≤ 0.75% spread)</td><td>Rising</td></tr>
+          <tr><td><strong>Descending</strong></td><td>Falling</td><td>Flat</td></tr>
+          <tr><td><strong>Symmetric</strong></td><td>Falling</td><td>Rising</td></tr>
+        </tbody>
+      </table>
+      <p class="mt-2">"Flat" (LMW Def. 4) = spread between highest and lowest pivot on that trendline
+      ≤ <mark class="k">0.75%</mark> of their mean.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Broadening tops / bottoms (megaphone)</h3>
+      <svg viewBox="0 0 280 160" class="w-full max-w-md h-auto border border-gray-200 rounded mb-3">
+        <line x1="20" y1="80" x2="260" y2="20" stroke="#ea1100" stroke-width="1.5"/>
+        <line x1="20" y1="80" x2="260" y2="140" stroke="#2a8703" stroke-width="1.5"/>
+        <polyline points="20,80 50,30 80,120 110,40 140,130 170,30 200,140 230,25 260,150" fill="none" stroke="#0053e2" stroke-width="1.5"/>
+      </svg>
+      <p>The mirror of a triangle: upper line <em>rises</em>, lower line <em>falls</em>. Pivots
+      getting more extreme over time, not converging.</p>
+      <div class="meaning">Broadening indicates <strong>rising volatility and emotional trading</strong>
+      — often seen near market tops in retail-heavy stocks. Edwards &amp; Magee treat them as
+      bearish-biased reversal signals when they appear in an uptrend.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Rectangles (sideways consolidation)</h3>
+      <svg viewBox="0 0 280 140" class="w-full max-w-md h-auto border border-gray-200 rounded mb-3">
+        <line x1="20" y1="30" x2="260" y2="30" stroke="#ea1100" stroke-width="1.5"/>
+        <line x1="20" y1="110" x2="260" y2="110" stroke="#2a8703" stroke-width="1.5"/>
+        <polyline points="20,70 40,35 60,105 80,40 100,108 120,32 140,105 160,38 180,108 200,35 220,108 240,40 260,70" fill="none" stroke="#0053e2" stroke-width="1.5"/>
+      </svg>
+      <p>Both upper and lower trendlines flat (≤ 0.75% spread). Price oscillates between fixed
+      support and fixed resistance. Continuation-or-reversal — direction undetermined until breakout.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">What we deliberately don't implement</h3>
+      <ul class="list-disc pl-6 space-y-1 text-sm text-gray-700">
+        <li><strong>Cup &amp; handle</strong>, <strong>flags</strong>, <strong>pennants</strong>, <strong>wedges</strong> — no closed-form geometric definitions with published tolerances; Bulkowski reports &lt; 50% reliability on flags/pennants.</li>
+        <li><strong>Elliott waves</strong>, <strong>harmonic patterns (Gartley/Bat/Butterfly)</strong> — require human pattern-completion judgement.</li>
+        <li><strong>Fibonacci retracements</strong> — require an anchor-point decision; Phase-2 backlog.</li>
+      </ul>
+    </section>
+
+    <!-- ════ NEWS ════ -->
+    <section id="news" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">9 · News analysis — what an LLM does with the headlines</h2>
+      <p>Headlines without context are a footgun. "Reliance Q4 EPS beats" sounds bullish — but if
+      the guidance is weaker than expected, the stock often drops. An LLM sub-agent does the reading.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">The four tools the news agent can call</h3>
+      <table class="t">
+        <thead><tr><th>Tool</th><th>What it returns</th></tr></thead>
+        <tbody>
+          <tr><td><code>fetch_news(ticker, days_back=7)</code></td><td>List of article metadata (title, URL, published, source) — no body yet.</td></tr>
+          <tr><td><code>fetch_article_body(url)</code></td><td>Extracted clean body text (or error status). Called only for material headlines.</td></tr>
+          <tr><td><code>fetch_filings(ticker, days_back=30)</code></td><td>NSE corporate announcements.</td></tr>
+          <tr><td><code>fetch_estimates(ticker)</code></td><td>Analyst snapshot (EPS/revenue forecasts, recommendations, target distribution).</td></tr>
+          <tr><td><code>get_recent_price_action(ticker, days=10)</code></td><td>Internal helper: open/close/pct_change/days_up/days_down over last 10 sessions.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">What the news agent emits — the ImpactAssessment</h3>
+      <table class="t">
+        <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>direction</code></td><td>bullish / bearish / neutral</td><td>Net directional read.</td></tr>
+          <tr><td><code>magnitude</code></td><td>low / medium / high</td><td>How much should it shift the synthesizer's confidence.</td></tr>
+          <tr><td><code>confidence</code></td><td>float [0, 1]</td><td>How sure the agent is of its own read.</td></tr>
+          <tr><td><code>summary</code></td><td>string</td><td>One paragraph plain-English digest.</td></tr>
+          <tr><td><code>catalysts</code></td><td>tuple (max 5)</td><td>Each: title, URL, published, importance, why_it_matters.</td></tr>
+          <tr><td><code>risks</code></td><td>tuple (max 5)</td><td>Same shape — things cutting <em>against</em> the call.</td></tr>
+          <tr><td><code>articles_considered</code></td><td>int</td><td>How many bodies actually read.</td></tr>
+          <tr><td><code>filings_considered</code></td><td>int</td><td>How many filings considered.</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">Catalysts and risks carry source URLs <strong>explicitly</strong>. The
+      citation guardrail rejects the prediction if the synthesizer cites a URL not in this list.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Rules the news agent's prompt enforces</h3>
+      <h4 class="font-semibold mt-3 mb-1">1. Materiality filter</h4>
+      <table class="t">
+        <thead><tr><th>Material — keep</th><th>Non-material — drop</th></tr></thead>
+        <tbody><tr><td>Earnings, M&amp;A, regulatory action, management change, large insider trades, guidance changes.</td><td>Sector op-eds, generic market commentary, "stock down 2% on no news".</td></tr></tbody>
+      </table>
+
+      <h4 class="font-semibold mt-3 mb-1">2. Already-priced-in adjustment</h4>
+      <p>If a story's price impact has already played out per the price-action tool, the agent must
+      <strong>downgrade</strong> importance and note "already absorbed".</p>
+      <div class="example">Story: "Reliance ₹75,000-cr capex." Published 8 days ago; stock already up 9%.
+      Verdict: bullish, but mark importance LOW and add "already absorbed in last week's rally".</div>
+
+      <h4 class="font-semibold mt-3 mb-1">3. Expectation framing</h4>
+      <p>Earnings compared against <strong>analyst-estimate consensus</strong>, not against prior period.</p>
+      <div class="example">EPS ₹28.40 — 5% growth YoY. <span class="tag tag-bear">Bearish</span> if estimates expected 12%.
+      <span class="tag tag-bull">Bullish</span> if estimates expected 3%. Same number, opposite read.</div>
+
+      <h4 class="font-semibold mt-3 mb-1">4. Catalyst quota</h4>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>At most <strong>5 catalysts</strong> AND at most 5 risks.</li>
+        <li>If direction = bullish/bearish, at least <strong>one catalyst</strong> must be present, else NEUTRAL.</li>
+      </ul>
+
+      <h4 class="font-semibold mt-3 mb-1">5. Confidence calibration guidance</h4>
+      <table class="t">
+        <thead><tr><th>Range</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>0.00–0.30</td><td>Weak, mostly noise.</td></tr>
+          <tr><td>0.40–0.60</td><td>Moderate, multiple sources agree.</td></tr>
+          <tr><td>0.70–0.85</td><td>Strong, with clear specific catalyst.</td></tr>
+          <tr><td>&gt; 0.85</td><td>Avoid — "smoking gun" only.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="font-semibold mt-3 mb-1">6. Hallucination guardrails (in prompt)</h4>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Every catalyst/risk MUST quote a specific fetched URL.</li>
+        <li>Zero articles → force <code>neutral, magnitude=low, confidence=0.0</code> with explicit empty-result summary.</li>
+      </ul>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Resilient LLM chain</h3>
+      <ol class="list-decimal pl-6 space-y-1">
+        <li><strong>Gemini 2.5 Flash</strong> (primary)</li>
+        <li><strong>Groq Llama 3.3 70B</strong> (fallback — low latency)</li>
+        <li><strong>OpenRouter Mistral Large</strong> (final fallback)</li>
+      </ol>
+      <p>Cooldown 60s on failure. The producing model is recorded in <code>model_chain</code>.</p>
+
+      <div class="bg-amber-50 border border-amber-200 rounded p-4 mt-4 text-sm">
+        <strong class="text-amber-900">If the whole news layer fails:</strong> <span class="text-amber-900">degrade
+        gracefully. Substitute sentinel <code>neutral, confidence=0</code> with empty catalysts/risks.
+        Tag prediction <code>news_impact:degraded</code>. Guardrails cap such predictions at confidence ≤ 0.65.</span>
+      </div>
+    </section>
+
+    <!-- ════ SYNTHESIS ════ -->
+    <section id="synthesis" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">10 · The synthesizer — how a prediction is actually written</h2>
+      <p>The synthesizer is the LLM that turns four cluster verdicts + news assessment into one
+      Prediction. Runs once per horizon in parallel.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">What the synthesizer sees</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>The <strong>TechnicalView</strong>: four cluster verdicts + raw numbers.</li>
+        <li>The <strong>ImpactAssessment</strong>: direction, magnitude, confidence, up to 5 catalysts and risks.</li>
+        <li>The <strong>horizon label</strong>: DAILY / WEEKLY / BIWEEKLY / MONTHLY.</li>
+        <li>The <strong>close price</strong> (anchors math).</li>
+        <li>The <strong>ATR</strong> (unit of stop/target distances).</li>
+      </ul>
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">What it deliberately does NOT see</h3>
+      <ul class="list-disc pl-6 space-y-1 text-sm text-gray-700">
+        <li>The previous prediction for the same ticker (each call independent).</li>
+        <li>Any backtest outcome from past predictions (no feedback loop).</li>
+        <li>The other horizons' outputs (they may disagree — that's information).</li>
+      </ul>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Technical vs news weighting per horizon</h3>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Technical weight</th><th>News weight</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY</td><td>35%</td><td><strong>65%</strong></td></tr>
+          <tr><td>WEEKLY</td><td>50%</td><td>50%</td></tr>
+          <tr><td>BIWEEKLY</td><td><strong>60%</strong></td><td>40%</td></tr>
+          <tr><td>MONTHLY</td><td><strong>70%</strong></td><td>30%</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">Short-horizon moves are overwhelmingly news-driven; longer-horizon moves
+      are dominated by trend regimes that show up in technicals.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Disagreement protocol</h3>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>When tech and news disagree</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY / WEEKLY</td><td>News wins, confidence capped at 0.55.</td></tr>
+          <tr><td>BIWEEKLY / MONTHLY</td><td>Technicals win, capped at 0.60.</td></tr>
+          <tr><td>Sharp disagreement</td><td>Prefer NEUTRAL with confidence ≤ 0.50.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Direction call (the math)</h3>
+      <div class="formula">
+        signed_score = w_tech × Σ(verdict_i × confidence_i, i in 4 clusters) / 4<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + w_news × (news_direction × news_confidence)
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Entry zone placement</h3>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Half-width</th><th>Example at ₹1,000</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY</td><td>±0.5%</td><td>[₹995.00, ₹1,005.00]</td></tr>
+          <tr><td>WEEKLY</td><td>±1.0%</td><td>[₹990.00, ₹1,010.00]</td></tr>
+          <tr><td>BIWEEKLY</td><td>±1.5%</td><td>[₹985.00, ₹1,015.00]</td></tr>
+          <tr><td>MONTHLY</td><td>±2.0%</td><td>[₹980.00, ₹1,020.00]</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Target placement (priority order)</h3>
+      <ol class="list-decimal pl-6 space-y-2">
+        <li><strong>Nearest level beyond the entry zone in predicted direction</strong> (swing-high, R1, R2, 52w-high for bullish). Rationale: "target=1605 — anchored to swing-high resistance".</li>
+        <li>If no such level within 4×ATR, use pure ATR-based target inside the horizon's allowed band.</li>
+        <li><strong>State the rationale explicitly</strong> in either case.</li>
+      </ol>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Stop placement</h3>
+      <ol class="list-decimal pl-6 space-y-2">
+        <li><strong>Nearest level on the OPPOSITE side of entry.</strong> Verify it's inside the
+            horizon's stop ATR band; if too tight push to <code>stop_min × ATR</code>; if too wide
+            <strong>downgrade to NEUTRAL</strong>.</li>
+        <li>If no opposite-side level, use pure ATR stop at midpoint of the horizon's stop band.</li>
+      </ol>
+
+      <div class="bg-blue-50 border border-blue-100 rounded p-4 my-4">
+        <h4 class="font-bold text-[#0053e2]">Risk-reward floor (1.5×)</h4>
+        <p class="text-sm mt-1">If worst-fill RR &lt; 1.5: first try tightening the stop (within band).
+        Otherwise <strong>switch to NEUTRAL</strong>. <strong>Forbidden:</strong> inflating the
+        target to force RR ≥ 1.5.</p>
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Final confidence math</h3>
+      <ol class="list-decimal pl-6 space-y-2">
+        <li>Base = weighted avg of (4 cluster confidences, news confidence) using horizon weights.</li>
+        <li>Apply disagreement caps if tech and news disagree.</li>
+        <li>Apply horizon ceiling: 0.90 / 0.85 / 0.80 / 0.75.</li>
+        <li>If ATR-fallback target used, multiply by 0.85.</li>
+        <li>Round to 2 decimals.</li>
+      </ol>
+      <div class="example">WEEKLY. Cluster confidences 0.65, 0.70, 0.55, 0.60. News 0.78 (agrees).
+      Base = 0.5 × 0.625 + 0.5 × 0.78 = 0.70. No caps triggered. Final = <strong>0.70</strong>.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">When the synthesizer emits NEUTRAL</h3>
+      <p>NEUTRAL is the honest escape hatch. Required when any of:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Technicals and news sharply disagree.</li>
+        <li>RR floor of 1.5× cannot be met with any sane stop.</li>
+        <li>Price is mid-range — no nearby support OR resistance within 2 × ATR.</li>
+        <li>Volatility regime is "expanding" AND no clear directional catalyst.</li>
+      </ul>
+      <p class="mt-2">NEUTRAL predictions still emit entry/target/stop, but they describe an
+      <em>expected range</em>. RR set to exactly 1.0 by convention.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Citation &amp; forbidden vocabulary</h3>
+      <p>Every claim must trace to either the TechnicalView signals or the ImpactAssessment
+      catalysts/risks. Rationale cannot contain:</p>
+      <div class="formula">guarantee, certain, definitely, risk-free, easy money, multibagger</div>
+      <p>Output is <strong>educational, not advice</strong> — <code>not_advice=True</code>,
+      <code>is_educational=True</code> always.</p>
+    </section>
+
+    <!-- ════ HORIZONS ════ -->
+    <section id="horizons" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">11 · Horizons, ATR units, risk-reward math</h2>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">The four horizons</h3>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Trading days</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY</td><td>1</td><td>Next-session close (today's close if before 15:30 IST).</td></tr>
+          <tr><td>WEEKLY</td><td>5</td><td>+7 calendar days, snapped back to last trading day.</td></tr>
+          <tr><td>BIWEEKLY</td><td>10</td><td>+14 calendar days, snapped back.</td></tr>
+          <tr><td>MONTHLY</td><td>21</td><td>+1 calendar month, snapped back.</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">Trading-day counts match the user mental model ("monthly = ~21 trading days");
+      calendar-day snap-back guarantees we never silently extend past a long weekend or Diwali.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Why ATR is the unit of everything</h3>
+      <p>A 1% move means different things in different stocks. In sleepy HUL (ATR ~0.9%) 1% is
+      significant; in volatile Vodafone-Idea (ATR ~5%) it's noise. So we express every stop and
+      every target as a <strong>multiple of the stock's own ATR</strong>.</p>
+      <div class="example">RELIANCE close ₹2,900 with ATR ₹40. A 2 × ATR stop sits ₹80 below (≈2.8%).
+      A 1.5 × ATR target sits ₹60 above (≈2.1%). The same 2×ATR stop applied to TCS gives a different
+      percent of price.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Per-horizon ATR bands (source of truth)</h3>
+      <table class="t">
+        <thead>
+          <tr><th>Horizon</th><th>Stop (× ATR)</th><th>Target (× ATR)</th><th>Entry (± % close)</th><th>Conf. ceiling</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>DAILY</td><td>0.5 – 1.0</td><td>0.75 – 1.5</td><td>±0.5%</td><td>0.90</td></tr>
+          <tr><td>WEEKLY</td><td>0.7 – 1.5</td><td>1.0 – 2.0</td><td>±1.0%</td><td>0.85</td></tr>
+          <tr><td>BIWEEKLY</td><td>1.0 – 2.0</td><td>1.5 – 3.0</td><td>±1.5%</td><td>0.80</td></tr>
+          <tr><td>MONTHLY</td><td>1.5 – 2.5</td><td>2.0 – 4.0</td><td>±2.0%</td><td>0.75</td></tr>
+        </tbody>
+      </table>
+      <p class="text-sm text-gray-600 mt-2"><strong>Anchors:</strong> Wilder's (1978) canonical 1×ATR "swing stop" sits in the WEEKLY band.
+      Van Tharp's (2007) 2–3×ATR positional sits in MONTHLY. Target midpoint ≈ 1.4× stop midpoint per
+      Murphy/Pring/Tharp consensus on positive expectancy.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Risk-reward — two flavours</h3>
+      <h4 class="font-semibold mt-3 mb-1">1. <code>risk_reward</code> — worst-fill anchor (sizing metric)</h4>
+      <div class="formula">
+        BULLISH:  risk_reward = (target − zone_high) / (zone_high − stop)<br>
+        BEARISH:  risk_reward = (zone_low − target) / (stop − zone_low)
+      </div>
+      <p>Conservative — the "what if I got the worst possible fill inside the entry band" answer.
+      Guardrail enforces <strong>≥ 1.5</strong>.</p>
+
+      <h4 class="font-semibold mt-3 mb-1">2. <code>midpoint_rr</code> — textbook (literature-comparison)</h4>
+      <div class="formula">
+        entry_mid = (zone_low + zone_high) / 2<br>
+        midpoint_rr = (target − entry_mid) / (entry_mid − stop) for bullish
+      </div>
+      <p>Used by Bulkowski's pattern catalogues, Edwards &amp; Magee, every broker's RR calculator.
+      Surfaced for comparability, <em>not</em> used for sizing.</p>
+      <p class="text-sm mt-2">For any zone of nonzero width <code>midpoint_rr ≥ risk_reward</code>.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Grading thresholds (what counts as "right")</h3>
+      <table class="t">
+        <thead><tr><th>Horizon</th><th>Bars</th><th>Win threshold</th><th>Loss threshold</th><th>Neutral cone</th></tr></thead>
+        <tbody>
+          <tr><td>DAILY</td><td>1</td><td>+0.5%</td><td>−0.5%</td><td>±0.5%</td></tr>
+          <tr><td>WEEKLY</td><td>5</td><td>+1.5%</td><td>−1.5%</td><td>±1.5%</td></tr>
+          <tr><td>BIWEEKLY</td><td>10</td><td>+2.5%</td><td>−2.5%</td><td>±2.5%</td></tr>
+          <tr><td>MONTHLY</td><td>21</td><td>+5.0%</td><td>−5.0%</td><td>±5.0%</td></tr>
+        </tbody>
+      </table>
+      <div class="meaning">Thresholds follow roughly <code>√(bars) × 0.5%</code> — the random-walk
+      scaling of price moves with time. We set the bar slightly above the expected stdev so we're
+      only counting genuine directional moves.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Three grading modes</h3>
+      <table class="t">
+        <thead><tr><th>Mode</th><th>Question answered</th></tr></thead>
+        <tbody>
+          <tr><td><strong>A — strict directional</strong></td><td>Did the realized close-to-close return meet the horizon's win/loss threshold?</td></tr>
+          <tr><td><strong>B — target/stop resolution</strong></td><td>Walking bars, which did price touch first? TARGET_HIT, STOP_HIT, STOP_HIT_AMBIGUOUS (both same bar; counted as stop), or OPEN (neither by deadline).</td></tr>
+          <tr><td><strong>C — neutral cone</strong></td><td>For NEUTRAL only: did realized return stay inside the cone?</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Calibration metric: Brier score</h3>
+      <div class="formula">
+        Brier = mean((confidence − outcome)²)<br>
+        outcome = 1.0 if Mode-A correct, else 0.0
+      </div>
+      <p>Lower is better. Naive baseline (always 0.5 on 50/50 outcome) is 0.25. Below 0.20 = "decent",
+      below 0.15 = "good". We also report Brier <em>skill</em> score (BSS) for apples-to-apples comparison
+      when base rate isn't 50%.</p>
+    </section>
+
+    <!-- ════ GUARDRAILS ════ -->
+    <section id="guardrails" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">12 · Quality controls — the four guardrail tiers</h2>
+      <p>The synthesizer is an LLM and will occasionally produce predictions that are wrong in
+      mechanical ways: levels in the wrong order, signals it didn't actually see, RR violations,
+      miscalibrated confidence. The guardrail layer catches these <strong>deterministically</strong>.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">How the pipeline works</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Four tiers run <strong>in order</strong>; first failing tier short-circuits the rest.</li>
+        <li>On failure, synthesizer is invoked <strong>once more</strong> with failure messages appended.</li>
+        <li>If retry also fails, the prediction call hard-aborts. No "partial / half-correct" predictions ship.</li>
+        <li>We don't re-run the gather phase on retry (inputs haven't changed).</li>
+      </ul>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Tier 1 — Grounding</h3>
+      <p class="italic">"Are the prediction's basic numbers internally consistent with their inputs?"</p>
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Close-price echo</td><td>Quoted close = technical-view close to within 0.01%.</td></tr>
+          <tr><td>Bars-used echo</td><td>Equal to what was delivered.</td></tr>
+          <tr><td>Entry-zone width</td><td>≤ 0.5 × ATR.</td></tr>
+          <tr><td>Entry-zone touches close</td><td>close ∈ [zone_low − 0.10·ATR, zone_high + 0.10·ATR].</td></tr>
+          <tr><td>Direction-level sanity</td><td>BULLISH: target &gt; zone_high AND stop &lt; zone_high.<br>BEARISH: target &lt; zone_low AND stop &gt; zone_low.</td></tr>
+          <tr><td>ATR-distance for stop</td><td>Stop distance ∈ [0.5 × ATR, 3.0 × ATR].</td></tr>
+          <tr><td>NEUTRAL claims neutrality</td><td>NEUTRAL → RR exactly 1.0.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Tier 2 — Citation</h3>
+      <p class="italic">"Did the LLM cite signals it actually saw — or did it make them up?"</p>
+      <p>We build the <strong>allowed vocabulary</strong> from: every cluster signal string, every
+      candlestick/chart pattern name, every catalyst/risk title and URL, plus standard indicator
+      names (RSI, MACD, ADX, ATR, BB, %B, OBV, SMA, EMA, +DI, −DI, %K, %D).</p>
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Rationale token grounding</td><td>≥ 80% of meaningful tokens must trace to vocabulary.</td></tr>
+          <tr><td>contributing_signals match</td><td>Substring match a vocab phrase OR ≥ 70% token overlap.</td></tr>
+          <tr><td>conflicting_signals match</td><td>Same rule.</td></tr>
+          <tr><td>Catalyst URL anchoring</td><td>Any cited URL must appear in the news catalysts/risks.</td></tr>
+          <tr><td>Forbidden vocabulary</td><td>None of: guarantee, certain, definitely, risk-free, easy money, multibagger.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Tier 3 — Consistency</h3>
+      <p class="italic">"Does the prediction internally hang together?"</p>
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Direction ↔ rationale</td><td>BULLISH rationale must mention at least one of: up, rise, rally, breakout, buy, long, support holding, momentum positive, trend up. Mirror for BEARISH and NEUTRAL.</td></tr>
+          <tr><td>Confidence ↔ disagreement</td><td>More conflicting than contributing signals → confidence ≤ 0.55.</td></tr>
+          <tr><td>Confidence ↔ news magnitude</td><td>News HIGH + conf ≥ 0.70 + direction agrees → synthesizer conf ≥ 0.55.</td></tr>
+          <tr><td>NEUTRAL when split</td><td>2+ clusters bull AND 2+ bear AND news disagrees → must be NEUTRAL.</td></tr>
+          <tr><td>NEUTRAL claims no edge</td><td>NEUTRAL cannot use "buy/sell/long/short".</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Tier 4 — Calibration</h3>
+      <p class="italic">"Is the confidence reasonable given the prediction's structure?"</p>
+      <table class="t">
+        <thead><tr><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Horizon ceiling</td><td>conf ≤ 0.90 daily / 0.85 weekly / 0.80 biweekly / 0.75 monthly.</td></tr>
+          <tr><td>Risk-reward floor</td><td>risk_reward ≥ 1.5 (non-NEUTRAL).</td></tr>
+          <tr><td>NEUTRAL ceiling</td><td>NEUTRAL → conf ≤ 0.65.</td></tr>
+          <tr><td>Fallback target penalty</td><td>If rationale mentions "ATR projection", conf ≤ 0.70.</td></tr>
+          <tr><td>News-bounded</td><td>DAILY: conf ≤ news_conf + 0.10. WEEKLY: + 0.15.</td></tr>
+          <tr><td>Degraded news cap</td><td><code>news_impact:degraded</code> tag → conf ≤ 0.65.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="bg-blue-50 border border-blue-100 rounded p-4 mt-4">
+        <strong class="text-[#0053e2]">Why one retry, not many.</strong> Empirically, when first
+        attempt violates a guardrail, the second attempt with the failure messages in prompt usually
+        succeeds. Beyond one retry we've seen diminishing returns and the LLM playing whack-a-mole
+        with rules rather than re-thinking. One retry is the cost-vs-quality sweet spot.
+      </div>
+    </section>
+
+    <!-- ════ WORKED EXAMPLE ════ -->
+    <section id="example" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">13 · Worked example — RELIANCE WEEKLY, end-to-end</h2>
+      <p class="text-sm text-gray-600">All numbers illustrative; this is not a real call.</p>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Setup</h3>
+      <table class="t">
+        <tbody>
+          <tr><td>Ticker</td><td>RELIANCE.NS</td></tr>
+          <tr><td>As-of</td><td>2026-03-12, 14:45 IST (before close)</td></tr>
+          <tr><td>Horizon</td><td>WEEKLY (5 trading days)</td></tr>
+          <tr><td>Current close</td><td>₹2,884</td></tr>
+          <tr><td>Bars fetched</td><td>518 daily bars (≈2 years)</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Phase 1 — Gather (parallel)</h3>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Trend cluster</div>
+          <div class="mt-1"><span class="tag tag-bull">BULLISH</span> confidence 0.74</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>Close ₹2,884 above SMA20 (₹2,840), SMA50 (₹2,790), SMA200 (₹2,680). Stack = 3.</li>
+            <li>ADX 32 — strong trend.</li>
+            <li>+DI 28 &gt; −DI 17 (buyers in control).</li>
+            <li>Golden Cross fired 18 bars ago (regime; not voting).</li>
+            <li>EMA-9/21 cross bullish 4 bars ago — fresh, +0.3 vote.</li>
+          </ul>
+        </div>
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Momentum cluster</div>
+          <div class="mt-1"><span class="tag tag-bull">BULLISH</span> confidence 0.66</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>RSI 62 — strong, not overbought (+1).</li>
+            <li>MACD &gt; signal; no fresh cross (+0.5).</li>
+            <li>Stoch %K 71 &gt; %D 64, both above 50 (+0.5).</li>
+            <li>OBV slope +9% over 20 bars (+0.5).</li>
+            <li>Net +2.5 → bullish; |2.5|/3 = 0.83 → 0.66 after smoothing.</li>
+          </ul>
+        </div>
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Volatility cluster</div>
+          <div class="mt-1">Direction <span class="tag tag-bull">bullish</span>, Strength moderate, Regime normal</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>ATR = ₹38 (1.32% of price).</li>
+            <li>%B 0.71 — upper half, bullish.</li>
+            <li>Bandwidth in 41st percentile — not squeezed.</li>
+            <li>TTM Squeeze: OFF.</li>
+          </ul>
+        </div>
+        <div class="border border-gray-200 rounded p-4">
+          <div class="text-xs uppercase text-[#0053e2] font-semibold">Levels cluster</div>
+          <div class="mt-1"><span class="tag tag-bull">BULLISH</span> confidence 0.58</div>
+          <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+            <li>Swing-high resistance ₹2,948 (₹64 / 1.7×ATR away).</li>
+            <li>Swing-low support ₹2,810 (₹74 below; 1.95×ATR).</li>
+            <li>52w-high ₹3,025; 52w-low ₹2,420.</li>
+            <li>Pivots: PP ₹2,860, R1 ₹2,910, S1 ₹2,830.</li>
+            <li>Rolling VWAP (20) at ₹2,852 — close 1.1% above (supportive).</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">News assessment (illustrative)</h3>
+      <div class="border border-gray-200 rounded p-4">
+        <div><strong>Direction:</strong> <span class="tag tag-bull">BULLISH</span> ·
+             <strong>Magnitude:</strong> medium · <strong>Confidence:</strong> 0.68</div>
+        <p class="text-sm mt-2"><strong>Summary:</strong> Two material catalysts in last week.
+        (1) Jio tariff hike for April quarter — brokers raising ARPU forecasts. (2) Retail reported
+        13% LFL growth, ahead of 9% street estimate. One risk: ₹75,000-cr capex commentary pressuring
+        near-term FCF.</p>
+      </div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Phase 2 — Synthesize</h3>
+      <p><strong>Direction.</strong> WEEKLY = 50/50.</p>
+      <div class="formula">
+        Tech avg = (0.74 + 0.66 + 0.58 + 0.55) / 4 = +0.633 (all four bullish)<br>
+        News contribution = +1 × 0.68 = +0.68<br>
+        signed_score = 0.5 × 0.633 + 0.5 × 0.68 = <strong>+0.657</strong> → BULLISH
+      </div>
+      <p><strong>Entry zone.</strong> ±1.0% around ₹2,884.</p>
+      <div class="formula">entry_zone = [₹2,855.16, ₹2,912.84]<br>worst-fill anchor (bullish) = ₹2,912.84</div>
+      <p><strong>Target.</strong> Swing-high ₹2,948 sits ₹35 above zone_high — inside 4×ATR window.</p>
+      <div class="formula">target = ₹2,948 (anchored to swing-high resistance)</div>
+      <p><strong>Stop.</strong> Swing-low ₹2,810 = 1.18 × ATR below zone_low — inside WEEKLY band.</p>
+      <div class="formula">stop = ₹2,810 (anchored to swing-low support)</div>
+      <p><strong>RR check.</strong></p>
+      <div class="formula">
+        risk_reward (worst-fill) = (2948 − 2912.84) / (2912.84 − 2810)<br>
+        = 35.16 / 102.84 = <strong>0.34</strong>
+      </div>
+      <p class="text-red-700"><strong>Below 1.5 floor!</strong> Try tightening stop. Min stop
+      distance 0.7×ATR = ₹26.6 → stop ≥ ₹2,886.24 — but that sits <em>inside</em> entry zone
+      (direction-level sanity violation). No legal stop placement satisfies RR ≥ 1.5 at this price.</p>
+      <p><strong>Per protocol: downgrade to NEUTRAL.</strong></p>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Final output</h3>
+      <div class="border border-gray-300 rounded p-4 bg-gray-50">
+        <pre class="text-xs overflow-x-auto"><code>{
+  "ticker": "RELIANCE.NS",
+  "horizon": "WEEKLY",
+  "as_of": "2026-03-12T14:45:00+05:30",
+  "direction": "NEUTRAL",
+  "entry_zone": [2855.16, 2912.84],
+  "target":     { "value": 2948.0, "rationale": "swing-high resistance" },
+  "stop_loss":  { "value": 2810.0, "rationale": "swing-low support" },
+  "risk_reward": 1.0,
+  "midpoint_rr": 1.0,
+  "confidence": 0.48,
+  "rationale": "Technicals are uniformly bullish (4/4 clusters) and news is
+                bullish-medium, but at this price the nearest resistance is
+                too close and the nearest support too far — no setup with
+                an acceptable worst-fill RR exists. Wait for a pullback
+                toward VWAP / swing-low support, or a clean break of 2948.",
+  "contributing_signals": [
+      "close above SMA20/50/200 (full stack bullish)",
+      "ADX 32 - strong trend",
+      "OBV rising (+9% over 20 bars)",
+      "Jio tariff hike implementation, April quarter"
+  ],
+  "conflicting_signals": [
+      "swing-high resistance 1.7 ATR overhead — limits upside"
+  ],
+  "not_advice": true,
+  "is_educational": true
+}</code></pre>
+      </div>
+      <div class="meaning">NEUTRAL is the <strong>correct</strong> answer here — not a failure. The
+      agent identified a strong bias but recognised that price structure doesn't give an asymmetric
+      setup. Telling the user to wait beats forcing a 0.34-RR trade.</div>
+
+      <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Guardrails verdict</h3>
+      <table class="t">
+        <thead><tr><th>Tier</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>1 — Grounding</td><td>✓ Close echo, entry-zone width, ATR distances all sane.</td></tr>
+          <tr><td>2 — Citation</td><td>✓ Every signal traces to TechnicalView or news catalysts.</td></tr>
+          <tr><td>3 — Consistency</td><td>✓ NEUTRAL rationale mentions "wait" and "pullback".</td></tr>
+          <tr><td>4 — Calibration</td><td>✓ NEUTRAL conf 0.48 ≤ 0.65 ceiling. RR=1.0 ✓.</td></tr>
+        </tbody>
+      </table>
+      <p class="mt-3">Prediction ships to <code>predictions/2026-03-12/RELIANCE.NS_144527_WEEKLY.json</code>.</p>
+    </section>
+
+    <!-- ════ GLOSSARY ════ -->
+    <section id="glossary" class="mb-12">
+      <h2 class="text-3xl font-bold section-h border-b-2 border-[#0053e2] pb-2 mb-6">14 · Glossary — alphabetical</h2>
+      <dl class="space-y-3 text-sm">
+        <div><dt class="font-semibold">ADX (Average Directional Index)</dt><dd class="text-gray-700">Wilder's measure of trend <em>strength</em> (not direction). 0–100. &lt; 20 = no trend; 25+ = strong. Doubly smoothed — needs 140 bars.</dd></div>
+        <div><dt class="font-semibold">Anchored VWAP</dt><dd class="text-gray-700">Cumulative VWAP from a chosen anchor date forward (Brian Shannon, 2023). Useful around catalysts.</dd></div>
+        <div><dt class="font-semibold">ATR (Average True Range)</dt><dd class="text-gray-700">Wilder 1978. Smoothed avg of True Range over 14 bars. Our universal unit for stop/target distances.</dd></div>
+        <div><dt class="font-semibold">Bars</dt><dd class="text-gray-700">Daily OHLCV candles. The smallest time unit we use.</dd></div>
+        <div><dt class="font-semibold">Bollinger Bands</dt><dd class="text-gray-700">Middle = SMA-20. Upper/lower = middle ± 2 × stdev. John Bollinger, early 1980s.</dd></div>
+        <div><dt class="font-semibold">Brier score</dt><dd class="text-gray-700">Calibration metric. Mean squared error of (confidence − outcome). Lower better; 0.25 baseline.</dd></div>
+        <div><dt class="font-semibold">Catalyst</dt><dd class="text-gray-700">Material news/filing supporting the predicted direction. Carries title, URL, importance, why_it_matters.</dd></div>
+        <div><dt class="font-semibold">Death Cross</dt><dd class="text-gray-700">SMA-50 crossing below SMA-200. Bearish regime marker.</dd></div>
+        <div><dt class="font-semibold">+DI / −DI</dt><dd class="text-gray-700">Positive/Negative Directional Indicators. +DI &gt; −DI = buyers in control.</dd></div>
+        <div><dt class="font-semibold">EMA</dt><dd class="text-gray-700">Exponential Moving Average. Recent bars weighted more. Faster than SMA of same length.</dd></div>
+        <div><dt class="font-semibold">Engulfing pattern</dt><dd class="text-gray-700">Two-bar candlestick reversal where today's body fully engulfs yesterday's.</dd></div>
+        <div><dt class="font-semibold">GDELT</dt><dd class="text-gray-700">Global Database of Events, Language and Tone. Our free news source via Doc API 2.0.</dd></div>
+        <div><dt class="font-semibold">Golden Cross</dt><dd class="text-gray-700">SMA-50 crossing above SMA-200. Bullish regime marker. Empirical alpha has weakened post-1990 on liquid large-caps.</dd></div>
+        <div><dt class="font-semibold">Hammer</dt><dd class="text-gray-700">Single-bar bullish reversal: small body at top, long lower shadow, tiny upper.</dd></div>
+        <div><dt class="font-semibold">Head and Shoulders</dt><dd class="text-gray-700">Three-peak chart pattern, middle taller. Bearish reversal. LMW Def. 1.</dd></div>
+        <div><dt class="font-semibold">Horizon</dt><dd class="text-gray-700">Forecast window: DAILY (1 bar), WEEKLY (5), BIWEEKLY (10), MONTHLY (21).</dd></div>
+        <div><dt class="font-semibold">ImpactAssessment</dt><dd class="text-gray-700">Structured news-LLM output: direction, magnitude, confidence, summary, catalysts, risks.</dd></div>
+        <div><dt class="font-semibold">Keltner Channel</dt><dd class="text-gray-700">EMA-based volatility envelope on ATR. Outer fence in TTM Squeeze.</dd></div>
+        <div><dt class="font-semibold">LMW (Lo, Mamaysky, Wang 2000)</dt><dd class="text-gray-700">Academic paper giving geometric tolerances for our 5 chart patterns.</dd></div>
+        <div><dt class="font-semibold">MACD</dt><dd class="text-gray-700">Moving Average Convergence Divergence. MACD = EMA-12 − EMA-26. Signal = EMA-9 of MACD. Histogram = MACD − Signal. Appel, late 1970s.</dd></div>
+        <div><dt class="font-semibold">Mode A / B / C grading</dt><dd class="text-gray-700">Three parallel scoring methods. A: strict directional. B: target/stop touch. C: NEUTRAL cone.</dd></div>
+        <div><dt class="font-semibold">midpoint_rr</dt><dd class="text-gray-700">RR computed using midpoint of entry zone. Literature-comparison metric.</dd></div>
+        <div><dt class="font-semibold">NEUTRAL</dt><dd class="text-gray-700">"No setup" verdict. Required on disagreement / RR floor unmet / mid-range price.</dd></div>
+        <div><dt class="font-semibold">OBV</dt><dd class="text-gray-700">On-Balance Volume. Granville 1963. Running signed-volume cumulative sum. We use 20-bar slope.</dd></div>
+        <div><dt class="font-semibold">OHLCV</dt><dd class="text-gray-700">Open, High, Low, Close, Volume — the five numbers per daily bar.</dd></div>
+        <div><dt class="font-semibold">Pivot points</dt><dd class="text-gray-700">PP, R1/R2, S1/S2 — classic floor-trader levels from yesterday's bar.</dd></div>
+        <div><dt class="font-semibold">Rationale</dt><dd class="text-gray-700">Plain-English explanation on every prediction. ≥ 80% of tokens must trace to vocabulary.</dd></div>
+        <div><dt class="font-semibold">risk_reward (worst-fill)</dt><dd class="text-gray-700">RR assuming worst possible fill inside entry zone. Sizing metric. Floor: 1.5.</dd></div>
+        <div><dt class="font-semibold">RSI</dt><dd class="text-gray-700">Relative Strength Index. Wilder 1978. Avg gain / avg loss over 14 bars, 0–100. 70/30 overbought/oversold; 60/40 trend-RSI (Cardwell/Brown).</dd></div>
+        <div><dt class="font-semibold">SMA</dt><dd class="text-gray-700">Simple Moving Average of last N closes. We use SMA-20/50/200.</dd></div>
+        <div><dt class="font-semibold">Squeeze (Bollinger)</dt><dd class="text-gray-700">Bandwidth in lowest 20% over 60 bars. Bollinger 2001 ch. 11. Diagnostic.</dd></div>
+        <div><dt class="font-semibold">Squeeze (TTM)</dt><dd class="text-gray-700">Carter 2009. Bollinger Bands inside Keltner Channels. When fires (bands pop out), breakout trigger.</dd></div>
+        <div><dt class="font-semibold">Stochastic</dt><dd class="text-gray-700">Lane 1950s. %K = today's close in recent high-low range; %D = smoothed. &gt;80 overbought, &lt;20 oversold.</dd></div>
+        <div><dt class="font-semibold">Swing high / low</dt><dd class="text-gray-700">Highest/lowest over last 30 bars (standard preset). Most recent actionable S/R.</dd></div>
+        <div><dt class="font-semibold">Synthesizer</dt><dd class="text-gray-700">LLM that takes technical view + news assessment + horizon and writes final Prediction.</dd></div>
+        <div><dt class="font-semibold">TechnicalView</dt><dd class="text-gray-700">Bundle of 4 cluster verdicts + raw indicator values + candlestick + chart patterns. Horizon-agnostic.</dd></div>
+        <div><dt class="font-semibold">TTM Squeeze</dt><dd class="text-gray-700">See Squeeze (TTM).</dd></div>
+        <div><dt class="font-semibold">VWAP</dt><dd class="text-gray-700">Volume-Weighted Average Price. Σ(TP × vol) / Σ(vol). Rolling + anchored variants. Dynamic S/R.</dd></div>
+        <div><dt class="font-semibold">%B</dt><dd class="text-gray-700">Where close sits inside Bollinger Band on 0–1 scale. 0 = lower, 1 = upper.</dd></div>
+        <div><dt class="font-semibold">52-week high / low</dt><dd class="text-gray-700">Highest/lowest over 252 trading days. Psychological levels every retail trader watches.</dd></div>
+      </dl>
+    </section>
+
+    <footer class="report-foot">Self-contained single-file HTML report · Generated by Thor 🐶 ·
+      <a href="index.html" class="text-[#0053e2]">multi-page version</a></footer>
+  </main>
+</div>
+
+<!-- Scrollspy: highlight current section in TOC -->
+<script>
+(function () {
+  const links = Array.from(document.querySelectorAll("#toc a.toc-link"));
+  const sections = links
+    .map(l => document.getElementById(l.getAttribute("href").slice(1)))
+    .filter(Boolean);
+  function activate() {
+    const y = window.scrollY + 100;
+    let current = sections[0];
+    for (const s of sections) { if (s.offsetTop <= y) current = s; }
+    links.forEach(l => l.classList.toggle("active",
+      l.getAttribute("href") === "#" + current.id));
+  }
+  window.addEventListener("scroll", activate, { passive: true });
+  activate();
+})();
+</script>
+</body>
+</html>
