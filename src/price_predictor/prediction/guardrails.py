@@ -74,6 +74,17 @@ from price_predictor.prediction.schema import (
 TARGET_ANCHOR_TOLERANCE_PCT = 0.005   # 0.5% — target must be within this
                                        # of a known anchor value
 
+# Multiplicative grace factor applied to horizon-derived percentage caps
+# (entry-zone-pct, stop ATR band, target ATR band) when validating LLM
+# output. The LLM rounds to 2 decimals; the validator uses float math.
+# Without this grace, a prediction that lands EXACTLY at the cap can be
+# rejected by sub-paisa rounding (e.g. 0.5% cap on a ₹1000 stock → ₹5
+# cap; LLM emits ₹5.02 due to 2-decimal rounding → rejected by 0.4%).
+# 1.02 = a 2% slack, generous enough to absorb realistic LLM rounding
+# while still preventing meaningful violations (a 2% slack on a 0.5%
+# cap is 0.01% in absolute terms — noise).
+_GROUNDING_GRACE = 1.02
+
 # Number of ATR-derived target anchors generated per horizon. Three
 # evenly-spaced points across the per-horizon target_atr_range
 # (endpoints + midpoint) — dense enough to pin a reasonable target
@@ -82,13 +93,21 @@ TARGET_ANCHOR_TOLERANCE_PCT = 0.005   # 0.5% — target must be within this
 # horizons.
 _ATR_ANCHOR_COUNT = 3
 
-# Tokens too short or too generic to count as "real evidence" in
-# citation checks. Lowercased.
+# Tokens too generic to count as "real evidence" in citation checks.
+# Lowercased.
+#
+# DELIBERATELY EXCLUDED from stopwords (used to be in here; were causing
+# Tier 2 false positives):
+#   above / below / near / over / under / high / low
+#   These are CORE TA vocabulary, not filler. "RSI below 50" carries
+#   real meaning. Treating them as stopwords meant citations like
+#   "RSI 39.6 is below 50" tokenized to {} after filtering, so the
+#   guardrail rejected perfectly-grounded LLM output.
 _STOPWORDS = frozenset({
     "the", "a", "an", "and", "or", "but", "with", "for", "from", "into",
     "is", "are", "was", "were", "be", "been", "being", "to", "of", "in",
     "on", "at", "by", "as", "this", "that", "it", "its", "has", "have",
-    "had", "above", "below", "near", "over", "under", "high", "low",
+    "had",
     "price", "stock", "share", "shares",
 })
 
@@ -192,9 +211,40 @@ def _within_tolerance(value: float, anchors: Iterable[float], tol_pct: float) ->
 
 
 def _tokenize(text: str) -> set[str]:
-    """Lowercased set of significant tokens (>3 chars, non-stopword)."""
-    raw = re.findall(r"[a-zA-Z][a-zA-Z0-9_]*", text.lower())
-    return {t for t in raw if len(t) > 3 and t not in _STOPWORDS}
+    """Lowercased set of significant tokens for citation matching.
+
+    Two token classes are kept:
+      - alphabetic tokens of length >= 3, not in _STOPWORDS
+        (RSI, ATR, ADX, SMA, EMA, MACD, bullish, golden, cross, ...)
+      - numeric tokens that are either >= 3 chars ("200", "1500") OR
+        contain a decimal point ("39.6", "1.5", "0.20")
+
+    Why include numerics: in technical analysis, the NUMBERS are the
+    evidence. "RSI 39.6" is grounded by the literal value 39.6 appearing
+    in the cluster rationale; throwing away "39.6" throws away the
+    strongest signal that the LLM is actually reading the input.
+
+    Why >= 3 not > 3: short indicator names (RSI, ATR, ADX, SMA, EMA)
+    are 3 chars exactly. The old `> 3` bound silently dropped every
+    short-named indicator from both the LLM's citation tokens AND the
+    input vocabulary, making citations of those indicators unverifiable.
+
+    Generic short numerics ("50", "70", "30") are dropped because they
+    match too easily — RSI thresholds, percentages, you name it — and
+    citing "below 50" alone shouldn't count as grounding evidence.
+    """
+    raw = re.findall(r"[a-zA-Z][a-zA-Z0-9_]*|\d+\.?\d*", text.lower())
+    out: set[str] = set()
+    for t in raw:
+        if t[0].isdigit():
+            # numeric: keep if has a decimal point OR is >= 3 chars
+            if "." in t or len(t) >= 3:
+                out.add(t)
+        else:
+            # alphabetic: keep if >= 3 chars and not a stopword
+            if len(t) >= 3 and t not in _STOPWORDS:
+                out.add(t)
+    return out
 
 
 # ─────────────────────────────────────────────────────────────
@@ -215,10 +265,12 @@ def validate_grounding(pred: Prediction, si: SynthesisInput) -> None:
     horizon = pred.horizon
 
     # ── Entry zone: must hug close_price (per-horizon width) ──
+    # _GROUNDING_GRACE absorbs 2-decimal LLM rounding at the cap boundary.
     entry_tol = entry_zone_pct(horizon)
+    entry_tol_eff = entry_tol * _GROUNDING_GRACE
     for tag, val in (("entry_low", pred.entry_zone[0]),
                      ("entry_high", pred.entry_zone[1])):
-        if abs(val - close) / close > entry_tol:
+        if abs(val - close) / close > entry_tol_eff:
             raise HallucinationError(
                 "grounding",
                 f"{tag}={val:.2f} drifted from close={close:.2f} "
@@ -227,9 +279,12 @@ def validate_grounding(pred: Prediction, si: SynthesisInput) -> None:
             )
 
     # ── Stop loss: distance must be in per-horizon ATR multiple band ──
+    # Grace applied symmetrically to widen both bounds slightly.
     stop_min, stop_max = stop_atr_range(horizon)
     stop_dist = abs(pred.stop_loss.value - close)
-    if not (stop_min * atr <= stop_dist <= stop_max * atr):
+    stop_lo_eff = stop_min / _GROUNDING_GRACE
+    stop_hi_eff = stop_max * _GROUNDING_GRACE
+    if not (stop_lo_eff * atr <= stop_dist <= stop_hi_eff * atr):
         raise HallucinationError(
             "grounding",
             f"stop_loss={pred.stop_loss.value:.2f} is "
@@ -260,7 +315,7 @@ def validate_grounding(pred: Prediction, si: SynthesisInput) -> None:
         anchor_desc = "close ± 0-1×ATR"
 
     if not _within_tolerance(
-        pred.target.value, anchors, TARGET_ANCHOR_TOLERANCE_PCT,
+        pred.target.value, anchors, TARGET_ANCHOR_TOLERANCE_PCT * _GROUNDING_GRACE,
     ):
         raise HallucinationError(
             "grounding",
@@ -290,9 +345,12 @@ def _build_input_vocabulary(si: SynthesisInput) -> set[str]:
     }
     for cv in (si.technical_view.trend, si.technical_view.momentum,
                si.technical_view.volatility, si.technical_view.levels):
-        # Indicator names like 'rsi', 'macd', 'atr', 'swing_high', 'sma_20'
-        vocab.update(k.lower() for k in cv.indicators.keys() if len(k) > 3)
-        vocab.update(k.lower() for k in cv.derived.keys() if len(k) > 3)
+        # Indicator names like 'rsi', 'macd', 'atr', 'swing_high', 'sma_20'.
+        # >= 3 (not > 3) because RSI/ATR/ADX/SMA/EMA are exactly 3 chars —
+        # dropping them broke citation matching for every short-named
+        # indicator. See _tokenize() docstring for the full story.
+        vocab.update(k.lower() for k in cv.indicators.keys() if len(k) >= 3)
+        vocab.update(k.lower() for k in cv.derived.keys() if len(k) >= 3)
         if cv.strength:
             vocab.update(_tokenize(cv.strength))
         for line in cv.rationale:

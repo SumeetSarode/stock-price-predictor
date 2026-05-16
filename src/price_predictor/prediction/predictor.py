@@ -161,6 +161,11 @@ def _degraded_impact(ticker: str, error_msg: str) -> ImpactAssessment:
     )
 
 
+# Total attempts the synthesizer gets before we surface the guardrail
+# failure to the caller. 1 initial + 2 retries with feedback. See
+# `synthesize_with_guardrails` docstring for rationale.
+_MAX_GUARDRAIL_ATTEMPTS = 3
+
 # ─────────────────────────────────────────────────────────────
 # Errors
 # ─────────────────────────────────────────────────────────────
@@ -295,46 +300,57 @@ async def run_synthesizer_agent(
 
 
 async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
-    """Run the synthesizer + guardrails with one retry on hallucination.
+    """Run the synthesizer + guardrails with up to 2 retries on hallucination.
 
     Flow:
       1. Call synthesizer.
       2. validate_all(prediction, si).
-      3. If HallucinationError, call synthesizer ONCE more with the
-         error fed back into the prompt, then re-validate.
-      4. If second attempt also fails, raise PredictionError wrapping
-         the second HallucinationError.
+      3. If HallucinationError, retry up to _MAX_GUARDRAIL_RETRIES more
+         times, each time feeding the most recent error back into the
+         prompt as actionable feedback.
+      4. If all attempts fail, raise PredictionError wrapping the last
+         HallucinationError.
 
-    Why one-shot: two failures in a row almost always means the input
-    is genuinely ambiguous. More retries waste tokens without improving
-    outcomes.
+    Why up to 3 total attempts (was 2): empirically, the synthesizer
+    LLM's outputs vary stochastically across attempts. With a single
+    retry, predictions that COULD pass guardrails on attempt 3 (because
+    1 and 2 happened to hit boundary edge-cases on entry-zone rounding
+    or LLM stubbornness on direction) were being thrown out. 3 attempts
+    is the smallest budget that empirically covers the realistic LLM
+    sampling variance without burning excessive tokens on genuinely
+    ambiguous inputs.
 
     Raises:
-        PredictionError: synth failed twice (with last guardrail msg as
+        PredictionError: every retry failed (with last guardrail msg as
             cause), OR synth raised PredictionError directly.
     """
-    prediction = await run_synthesizer_agent(si)
-    try:
-        validate_all(prediction, si)
-        return prediction
-    except HallucinationError as e:
-        # Capture for retry feedback - except-as is scoped to the
-        # except block in Py3, so we re-bind explicitly.
-        first_error = e
-        logger.warning(
-            f"guardrail tripped on first synth attempt: {e}. Retrying once."
-        )
+    feedback: str | None = None
+    last_error: HallucinationError | None = None
 
-    # Retry with feedback. If THIS one fails grounding too, give up.
-    prediction = await run_synthesizer_agent(si, feedback=str(first_error))
-    try:
-        validate_all(prediction, si)
-        logger.info("retry succeeded after guardrail feedback")
-        return prediction
-    except HallucinationError as e2:
-        raise PredictionError(
-            f"Synthesizer failed guardrails twice. Last error: {e2}"
-        ) from e2
+    for attempt in range(1, _MAX_GUARDRAIL_ATTEMPTS + 1):
+        prediction = await run_synthesizer_agent(si, feedback=feedback)
+        try:
+            validate_all(prediction, si)
+            if attempt > 1:
+                logger.info(
+                    f"retry succeeded on attempt {attempt} after guardrail feedback"
+                )
+            return prediction
+        except HallucinationError as e:
+            last_error = e
+            feedback = str(e)
+            if attempt < _MAX_GUARDRAIL_ATTEMPTS:
+                logger.warning(
+                    f"guardrail tripped on attempt {attempt}: {e}. "
+                    f"Retrying (attempt {attempt + 1}/{_MAX_GUARDRAIL_ATTEMPTS})."
+                )
+
+    # All attempts exhausted.
+    assert last_error is not None  # loop body always sets it on the failure path
+    raise PredictionError(
+        f"Synthesizer failed guardrails {_MAX_GUARDRAIL_ATTEMPTS}×. "
+        f"Last error: {last_error}"
+    ) from last_error
 
 
 # ─────────────────────────────────────────────────────────────

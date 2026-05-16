@@ -29,7 +29,7 @@ from price_predictor.prediction import (
     validate_consistency,
     validate_grounding,
 )
-from price_predictor.prediction.guardrails import _build_input_vocabulary
+from price_predictor.prediction.guardrails import _build_input_vocabulary, _tokenize
 from price_predictor.prediction.horizon_constants import (
     confidence_cap,
     stop_atr_range,
@@ -268,6 +268,70 @@ class TestValidateCitations:
 
 
 # ─────────────────────────────────────────────────────────────
+# 2b. Tier 2 regression tests — the tokenizer/vocab "informative tokens" bug.
+#
+# The original tokenizer had three bugs that combined to reject
+# perfectly-grounded LLM citations:
+#   - alpha tokens filtered by `len > 3` dropped RSI, ATR, ADX, SMA, EMA
+#   - regex stripped all numerics, dropping the actual indicator values
+#   - "above" / "below" / "near" / "high" / "low" were stopwords
+# Together: a citation like "RSI 39.6 is below 50" tokenized to set()
+# → "no informative tokens" → retry → same failure → PredictionError.
+# These tests pin the fix so the bug class cannot regress.
+# ─────────────────────────────────────────────────────────────
+class TestTokenizerRegression:
+    """Pin the tokenizer/vocab fixes for short indicator names + numerics."""
+
+    def test_rsi_three_char_token_survives_filter(self):
+        """`rsi` is exactly 3 chars; old `len > 3` filter dropped it."""
+        assert "rsi" in _tokenize("RSI is bullish")
+
+    def test_atr_three_char_token_survives_filter(self):
+        assert "atr" in _tokenize("ATR widening")
+
+    def test_decimal_numeric_is_kept(self):
+        """\"39.6\" is the strongest grounding signal; must tokenize."""
+        tokens = _tokenize("RSI 39.6 is below 50")
+        assert "39.6" in tokens
+
+    def test_three_digit_numeric_is_kept(self):
+        assert "200" in _tokenize("SMA 200 reclaimed")
+
+    def test_short_generic_numeric_is_dropped(self):
+        """"50" matches everywhere — too generic to count as evidence."""
+        assert "50" not in _tokenize("price near 50")
+
+    def test_below_is_no_longer_stopword(self):
+        """\"below\" is core TA vocabulary, not filler."""
+        assert "below" in _tokenize("close below sma_50")
+
+    def test_above_is_no_longer_stopword(self):
+        assert "above" in _tokenize("close above resistance")
+
+    def test_pure_filler_still_dropped(self):
+        assert _tokenize("the and a or of in on") == set()
+
+    def test_rsi_citation_passes_validate_citations(self):
+        """End-to-end: the exact LLM output that triggered prod failure."""
+        si = _make_si()
+        # Inject a rationale containing "rsi" so the LLM's citation is grounded
+        # via the input vocabulary (matches how real cluster outputs look).
+        pred = _make_pred(contributing=("RSI 39.6 is below 50: bearish bias",))
+        validate_citations(pred, si)  # MUST NOT raise
+
+    def test_atr_citation_passes_validate_citations(self):
+        si = _make_si()
+        pred = _make_pred(contributing=("ATR widening above 20-day average",))
+        validate_citations(pred, si)  # MUST NOT raise
+
+    def test_indicator_key_rsi_in_vocabulary(self):
+        """Vocab builder must include short indicator names too."""
+        vocab = _build_input_vocabulary(_make_si())
+        assert "rsi" in vocab
+        assert "atr" in vocab
+
+
+# ─────────────────────────────────────────────────────────────
 # 3. Tier 3 — consistency
 # ─────────────────────────────────────────────────────────────
 class TestValidateConsistency:
@@ -367,13 +431,33 @@ class TestSynthesizeWithGuardrails:
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
            new_callable=AsyncMock)
-    def test_two_failures_raise_prediction_error(self, mock_synth):
-        bad = _make_pred(target_value=1599.0)
-        mock_synth.side_effect = [bad, bad]
+    def test_third_attempt_can_still_succeed(self, mock_synth):
+        """Budget is now 3 total attempts (1 initial + 2 retries).
 
-        with pytest.raises(PredictionError, match="twice"):
+        Pinned because the SBIN.NS prod failure was caused by the LLM's
+        stochastic sampling: attempts 1+3 fail on boundary rounding,
+        attempt 2 passes. With only 2 attempts, the diagnostic showed
+        we were unlucky enough to hit two failures back-to-back.
+        """
+        bad = _make_pred(target_value=1599.0)
+        good = _make_pred()
+        mock_synth.side_effect = [bad, bad, good]
+
+        result = asyncio.run(synthesize_with_guardrails(_make_si()))
+        assert result is good
+        assert mock_synth.await_count == 3
+        # Last call must include feedback from the prior failure
+        assert mock_synth.call_args_list[2].kwargs.get("feedback") is not None
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_three_failures_raise_prediction_error(self, mock_synth):
+        bad = _make_pred(target_value=1599.0)
+        mock_synth.side_effect = [bad, bad, bad]
+
+        with pytest.raises(PredictionError, match="3×"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert mock_synth.await_count == 2  # tried twice, then gave up
+        assert mock_synth.await_count == 3  # tried 3×, then gave up
 
 
 # ────────────────────────────────────────────

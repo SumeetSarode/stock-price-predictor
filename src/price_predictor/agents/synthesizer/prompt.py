@@ -242,6 +242,16 @@ How to read this:
                    |entry_high − close| / close ≤ this.
   • conf cap    : confidence MUST be ≤ this value. NO exceptions.
 
+LEAVE A BUFFER. These are CAPS, not targets. Your numbers go through
+a float-precision validator; aiming exactly at a cap and missing by
+1 paisa due to 2-decimal rounding is the most common failure mode.
+Rule of thumb: use ≈80% of any cap.
+  • daily entry zone: aim for ±0.4% (not ±0.5%)
+  • weekly stop:      aim for ≈1.2×ATR (not 1.5×ATR)
+  • monthly conf:     aim for ≤0.70 (not 0.75)
+The validator allows tiny rounding slack, but "the cap minus a buffer"
+is always safer than "the cap exactly."
+
 Why per-horizon: longer horizons are inherently more uncertain (more
 events can happen between as_of and target_datetime). Wider stops
 tolerate the extra noise; lower confidence caps reflect that nobody
