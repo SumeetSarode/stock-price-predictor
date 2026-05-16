@@ -242,11 +242,15 @@ class TestModelIncompatibility:
     """Some 400s aren't bugs in OUR code — they're model-specific quirks.
 
     Examples (substring → cause):
-        - 'reasoning_content' : gpt-oss-120b leaks reasoning into history,
-                                Groq rejects on next turn.
-        - 'tool_use_failed'   : llama-3.3 emits XML tool calls, not JSON.
-        - 'is unsupported'    : feature-not-supported on this Groq model.
-        - 'does not support'  : feature-not-supported elsewhere.
+        - 'reasoning_content'    : gpt-oss-120b leaks reasoning into history,
+                                   Groq rejects on next turn.
+        - 'tool_use_failed'      : llama-3.3 emits XML tool calls, not JSON.
+        - 'is unsupported'       : feature-not-supported on this Groq model.
+        - 'does not support'     : feature-not-supported elsewhere.
+        - 'json_validate_failed' : Groq's structured-output validator rejects
+                                   the model's JSON (e.g. llama-3.x emitted
+                                   '"entry_zone": ["2254.942273.06"]' — one
+                                   string with both floats smashed together).
 
     These should fall back (next model may handle it) with a LONG cooldown
     (this model fundamentally can't help, no point retrying soon).
@@ -258,6 +262,12 @@ class TestModelIncompatibility:
             "tool_use_failed: model emitted invalid xml",
             "feature is unsupported on this model",
             "this model does not support tool calling",
+            # Regression: the exact Groq error shape from the TCS.NS prod
+            # failure on 2026-05-16. Llama-on-Groq smashed the two
+            # entry_zone floats into a single string with no comma.
+            "GroqException - {\"error\":{\"message\":\"Generated JSON does "
+            "not match the expected schema.\",\"type\":\"invalid_request_"
+            "error\",\"code\":\"json_validate_failed\"}}",
         ]:
             err = BadRequestError(substring, model="x", llm_provider="groq")
             assert _is_model_incompatibility(err), f"should detect: {substring!r}"

@@ -93,6 +93,13 @@ MODEL_INCOMPATIBILITY_PATTERNS: tuple[str, ...] = (
     "tool_use_failed",     # llama-3.3 emits XML tool calls; Groq rejects
     "is unsupported",      # generic Groq "feature not supported on this model"
     "does not support",    # generic OpenAI/Gemini "this model lacks feature X"
+    "json_validate_failed",  # Groq's structured-output validator rejects the
+                             # model's JSON (seen: llama-3.x emitted
+                             # "entry_zone": ["2254.942273.06"] -- one string
+                             # with both floats smashed together, missing the
+                             # comma between array elements). Recovery: fall
+                             # back to Gemini, which has better JSON
+                             # discipline for nested numeric arrays.
 )
 
 # Cooldown durations
