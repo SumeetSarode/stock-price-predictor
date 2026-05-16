@@ -1,15 +1,17 @@
-"""Price levels: swing high/low, 52-week high/low, classic pivot points.
+"""Price levels: swing high/low, 52-week high/low, classic pivot points,
+and VWAP (rolling + optional anchored).
 
 Levels are PRICES, not scores. The signal layer in the tool turns
 proximity-to-level into 'near_support', 'near_resistance', 'breakout', etc.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
 from price_predictor.analysis.trend import _safe_float
+from price_predictor.analysis.vwap import DEFAULT_ROLLING_WINDOW, vwap_snapshot
 
 # 52 calendar weeks. We slice the dataframe by date (not by row count) so
 # that NSE holidays in the lookback period are handled automatically:
@@ -135,16 +137,31 @@ def classic_pivots(df: pd.DataFrame) -> dict[str, float | None]:
     }
 
 
-def levels_snapshot(df: pd.DataFrame, swing_lookback: int = 30) -> dict:
+def levels_snapshot(
+    df: pd.DataFrame,
+    swing_lookback: int = 30,
+    *,
+    vwap_anchor: date | datetime | pd.Timestamp | None = None,
+    vwap_window: int = DEFAULT_ROLLING_WINDOW,
+) -> dict:
     """One-shot levels snapshot for the get_levels tool.
 
     Adds derived 'distance from current price' for each level so the signal
     layer can answer 'near support?', 'near resistance?'.
+
+    Args:
+        df: OHLCV bars.
+        swing_lookback: Bars for the local swing high/low window.
+        vwap_anchor: Optional anchor date for an anchored VWAP. None = skip.
+        vwap_window: Window for the rolling VWAP (default 20 ~= 1 month).
     """
     close = _safe_float(df["close"].iloc[-1]) if not df.empty else None
     swing = swing_high_low(df, lookback=swing_lookback)
     fifty_two = fifty_two_week_high_low(df)
     pivots = classic_pivots(df)
+    vwap = vwap_snapshot(
+        df, anchor_date=vwap_anchor, rolling_window=vwap_window,
+    )
 
     def _pct_distance(level: float | None) -> float | None:
         if close is None or level is None or close == 0:
@@ -156,10 +173,13 @@ def levels_snapshot(df: pd.DataFrame, swing_lookback: int = 30) -> dict:
         "swing": swing,
         "fifty_two_week": fifty_two,
         "pivots": pivots,
+        "vwap": vwap,
         "distance_pct": {
-            "swing_high":   _pct_distance(swing["swing_high"]),
-            "swing_low":    _pct_distance(swing["swing_low"]),
-            "high_52w":     _pct_distance(fifty_two["high_52w"]),
-            "low_52w":      _pct_distance(fifty_two["low_52w"]),
+            "swing_high":    _pct_distance(swing["swing_high"]),
+            "swing_low":     _pct_distance(swing["swing_low"]),
+            "high_52w":      _pct_distance(fifty_two["high_52w"]),
+            "low_52w":       _pct_distance(fifty_two["low_52w"]),
+            "vwap_rolling":  _pct_distance(vwap["vwap_rolling"]),
+            "vwap_anchored": _pct_distance(vwap["vwap_anchored"]),
         },
     }

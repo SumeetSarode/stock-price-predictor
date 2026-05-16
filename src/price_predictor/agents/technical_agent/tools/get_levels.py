@@ -88,6 +88,8 @@ async def get_levels(
                   "swing_high": float, "swing_low": float,
                   "high_52w": float, "low_52w": float,
                   "pp": float, "r1": float, "r2": float, "s1": float, "s2": float,
+                  "vwap_rolling": float,    -- 20-day rolling VWAP
+                  "vwap_anchored": float | None,   -- anchored VWAP (currently unused; reserved)
                   "distance_pct_swing_high": float, ...
               },
               "derived": {
@@ -195,6 +197,7 @@ async def get_levels(
     # ── Flatten indicators for the LLM ─────────────────────────
     pivots = snapshot["pivots"]
     distances = snapshot["distance_pct"]
+    vwap = snapshot["vwap"]
     indicators = {
         "close": snapshot["close"],
         "swing_high": snapshot["swing"]["swing_high"],
@@ -206,10 +209,14 @@ async def get_levels(
         "r2": pivots.get("r2"),
         "s1": pivots.get("s1"),
         "s2": pivots.get("s2"),
+        "vwap_rolling": vwap.get("vwap_rolling"),
+        "vwap_anchored": vwap.get("vwap_anchored"),
         "distance_pct_swing_high": distances.get("swing_high"),
         "distance_pct_swing_low": distances.get("swing_low"),
         "distance_pct_52w_high": distances.get("high_52w"),
         "distance_pct_52w_low": distances.get("low_52w"),
+        "distance_pct_vwap_rolling": distances.get("vwap_rolling"),
+        "distance_pct_vwap_anchored": distances.get("vwap_anchored"),
     }
 
     # ── Derived: breakout state + chart patterns ───────────────

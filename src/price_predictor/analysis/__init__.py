@@ -7,7 +7,8 @@ PACKAGE LAYOUT
     ├── trend.py                -- SMAs, EMA-20, ADX
     ├── momentum.py             -- RSI, MACD, Stochastic, OBV
     ├── volatility.py           -- ATR, Bollinger Bands, bollinger_squeeze + ttm_squeeze
-    ├── levels.py               -- swing high/low, 52w high/low, pivots
+    ├── levels.py               -- swing high/low, 52w high/low, pivots, VWAP
+    ├── vwap.py                 -- anchored + rolling VWAP (used by levels)
     ├── candlestick_patterns.py -- TA-Lib full 61-pattern dispatcher
     └── chart_patterns.py       -- LMW chart patterns (HS, double top/bot,
                                    triangles, broadening, rectangles)

@@ -110,3 +110,26 @@ class TestLevelsSnapshot:
         # Even with short history, swing_high uses what it can
         assert snap["close"] is not None
         assert snap["swing"]["swing_high"] is not None
+
+    def test_snapshot_includes_vwap_block(self):
+        df = linear_uptrend(n=100, start=100, slope=1)
+        snap = levels_snapshot(df, swing_lookback=30)
+        assert "vwap" in snap
+        assert "vwap_rolling" in snap["vwap"]
+        # 100 bars >> rolling default 20, so VWAP must be populated
+        assert snap["vwap"]["vwap_rolling"] is not None
+        # Anchor not provided -> anchored stays None
+        assert snap["vwap"]["vwap_anchored"] is None
+        # And the per-level distance % is exposed for both VWAP variants
+        assert "vwap_rolling" in snap["distance_pct"]
+        assert "vwap_anchored" in snap["distance_pct"]
+        assert snap["distance_pct"]["vwap_rolling"] is not None
+        assert snap["distance_pct"]["vwap_anchored"] is None
+
+    def test_snapshot_with_anchor_populates_anchored_vwap(self):
+        df = linear_uptrend(n=100, start=100, slope=1)
+        anchor = df.index[50].date()
+        snap = levels_snapshot(df, swing_lookback=30, vwap_anchor=anchor)
+        assert snap["vwap"]["vwap_anchored"] is not None
+        assert snap["vwap"]["anchor_date"] == anchor.isoformat()
+        assert snap["distance_pct"]["vwap_anchored"] is not None
