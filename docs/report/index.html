@@ -2,244 +2,452 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>How We Predict — Walkthrough Home</title>
+<title>How We Predict — Walkthrough</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="assets/styles.css">
+<style>
+  /* Hero gradient + spark dot pattern overlay */
+  .hero {
+    background:
+      radial-gradient(circle at 20% 30%, rgba(255,194,32,0.15) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(255,194,32,0.10) 0%, transparent 40%),
+      linear-gradient(135deg, #003eb3 0%, #0053e2 50%, #1e6dff 100%);
+    color: white;
+  }
+  .hero-dots {
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .feature-card {
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px -10px rgba(0,83,226,0.25);
+    border-color: #0053e2;
+  }
+  .stat-num { font-variant-numeric: tabular-nums; }
+  .grad-text {
+    background: linear-gradient(90deg, #ffc220 0%, #ffe18a 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .divider-wave {
+    height: 24px;
+    background: linear-gradient(180deg, #f8fafc 0%, transparent 100%);
+  }
+  /* Smooth icon strokes */
+  .icon { width: 28px; height: 28px; stroke-width: 1.6; stroke: currentColor;
+          fill: none; stroke-linecap: round; stroke-linejoin: round; }
+</style>
 </head>
-<body class="bg-white">
+<body class="bg-white text-gray-900">
 
-<div class="flex min-h-screen">
-  <!-- Sidebar -->
-  <aside id="site-nav" class="hidden lg:block w-64 shrink-0 border-r border-gray-200 p-5 bg-gray-50"></aside>
+<!-- ─── Top nav bar (compact, contrasts on hero) ─────────────── -->
+<nav class="absolute top-0 left-0 right-0 z-10">
+  <div class="max-w-6xl mx-auto flex items-center justify-between px-6 lg:px-10 py-5">
+    <div class="flex items-center gap-2 text-white">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 12h3l3-9 4 18 3-9h5"/></svg>
+      <span class="font-bold tracking-tight">How we predict</span>
+    </div>
+    <div class="hidden md:flex items-center gap-6 text-sm">
+      <a href="#sections" class="text-white/80 hover:text-white">Sections</a>
+      <a href="#how" class="text-white/80 hover:text-white">How it works</a>
+      <a href="#sample" class="text-white/80 hover:text-white">Sample output</a>
+      <a href="all_in_one.html" class="bg-[#ffc220] text-[#1a1a1a] px-3 py-1.5 rounded font-semibold hover:bg-[#ffd14d]">One-page version</a>
+    </div>
+  </div>
+</nav>
 
-  <!-- Main -->
-  <main class="flex-1 max-w-4xl mx-auto px-6 lg:px-10 py-8">
+<!-- ─── HERO ──────────────────────────────────────────────────── -->
+<header class="hero relative overflow-hidden">
+  <div class="hero-dots absolute inset-0 opacity-50"></div>
+  <div class="relative max-w-6xl mx-auto px-6 lg:px-10 pt-28 pb-24 lg:pt-36 lg:pb-32">
+    <div class="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-[#ffc220] font-semibold mb-4 bg-white/5 border border-white/10 rounded-full px-3 py-1">
+      <span class="inline-block w-1.5 h-1.5 bg-[#ffc220] rounded-full"></span>
+      Walkthrough · plain English · zero code
+    </div>
+    <h1 class="text-5xl lg:text-7xl font-bold tracking-tight leading-tight">
+      How we make<br>
+      <span class="grad-text">stock predictions.</span>
+    </h1>
+    <p class="mt-6 text-lg lg:text-xl text-white/85 max-w-2xl leading-relaxed">
+      For one NSE-listed stock, at four time horizons, we predict direction, entry, target,
+      stop-loss, and confidence — using the math <em>you</em> already know and an LLM that reads
+      the news <em>you'd</em> read.
+    </p>
 
-    <header class="mb-10">
-      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold">Prediction Walkthrough</div>
-      <h1 class="text-4xl font-bold mt-1 mb-3">How we make stock predictions</h1>
-      <p class="text-lg text-gray-700">A complete, plain-English walkthrough of the data we read,
-      the indicators we compute, the patterns we hunt for, and the way we combine all of it
-      into a single, time-boxed call for one NSE-listed stock.</p>
-      <p class="mt-3 text-sm text-gray-500">No code, no jargon-without-explanation. Aimed at someone who
-      knows technical analysis and the news cycle, but does not read software.</p>
-      <p class="mt-4"><a href="all_in_one.html" class="inline-block bg-[#0053e2] text-white px-4 py-2 rounded font-semibold text-sm hover:bg-[#003eb3]">→ Or read everything on one scrollable page</a></p>
-    </header>
+    <div class="mt-10 flex flex-wrap gap-4">
+      <a href="#sections" class="inline-flex items-center gap-2 bg-white text-[#0053e2] px-6 py-3 rounded-lg font-semibold shadow-lg hover:bg-[#ffc220] hover:text-[#1a1a1a] transition">
+        Start reading
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <a href="all_in_one.html" class="inline-flex items-center gap-2 border-2 border-white/30 text-white px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Read on one page
+      </a>
+    </div>
 
-    <!-- TL;DR card -->
-    <section class="bg-blue-50 border border-blue-100 rounded-lg p-6 mb-10">
-      <h2 class="text-xl font-semibold text-[#0053e2] mb-3">📌 Five-line summary</h2>
-      <ol class="list-decimal pl-5 space-y-1 text-gray-800">
-        <li>For one stock at a time, we ask: <em>where is price likely to go over the next 1, 5, 10, and 21 trading days?</em></li>
-        <li>We answer with five numbers per horizon: <strong>direction</strong>, <strong>entry zone</strong>,
-            <strong>target</strong>, <strong>stop-loss</strong>, and <strong>confidence</strong>.</li>
-        <li>The answer is built from two parallel reads: a <strong>technical view</strong>
-            (chart math) and a <strong>news view</strong> (LLM reading actual headlines &amp; filings).</li>
-        <li>Both reads are passed to a <strong>synthesizer</strong> that weighs them differently per horizon
-            (news matters more daily, trend matters more monthly) and writes the final prediction.</li>
-        <li>Before shipping, every prediction passes four <strong>guardrail checks</strong>
-            (grounding, citation, internal consistency, calibration). One retry, then abort.</li>
-      </ol>
-    </section>
-
-    <!-- Architecture diagram (inline SVG, no external assets) -->
-    <section class="mb-10">
-      <h2 class="text-2xl font-bold mb-4">The two-phase pipeline at a glance</h2>
-      <div class="border border-gray-200 rounded-lg p-4 bg-white">
-        <svg viewBox="0 0 760 360" class="w-full h-auto" role="img" aria-label="Two-phase prediction pipeline">
-          <!-- Phase 1 box -->
-          <rect x="20" y="20" width="340" height="320" rx="10" fill="#f0f7ff" stroke="#0053e2" stroke-width="1.5"/>
-          <text x="190" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#0053e2">Phase 1 — Gather (parallel)</text>
-          <text x="190" y="64" text-anchor="middle" font-size="11" fill="#5e5e5e">Horizon-agnostic: one read serves all four horizons</text>
-
-          <!-- Tech view box -->
-          <rect x="40" y="90" width="135" height="220" rx="6" fill="#ffffff" stroke="#94a3b8"/>
-          <text x="107" y="112" text-anchor="middle" font-size="12" font-weight="600">Technical view</text>
-          <text x="107" y="138" text-anchor="middle" font-size="10" fill="#475569">~520 daily bars</text>
-          <text x="107" y="158" text-anchor="middle" font-size="10" fill="#475569">↓</text>
-          <text x="107" y="178" text-anchor="middle" font-size="10" fill="#475569">Trend signals</text>
-          <text x="107" y="194" text-anchor="middle" font-size="10" fill="#475569">Momentum signals</text>
-          <text x="107" y="210" text-anchor="middle" font-size="10" fill="#475569">Volatility signals</text>
-          <text x="107" y="226" text-anchor="middle" font-size="10" fill="#475569">Levels (S/R, VWAP)</text>
-          <text x="107" y="246" text-anchor="middle" font-size="10" fill="#475569">Candlestick patterns</text>
-          <text x="107" y="262" text-anchor="middle" font-size="10" fill="#475569">Chart patterns</text>
-          <text x="107" y="288" text-anchor="middle" font-size="10" font-style="italic" fill="#0053e2">4 cluster verdicts</text>
-
-          <!-- News view box -->
-          <rect x="205" y="90" width="135" height="220" rx="6" fill="#ffffff" stroke="#94a3b8"/>
-          <text x="272" y="112" text-anchor="middle" font-size="12" font-weight="600">News impact</text>
-          <text x="272" y="138" text-anchor="middle" font-size="10" fill="#475569">GDELT headlines</text>
-          <text x="272" y="154" text-anchor="middle" font-size="10" fill="#475569">+ article bodies</text>
-          <text x="272" y="170" text-anchor="middle" font-size="10" fill="#475569">+ NSE filings</text>
-          <text x="272" y="186" text-anchor="middle" font-size="10" fill="#475569">+ analyst estimates</text>
-          <text x="272" y="202" text-anchor="middle" font-size="10" fill="#475569">+ recent price action</text>
-          <text x="272" y="228" text-anchor="middle" font-size="10" fill="#475569">read by an LLM</text>
-          <text x="272" y="246" text-anchor="middle" font-size="10" fill="#475569">(materiality filter,</text>
-          <text x="272" y="260" text-anchor="middle" font-size="10" fill="#475569">expectation framing)</text>
-          <text x="272" y="288" text-anchor="middle" font-size="10" font-style="italic" fill="#0053e2">Direction + magnitude</text>
-        </svg>
-
-        <svg viewBox="0 0 760 360" class="w-full h-auto mt-2" role="img" aria-label="Phase 2 fan-out">
-          <!-- Arrow -->
-          <line x1="20" y1="40" x2="700" y2="40" stroke="#0053e2" stroke-width="2" marker-end="url(#arr)"/>
-          <defs>
-            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0053e2"/>
-            </marker>
-          </defs>
-          <text x="360" y="30" text-anchor="middle" font-size="13" font-weight="600" fill="#0053e2">Phase 2 — Synthesize (parallel fan-out)</text>
-
-          <!-- Four horizon cards -->
-          <g font-size="11" font-weight="600">
-            <rect x="20"  y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
-            <text x="105" y="92"  text-anchor="middle" fill="#0053e2">DAILY • 1 bar</text>
-            <text x="105" y="112" text-anchor="middle" fill="#475569" font-weight="400">News weight 65%</text>
-            <text x="105" y="128" text-anchor="middle" fill="#475569" font-weight="400">Tech weight 35%</text>
-            <text x="105" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.5–1.0×ATR</text>
-            <text x="105" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 0.75–1.5×ATR</text>
-            <text x="105" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.90</text>
-
-            <rect x="200" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
-            <text x="285" y="92"  text-anchor="middle" fill="#0053e2">WEEKLY • 5 bars</text>
-            <text x="285" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 50% / Tech 50%</text>
-            <text x="285" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.7–1.5×ATR</text>
-            <text x="285" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.0–2.0×ATR</text>
-            <text x="285" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.85</text>
-
-            <rect x="380" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
-            <text x="465" y="92"  text-anchor="middle" fill="#0053e2">BIWEEKLY • 10 bars</text>
-            <text x="465" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 40% / Tech 60%</text>
-            <text x="465" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.0–2.0×ATR</text>
-            <text x="465" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.5–3.0×ATR</text>
-            <text x="465" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.80</text>
-
-            <rect x="560" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
-            <text x="645" y="92"  text-anchor="middle" fill="#0053e2">MONTHLY • 21 bars</text>
-            <text x="645" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 30% / Tech 70%</text>
-            <text x="645" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.5–2.5×ATR</text>
-            <text x="645" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 2.0–4.0×ATR</text>
-            <text x="645" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.75</text>
-          </g>
-        </svg>
+    <!-- Quick stat row -->
+    <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl">
+      <div class="bg-white/10 backdrop-blur border border-white/15 rounded-xl p-5">
+        <div class="text-3xl lg:text-4xl font-bold stat-num text-[#ffc220]">4</div>
+        <div class="text-sm text-white/80 mt-1">time horizons<br>(daily → monthly)</div>
       </div>
-      <p class="text-sm text-gray-600 mt-3">
-        Same indicators, same news read, same RSI value — fed into four parallel
-        synthesizer calls that each produce one horizon's prediction. The synthesizer
-        is the same LLM each time; only the prompt's horizon label, the per-horizon
-        weights, and the per-horizon ATR bands change.
+      <div class="bg-white/10 backdrop-blur border border-white/15 rounded-xl p-5">
+        <div class="text-3xl lg:text-4xl font-bold stat-num text-[#ffc220]">61</div>
+        <div class="text-sm text-white/80 mt-1">candlestick patterns<br>from TA-Lib</div>
+      </div>
+      <div class="bg-white/10 backdrop-blur border border-white/15 rounded-xl p-5">
+        <div class="text-3xl lg:text-4xl font-bold stat-num text-[#ffc220]">4</div>
+        <div class="text-sm text-white/80 mt-1">indicator clusters<br>per ticker</div>
+      </div>
+      <div class="bg-white/10 backdrop-blur border border-white/15 rounded-xl p-5">
+        <div class="text-3xl lg:text-4xl font-bold stat-num text-[#ffc220]">4</div>
+        <div class="text-sm text-white/80 mt-1">quality-control tiers<br>before publish</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Curved bottom edge -->
+  <svg class="block w-full" viewBox="0 0 1440 60" preserveAspectRatio="none" style="height:60px;">
+    <path d="M0,60 C480,0 960,0 1440,60 L1440,60 L0,60 Z" fill="white"/>
+  </svg>
+</header>
+
+<!-- ─── HOW IT WORKS — 3 steps ────────────────────────────────── -->
+<section id="how" class="py-16 lg:py-24">
+  <div class="max-w-6xl mx-auto px-6 lg:px-10">
+    <div class="text-center mb-12">
+      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold mb-2">How it works</div>
+      <h2 class="text-3xl lg:text-4xl font-bold tracking-tight">Three steps. Same path every time.</h2>
+      <p class="mt-3 text-gray-600 max-w-2xl mx-auto">
+        Two parallel reads (technical + news) feed a synthesizer that writes the call,
+        which is then checked four times before it ships.
       </p>
-    </section>
+    </div>
 
-    <!-- Navigation cards -->
-    <section class="mb-10">
-      <h2 class="text-2xl font-bold mb-4">Where to go next</h2>
-      <div class="grid sm:grid-cols-2 gap-4">
+    <div class="grid md:grid-cols-3 gap-6">
+      <!-- Step 1 -->
+      <div class="relative bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="absolute -top-4 -left-4 w-12 h-12 bg-[#0053e2] text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">1</div>
+        <svg class="icon text-[#0053e2] mt-2 mb-3" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-3 4 4 6-7"/></svg>
+        <h3 class="font-bold text-lg">Gather</h3>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">Pull ~520 daily bars, compute every indicator,
+        candlestick pattern, and chart pattern in parallel with an LLM reading actual news and
+        filings.</p>
+      </div>
 
-        <a href="data_sources.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 1</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Data we ingest →</div>
-          <p class="text-sm text-gray-600 mt-2">Where prices come from (and the fallback chain).
-          Where news comes from (GDELT). Filings, estimates, recent price action.</p>
-        </a>
+      <!-- Step 2 -->
+      <div class="relative bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="absolute -top-4 -left-4 w-12 h-12 bg-[#0053e2] text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">2</div>
+        <svg class="icon text-[#0053e2] mt-2 mb-3" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <h3 class="font-bold text-lg">Synthesize</h3>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">For each of 4 horizons in parallel:
+        weight tech vs. news (news wins daily, tech wins monthly), pick direction, place entry/target/stop
+        anchored to real levels, compute risk-reward.</p>
+      </div>
 
-        <a href="indicators.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 2</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Technical indicators →</div>
-          <p class="text-sm text-gray-600 mt-2">All four clusters: trend (SMA/EMA/ADX),
-          momentum (RSI/MACD/Stoch/OBV), volatility (ATR/Bollinger/squeeze), levels (pivots, 52w, VWAP).</p>
-        </a>
+      <!-- Step 3 -->
+      <div class="relative bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="absolute -top-4 -left-4 w-12 h-12 bg-[#0053e2] text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">3</div>
+        <svg class="icon text-[#0053e2] mt-2 mb-3" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 5-3.5 9-9 9s-9-4-9-9 4-9 9-9c1.5 0 3 .4 4.3 1"/></svg>
+        <h3 class="font-bold text-lg">Verify &amp; publish</h3>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">Four guardrail tiers (grounding,
+        citation, consistency, calibration). One retry on failure. Then immutable JSON to disk
+        for audit and grading.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-        <a href="crossovers.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 3</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Crossovers →</div>
-          <p class="text-sm text-gray-600 mt-2">Golden Cross, Death Cross, EMA-9/21, MACD cross — what we detect,
-          how we vote them, and how much we actually trust them.</p>
-        </a>
+<div class="divider-wave"></div>
 
-        <a href="candlesticks.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 4</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Candlestick patterns →</div>
-          <p class="text-sm text-gray-600 mt-2">All 61 patterns from the TA-Lib catalogue, grouped by
-          bars and direction. Plus the "near support/resistance" gating filter.</p>
-        </a>
+<!-- ─── SECTIONS CATALOGUE — feature cards ──────────────────── -->
+<section id="sections" class="bg-gray-50 py-16 lg:py-24">
+  <div class="max-w-6xl mx-auto px-6 lg:px-10">
+    <div class="text-center mb-12">
+      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold mb-2">Read in any order</div>
+      <h2 class="text-3xl lg:text-4xl font-bold tracking-tight">Pick a section</h2>
+      <p class="mt-3 text-gray-600 max-w-2xl mx-auto">
+        Each page stands alone. Start with what interests you; the cross-links will pull you to related material.
+      </p>
+    </div>
 
-        <a href="chart_patterns.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 5</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Chart patterns →</div>
-          <p class="text-sm text-gray-600 mt-2">Head &amp; shoulders, double tops/bottoms, triangles, broadening,
-          rectangles — geometric tolerances from Lo–Mamaysky–Wang (2000).</p>
-        </a>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
 
-        <a href="news.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 6</div>
-          <div class="text-lg font-semibold text-[#0053e2]">News analysis →</div>
-          <p class="text-sm text-gray-600 mt-2">How an LLM reads the news, filters materiality,
-          frames expectations against estimates, and emits a structured impact assessment.</p>
-        </a>
+      <a href="data_sources.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Inputs</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Data we ingest</h3>
+        <p class="text-sm text-gray-600 mt-2">Price fallback chain, GDELT news, NSE filings, analyst estimates.</p>
+      </a>
 
-        <a href="synthesis.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 7</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Putting it together →</div>
-          <p class="text-sm text-gray-600 mt-2">Per-horizon weighting, target placement, stop placement,
-          confidence math, the NEUTRAL escape hatch.</p>
-        </a>
+      <a href="indicators.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Math (deterministic)</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Technical indicators</h3>
+        <p class="text-sm text-gray-600 mt-2">All four clusters: trend, momentum, volatility, levels. With every formula.</p>
+      </a>
 
-        <a href="horizons.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 8</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Horizons &amp; targets →</div>
-          <p class="text-sm text-gray-600 mt-2">Why ATR is the unit. Stop/target band tables. Risk-reward floor.
-          Worst-fill vs. midpoint RR.</p>
-        </a>
+      <a href="crossovers.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 7l8 8M3 15l8-8"/><path d="M13 7h8M13 17h8"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Math (deterministic)</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Crossovers</h3>
+        <p class="text-sm text-gray-600 mt-2">Golden &amp; Death Cross, EMA-9/21, MACD — with the honest empirical caveat.</p>
+      </a>
 
-        <a href="guardrails.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 9</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Quality controls →</div>
-          <p class="text-sm text-gray-600 mt-2">Four guardrail tiers: grounding, citation, consistency,
-          calibration. What we reject, what we retry, what we abort.</p>
-        </a>
+      <a href="candlesticks.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="21"/><rect x="4" y="8" width="4" height="9"/><line x1="14" y1="3" x2="14" y2="21"/><rect x="12" y="6" width="4" height="11"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Math (deterministic)</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Candlestick patterns</h3>
+        <p class="text-sm text-gray-600 mt-2">All <strong>61</strong> from TA-Lib, grouped by bars and direction. Plus ATR-proximity gating.</p>
+      </a>
 
-        <a href="example.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Section 10</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Worked example →</div>
-          <p class="text-sm text-gray-600 mt-2">A hypothetical RELIANCE WEEKLY prediction, traced end-to-end
-          from raw bars to final five numbers.</p>
-        </a>
+      <a href="chart_patterns.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 18l4-5 4 4 4-9 6 7"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Math (deterministic)</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Chart patterns</h3>
+        <p class="text-sm text-gray-600 mt-2">Head &amp; shoulders, double tops, triangles, broadening, rectangles. LMW geometry.</p>
+      </a>
 
-        <a href="glossary.html" class="block border border-gray-200 rounded-lg p-5 hover:border-[#0053e2] hover:shadow transition sm:col-span-2">
-          <div class="text-xs uppercase tracking-wider text-gray-500">Reference</div>
-          <div class="text-lg font-semibold text-[#0053e2]">Glossary →</div>
-          <p class="text-sm text-gray-600 mt-2">Every term, abbreviation, and threshold used in this report — alphabetical.</p>
+      <a href="news.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><path d="M19 7h2v10a3 3 0 0 1-3 3"/><line x1="8" y1="9" x2="14" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/><line x1="8" y1="17" x2="11" y2="17"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">LLM agents</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">News analysis</h3>
+        <p class="text-sm text-gray-600 mt-2">How an LLM filters materiality, frames expectations vs. estimates, and cites sources.</p>
+      </a>
+
+      <a href="synthesis.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v6"/><path d="M12 16v6"/><circle cx="12" cy="12" r="4"/><path d="M4 12h4M16 12h4"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">LLM agents</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Putting it together</h3>
+        <p class="text-sm text-gray-600 mt-2">Per-horizon weighting (35/65 → 70/30), entry/target/stop placement, NEUTRAL escape.</p>
+      </a>
+
+      <a href="horizons.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Mechanics</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Horizons &amp; targets</h3>
+        <p class="text-sm text-gray-600 mt-2">Why ATR is the unit. Stop/target bands. Worst-fill vs. midpoint risk-reward.</p>
+      </a>
+
+      <a href="guardrails.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2l9 4v6c0 5-3.5 9-9 10-5.5-1-9-5-9-10V6l9-4z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Mechanics</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Quality controls</h3>
+        <p class="text-sm text-gray-600 mt-2">Four guardrail tiers that catch a prediction before it ships. One retry, then abort.</p>
+      </a>
+
+      <a href="example.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block sm:col-span-2 lg:col-span-2">
+        <div class="w-11 h-11 rounded-lg bg-[#ffc220]/20 text-[#995213] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-[#995213] font-semibold">Reference</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Worked example — RELIANCE WEEKLY</h3>
+        <p class="text-sm text-gray-600 mt-2">A hypothetical prediction traced end-to-end. Demonstrates how a strong directional bias correctly downgrades to NEUTRAL when no asymmetric setup exists.</p>
+      </a>
+
+      <a href="glossary.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+        <div class="w-11 h-11 rounded-lg bg-[#ffc220]/20 text-[#995213] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </div>
+        <div class="text-[11px] uppercase tracking-wider text-[#995213] font-semibold">Reference</div>
+        <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Glossary</h3>
+        <p class="text-sm text-gray-600 mt-2">Every term, abbreviation, and threshold — alphabetical.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SAMPLE OUTPUT showcase ──────────────────────────────── -->
+<section id="sample" class="py-16 lg:py-24">
+  <div class="max-w-6xl mx-auto px-6 lg:px-10">
+    <div class="text-center mb-12">
+      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold mb-2">What you get</div>
+      <h2 class="text-3xl lg:text-4xl font-bold tracking-tight">A prediction is five numbers, not an essay.</h2>
+      <p class="mt-3 text-gray-600 max-w-2xl mx-auto">
+        Each horizon produces a structured object: direction, entry zone, target, stop-loss, confidence.
+        Plus the rationale and citations the guardrails enforced.
+      </p>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+
+      <!-- Card 1: visual prediction sample -->
+      <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div class="bg-gradient-to-r from-[#0053e2] to-[#1e6dff] text-white px-6 py-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs uppercase tracking-wider text-white/70">Horizon</div>
+              <div class="font-bold">WEEKLY · 5 trading days</div>
+            </div>
+            <div class="bg-white/15 backdrop-blur border border-white/20 px-3 py-1 rounded-full text-sm font-semibold">
+              RELIANCE.NS
+            </div>
+          </div>
+        </div>
+        <div class="p-6">
+          <!-- Direction badge -->
+          <div class="flex items-center gap-3 mb-5">
+            <span class="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full text-sm font-semibold">
+              <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
+              NEUTRAL
+            </span>
+            <span class="text-sm text-gray-500">confidence <strong class="text-gray-800">0.48</strong></span>
+          </div>
+
+          <!-- Number stack -->
+          <dl class="space-y-3">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+              <dt class="text-sm text-gray-500">Entry zone</dt>
+              <dd class="font-mono font-semibold">₹2,855.16 – ₹2,912.84</dd>
+            </div>
+            <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+              <dt class="text-sm text-gray-500">Target</dt>
+              <dd class="font-mono font-semibold text-[#2a8703]">₹2,948.00</dd>
+            </div>
+            <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+              <dt class="text-sm text-gray-500">Stop-loss</dt>
+              <dd class="font-mono font-semibold text-[#ea1100]">₹2,810.00</dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt class="text-sm text-gray-500">Risk-reward (worst-fill)</dt>
+              <dd class="font-mono font-semibold">1.00 <span class="text-xs text-gray-400">(NEUTRAL ⇒ 1.0)</span></dd>
+            </div>
+          </dl>
+
+          <div class="mt-5 p-3 bg-amber-50 border-l-4 border-[#ffc220] rounded text-sm text-amber-900">
+            <strong>Why NEUTRAL:</strong> Technicals uniformly bullish (4/4 clusters) and news positive,
+            but the nearest resistance is too close and nearest support too far — no setup with
+            acceptable worst-fill RR exists. Wait for pullback or a clean break.
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: the five questions answered -->
+      <div class="bg-gradient-to-br from-gray-900 to-[#003eb3] text-white rounded-2xl p-7 lg:p-8">
+        <h3 class="text-2xl font-bold mb-5">Every prediction answers five questions.</h3>
+        <ul class="space-y-4">
+          <li class="flex gap-4">
+            <div class="shrink-0 w-9 h-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#ffc220] font-bold">1</div>
+            <div>
+              <div class="font-semibold">Which way?</div>
+              <div class="text-sm text-white/70">Bullish, bearish, or neutral.</div>
+            </div>
+          </li>
+          <li class="flex gap-4">
+            <div class="shrink-0 w-9 h-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#ffc220] font-bold">2</div>
+            <div>
+              <div class="font-semibold">Where to enter?</div>
+              <div class="text-sm text-white/70">A narrow ±% band around the current close.</div>
+            </div>
+          </li>
+          <li class="flex gap-4">
+            <div class="shrink-0 w-9 h-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#ffc220] font-bold">3</div>
+            <div>
+              <div class="font-semibold">Where to take profit?</div>
+              <div class="text-sm text-white/70">Anchored to the nearest real level or an ATR projection.</div>
+            </div>
+          </li>
+          <li class="flex gap-4">
+            <div class="shrink-0 w-9 h-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#ffc220] font-bold">4</div>
+            <div>
+              <div class="font-semibold">Where to cut losses?</div>
+              <div class="text-sm text-white/70">Anchored to the opposite-side level, inside the horizon's ATR band.</div>
+            </div>
+          </li>
+          <li class="flex gap-4">
+            <div class="shrink-0 w-9 h-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#ffc220] font-bold">5</div>
+            <div>
+              <div class="font-semibold">How confident?</div>
+              <div class="text-sm text-white/70">A number in [0, 1], capped by horizon ceiling and structure.</div>
+            </div>
+          </li>
+        </ul>
+        <a href="example.html" class="mt-7 inline-flex items-center gap-2 bg-[#ffc220] text-[#1a1a1a] px-4 py-2 rounded-lg font-semibold text-sm hover:bg-[#ffd14d] transition">
+          See the full worked example
+          <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
         </a>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
 
-    <!-- Caveats panel -->
-    <section class="border border-amber-200 bg-amber-50 rounded-lg p-5 mb-10">
-      <h2 class="text-lg font-semibold text-amber-900 mb-2">⚠️ A few honest caveats up front</h2>
-      <ul class="list-disc pl-6 space-y-1 text-sm text-amber-900">
-        <li><strong>This is educational output, not investment advice.</strong> Every prediction we ship
-            sets <code>not_advice = True</code> and <code>is_educational = True</code> in the schema.</li>
-        <li>Many thresholds (the 60/40 trend-RSI cut, the 1.0/4.0% ATR-percent regime bands,
-            the candlestick proximity gate) are <em>literature-bracketed but not yet NSE-backtested</em>.
-            They are defensible, not empirically proven on your data.</li>
-        <li>The news layer reads GDELT, which is an English-language news graph. Vernacular Indian
-            sources may underweight. Material moves can happen on a Marathi news leak that we never see.</li>
-        <li>We use <strong>daily bars only</strong>. Same-bar target/stop hits cannot be disambiguated;
-            we conservatively count them as stop hits.</li>
-        <li>The corporate filings feed scrapes NSE's website (no public API). It is the most fragile
-            part of the pipeline and can go silent for hours if NSE rotates their bot-detection rules.</li>
-      </ul>
-    </section>
+<div class="divider-wave"></div>
 
-    <footer class="report-foot">
-      Generated by Thor 🐶 for Sumeet · Self-contained HTML report ·
-      Source of truth: <code>docs/pred_logic.md</code>
-    </footer>
-  </main>
-</div>
+<!-- ─── Disclaimers / caveats ─────────────────────────────── -->
+<section class="bg-amber-50 border-y border-amber-100 py-12">
+  <div class="max-w-4xl mx-auto px-6 lg:px-10">
+    <div class="flex items-start gap-4">
+      <svg class="icon shrink-0 text-amber-700 w-8 h-8" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <div>
+        <h2 class="text-xl font-bold text-amber-900 mb-2">A few honest caveats up front</h2>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-amber-900">
+          <li><strong>Educational output, not advice.</strong> Every prediction sets <code>not_advice=True</code> and <code>is_educational=True</code>.</li>
+          <li>Many thresholds are <em>literature-bracketed but not yet NSE-backtested</em>. Defensible, not empirically proven on your data.</li>
+          <li>News layer is English-only (GDELT). A leak in a vernacular paper may move HDFCBANK 2% intraday and we never see it.</li>
+          <li>Daily bars only. Same-bar target/stop hits cannot be disambiguated; we conservatively count them as stop hits.</li>
+          <li>Corporate filings feed scrapes NSE's website (no public API). It is the most fragile part of the pipeline.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
 
-<script src="assets/nav.js"></script>
-<script>injectNav("index.html");</script>
+<!-- ─── Footer ─────────────────────────────────────────────── -->
+<footer class="bg-gray-900 text-gray-300 py-12">
+  <div class="max-w-6xl mx-auto px-6 lg:px-10">
+    <div class="grid md:grid-cols-3 gap-8">
+      <div>
+        <div class="flex items-center gap-2 text-white font-bold">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 12h3l3-9 4 18 3-9h5"/></svg>
+          How we predict
+        </div>
+        <p class="mt-3 text-sm text-gray-400">A walkthrough for domain experts who want to understand
+        the system without reading code. Source of truth: <code>docs/pred_logic.md</code>.</p>
+      </div>
+      <div>
+        <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Navigate</div>
+        <ul class="text-sm space-y-1">
+          <li><a href="#sections" class="hover:text-white">All sections</a></li>
+          <li><a href="all_in_one.html" class="hover:text-white">Single-page version</a></li>
+          <li><a href="example.html" class="hover:text-white">Worked example</a></li>
+          <li><a href="glossary.html" class="hover:text-white">Glossary</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Built with</div>
+        <p class="text-sm text-gray-400">Tailwind via CDN. Walmart palette (blue.100 / spark.100).
+        Inline SVG icons &amp; diagrams (no external image deps). Self-contained &mdash; open any
+        <code>.html</code> directly.</p>
+      </div>
+    </div>
+    <div class="mt-10 pt-6 border-t border-gray-800 text-xs text-gray-500 text-center">
+      Generated by Thor 🐶 for Sumeet · report v2 · multi-page navigable walkthrough
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
