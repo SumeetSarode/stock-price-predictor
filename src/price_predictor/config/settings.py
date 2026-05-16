@@ -116,6 +116,47 @@ class Settings(BaseSettings):
     paid_agentic: str = Field(validation_alias="PAID_AGENTIC")
     use_paid: bool = Field(default=False, validation_alias="USE_PAID")
 
+    # ── Per-provider request rate limits (used by llm.rate_limiter) ──────
+    # Defaults are slightly under each provider's free-tier ceiling so we
+    # leave headroom for clock drift / other tooling sharing the API key.
+    # Set RPM or RPD to 0 to disable that limit. Both 0 = limiter no-op.
+    # When USE_PAID=true, the factory calls provider_rate_limits() with
+    # the override path — caller can still tune via env if their paid plan
+    # has a different ceiling.
+    #
+    # Free-tier reference (subject to change by providers):
+    #   Gemini 2.5 Flash:  10 RPM, 250 RPD
+    #   Groq (most free):  30 RPM, 14400 RPD
+    gemini_rpm: int = Field(default=9,    validation_alias="GEMINI_RPM")
+    gemini_rpd: int = Field(default=240,  validation_alias="GEMINI_RPD")
+    groq_rpm:   int = Field(default=28,   validation_alias="GROQ_RPM")
+    groq_rpd:   int = Field(default=14000, validation_alias="GROQ_RPD")
+
+    # Per-provider overrides used when USE_PAID=true. Defaults are 0/0
+    # (unlimited) which is the right behavior for most paid plans.
+    gemini_rpm_paid: int = Field(default=0, validation_alias="GEMINI_RPM_PAID")
+    gemini_rpd_paid: int = Field(default=0, validation_alias="GEMINI_RPD_PAID")
+    groq_rpm_paid:   int = Field(default=0, validation_alias="GROQ_RPM_PAID")
+    groq_rpd_paid:   int = Field(default=0, validation_alias="GROQ_RPD_PAID")
+
+    def provider_rate_limits(self, provider: str) -> tuple[int, int]:
+        """Return (rpm, rpd) for `provider`, honoring USE_PAID.
+
+        Unknown providers return (0, 0) — i.e. no limiter applied. This is
+        the right default: a new provider whose ceilings we haven't researched
+        yet should not silently be hobbled to 9 RPM.
+        """
+        free_map = {
+            "gemini": (self.gemini_rpm,      self.gemini_rpd),
+            "groq":   (self.groq_rpm,        self.groq_rpd),
+        }
+        paid_map = {
+            "gemini": (self.gemini_rpm_paid, self.gemini_rpd_paid),
+            "groq":   (self.groq_rpm_paid,   self.groq_rpd_paid),
+        }
+        source = paid_map if self.use_paid else free_map
+        return source.get(provider, (0, 0))
+
     @field_validator("chain_agentic")
     @classmethod
     def validate_chain_format(cls, value: str) -> str:

@@ -37,6 +37,8 @@ from litellm.exceptions import (
 )
 from pydantic import ConfigDict, Field
 
+from price_predictor.llm.rate_limiter import get_limiter, provider_of
+
 logger = logging.getLogger(__name__)
 
 
@@ -281,6 +283,15 @@ class ResilientModel(BaseLlm):
                     logger.info("[resilient] trying model=%s", model.model)
                     # Point the request at the REAL inner model name
                     llm_request.model = model.model
+                    # ── PROACTIVE PACING ──
+                    # Block (or raise on daily exhaustion) BEFORE the actual
+                    # call so we never hand the provider an over-quota
+                    # burst in the first place. Daily exhaustion raises a
+                    # RateLimitError that lands in the TRANSIENT_ERRORS
+                    # handler below — same code path as a real 429, so we
+                    # cool the model down and fall over to the next provider.
+                    limiter = await get_limiter(provider_of(model.model))
+                    await limiter.acquire()
                     # Drive the inner generator. We yield as we go -- this means
                     # if a model fails MID-STREAM (after first yield) the error
                     # propagates to the caller (we can't un-yield). Pre-first-yield
