@@ -6,7 +6,8 @@
 > understand the design intent without trawling chat history.
 
 **Last updated:** 2026-05-18
-**Status:** ✅ **Design phase complete — all open questions closed.** Ready to build.
+**Status:** ✅ **Step 1 of build roadmap complete** — web scaffold landed.
+FastAPI app + design system + working predict-form end-to-end. Tag: `web-v0`.
 
 ---
 
@@ -600,6 +601,7 @@ screenshot to match.
 | 2026-05-18 | Q2 + Q4 decided: pure on-demand predictions (no batch, no scheduler), side panel for Nifty 50 row clicks, full page for non-Nifty 50 search results. Horizon picker (4 tabs) with weekly default on the detail surface. Q5 partially closed: top conviction calls deferred to v0.2 (depends on Q2); index bar + market status pill confirmed; gainers/losers/watchlist/recent-predictions still pending. Home wireframe updated to reflect no prediction column. | User shifted to deliberate, intent-driven prediction model. Simpler v1, zero LLM cost without user action, prediction becomes a focused activity rather than background hum. |
 | 2026-05-18 | Q3 decided: Nifty 50 home + Nifty 500 searchable. Bundled CSV (`frontend/data/nifty500.csv`) committed to repo, no runtime fetch. Search matches company name (primary) + ticker (fallback), case-insensitive, prefix-first. Autocomplete displays name big, ticker + sector as metadata. Nifty 50 stocks ranked above non-Nifty-50 in results. | User confirmed primary input should be company name, not ticker. Both match for power-user convenience. Bundled CSV chosen for predictability + offline-capable + zero runtime deps. |
 | 2026-05-18 | Q5 fully closed: keep all three remaining items for v1 (top gainers/losers strip, watchlist row above table, recent predictions panel below table). All deferred-to-v0.2 items remain deferred (sector heatmap, news, calendar). Wireframe updated to reflect final home layout. **ALL OPEN QUESTIONS NOW CLOSED.** Design phase complete; ready to build. | All three items are small effort with high ROI. Watchlist row and recent predictions panel both have well-defined empty states (hidden / friendly prompt). |
+| 2026-05-18 | Step 1 (web scaffold) shipped. Directory layout per the strict frontend/backend split: `frontend/{templates,styles,scripts,vendor,assets}` + `src/price_predictor/web/{app,cli,settings,routes,services}`. Design system implemented with hand-crafted CSS (tokens.css + base.css + components.css) — no Tailwind for v1 (no build step, no Node, no vendor blob). HTMX 1.9.12 vendored. End-to-end working: `uv run price-predictor-web` boots, browser auto-opens, predict form POSTs to `/api/predict`, friendly errors render. Both discipline scripts in place: `check_no_html_in_python.sh` (passing) and `check_no_walmart_traces.sh` (gated for pre-ship). | Step 1 deliberately shipped ONE polished end-to-end flow before scaling out to the full Nifty 50 dashboard. Proves the plumbing AND the visual quality bar in one step. Nifty 50 dashboard, watchlist, side panel, search autocomplete all come in Step 2. |
 
 ---
 

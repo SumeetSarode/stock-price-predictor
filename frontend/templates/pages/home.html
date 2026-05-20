@@ -1,0 +1,73 @@
+{#
+  home.html — landing page
+
+  Step 1 scope: ONE polished end-to-end flow. The user enters a ticker,
+  picks a horizon, hits Predict, and sees a beautifully-rendered result
+  card inline (HTMX swap).
+
+  The full Nifty 50 dashboard (watchlist, gainers/losers, recent
+  predictions panel, search bar with autocomplete) lands in Step 2.
+#}
+{% extends "layouts/base.html" %}
+
+{% block title %}Predict · Price Predictor{% endblock %}
+
+{% block content %}
+<div class="container container--narrow">
+  <header class="page-header">
+    <div class="page-header__eyebrow">Local-first · BYO keys</div>
+    <h1 class="page-header__title">What's the next move?</h1>
+    <p class="page-header__subtitle">
+      AI-driven price predictions for NSE stocks. Pick a ticker and a horizon —
+      we'll synthesize technicals, news, and filings into a single actionable view.
+    </p>
+  </header>
+
+  <section class="card card--lg">
+    <h2 class="card__title">Run a prediction</h2>
+    <p class="card__hint">Enter an NSE ticker (e.g. <code>RELIANCE.NS</code> or just <code>RELIANCE</code>)
+      and pick a horizon. Typical run: <span class="num">~30s</span>.</p>
+
+    <form class="stack stack--lg"
+          hx-post="/api/predict"
+          hx-target="#result"
+          hx-swap="innerHTML"
+          hx-indicator="#submit-btn">
+
+      <div class="flex gap-4" style="flex-wrap: wrap;">
+        <div class="field" style="flex: 2 1 240px;">
+          <label class="field__label" for="ticker">Ticker</label>
+          <input class="input" type="text" id="ticker" name="ticker"
+                 placeholder="RELIANCE.NS"
+                 autocomplete="off"
+                 autocapitalize="characters"
+                 spellcheck="false"
+                 required />
+        </div>
+
+        <div class="field" style="flex: 1 1 160px;">
+          <label class="field__label" for="horizon">Horizon</label>
+          <select class="select" id="horizon" name="horizon">
+            <option value="daily">Daily</option>
+            <option value="weekly" selected>Weekly</option>
+            <option value="biweekly">Biweekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="submit-btn" type="submit" class="btn btn--primary btn--lg"
+              style="align-self: flex-start;">
+        <span class="htmx-indicator" style="display:none;">
+          <span class="spinner"></span>
+        </span>
+        <span>🔮 Predict</span>
+      </button>
+    </form>
+  </section>
+
+  <section id="result" class="mt-6">
+    {# HTMX swaps prediction_card.html in here on success, or error.html on failure. #}
+  </section>
+</div>
+{% endblock %}

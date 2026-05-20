@@ -1,0 +1,115 @@
+{#
+  prediction_card.html — HTMX partial rendered into #result on success.
+
+  Receives a `result` dict with the fields:
+    ticker, horizon, direction, confidence_pct, as_of_str,
+    close_price, entry_low, entry_high, target_value, target_rationale,
+    stop_value, stop_rationale, risk_reward, rationale,
+    contributing, conflicting, model_chain, technical_summary
+#}
+<article class="card card--lg stack stack--lg" id="result-card">
+
+  {# ── Header: ticker, horizon, direction badge ────────────── #}
+  <header class="flex justify-between items-center gap-4" style="flex-wrap: wrap;">
+    <div>
+      <h2 class="card__title" style="font-size: var(--fs-2xl);">{{ result.ticker }}</h2>
+      <p class="muted" style="font-size: var(--fs-sm);">
+        <span style="text-transform: capitalize;">{{ result.horizon }}</span>
+        horizon · as of <span class="num">{{ result.as_of_str }}</span>
+      </p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <span class="badge badge--lg badge--{{ result.direction_class }}">
+        <span class="badge__dot" aria-hidden="true"></span>
+        {{ result.direction|upper }}
+      </span>
+      <span class="badge badge--lg">
+        <span class="num">{{ result.confidence_pct }}%</span>&nbsp;confidence
+      </span>
+    </div>
+  </header>
+
+  {# ── Price levels grid ───────────────────────────────────── #}
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat__label">Reference close</div>
+      <div class="stat__value num">₹{{ "%.2f"|format(result.close_price) }}</div>
+      <div class="stat__rationale">Last known close used as anchor</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat__label">Entry zone</div>
+      <div class="stat__value num">
+        ₹{{ "%.2f"|format(result.entry_low) }}<span style="color: var(--color-fg-muted); font-weight: var(--fw-regular);"> – </span>₹{{ "%.2f"|format(result.entry_high) }}
+      </div>
+      <div class="stat__rationale">Suggested entry range</div>
+    </div>
+
+    <div class="stat stat--{{ result.direction_class }}">
+      <div class="stat__label">Target</div>
+      <div class="stat__value num">₹{{ "%.2f"|format(result.target_value) }}</div>
+      <div class="stat__rationale">{{ result.target_rationale }}</div>
+    </div>
+
+    <div class="stat stat--{{ result.opposite_class }}">
+      <div class="stat__label">Stop loss</div>
+      <div class="stat__value num">₹{{ "%.2f"|format(result.stop_value) }}</div>
+      <div class="stat__rationale">{{ result.stop_rationale }}</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat__label">Risk / reward</div>
+      <div class="stat__value num">{{ "%.2f"|format(result.risk_reward) }}×</div>
+      <div class="stat__rationale">Worst-fill basis</div>
+    </div>
+  </div>
+
+  {# ── Signals: contributing + conflicting side by side ─────── #}
+  {% if result.contributing or result.conflicting %}
+  <div class="flex gap-4" style="flex-wrap: wrap;">
+    {% if result.contributing %}
+    <div style="flex: 1 1 280px;">
+      <h3 style="font-size: var(--fs-sm); color: var(--color-fg-subtle); margin-bottom: var(--space-2); font-weight: var(--fw-medium); text-transform: uppercase; letter-spacing: 0.06em;">
+        Supporting signals
+      </h3>
+      <ul class="signal-list signal-list--supports">
+        {% for s in result.contributing %}
+          <li class="signal-list__item">{{ s }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.conflicting %}
+    <div style="flex: 1 1 280px;">
+      <h3 style="font-size: var(--fs-sm); color: var(--color-fg-subtle); margin-bottom: var(--space-2); font-weight: var(--fw-medium); text-transform: uppercase; letter-spacing: 0.06em;">
+        Conflicting signals
+      </h3>
+      <ul class="signal-list signal-list--conflicts">
+        {% for s in result.conflicting %}
+          <li class="signal-list__item">{{ s }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Reasoning panel (expandable) ─────────────────────────── #}
+  <details class="disclosure">
+    <summary class="disclosure__summary">View full reasoning</summary>
+    <div class="disclosure__body stack">
+      <div class="prose">
+        {% for para in result.rationale.split("\n\n") if para.strip() %}
+          <p>{{ para }}</p>
+        {% endfor %}
+      </div>
+
+      <div class="muted" style="font-size: var(--fs-xs); padding-top: var(--space-3); border-top: 1px solid var(--color-border);">
+        <strong>Technical summary:</strong> {{ result.technical_summary }}<br/>
+        <strong>Model chain:</strong> {{ result.model_chain }}
+      </div>
+    </div>
+  </details>
+
+</article>

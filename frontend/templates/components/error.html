@@ -1,0 +1,17 @@
+{#
+  error.html — HTMX partial swapped into #result on prediction failure.
+#}
+<div class="error">
+  <span class="error__icon" aria-hidden="true">⚠</span>
+  <div>
+    <strong>Prediction failed.</strong>
+    <div style="margin-top: 4px; color: var(--color-fg-subtle); font-size: var(--fs-xs);">
+      {{ message }}
+    </div>
+    {% if hint %}
+    <div style="margin-top: 8px; color: var(--color-fg-muted); font-size: var(--fs-xs);">
+      💡 {{ hint }}
+    </div>
+    {% endif %}
+  </div>
+</div>

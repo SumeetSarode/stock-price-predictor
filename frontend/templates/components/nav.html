@@ -1,0 +1,25 @@
+{#
+  nav.html — top navigation bar (global, sticky)
+
+  Brand on the left, links on the right. Search bar gets added in Step 2
+  when we wire up the Nifty 500 autocomplete.
+#}
+<nav class="nav" aria-label="Primary navigation">
+  <div class="nav__inner">
+    <a href="/" class="nav__brand" aria-label="Price Predictor home">
+      <span class="nav__brand-mark" aria-hidden="true">📈</span>
+      <span>Price Predictor</span>
+    </a>
+
+    <div class="nav__links">
+      <a href="/" class="nav__link"
+         {% if request.url.path == "/" %}aria-current="page"{% endif %}>
+        Predict
+      </a>
+      <a href="/history" class="nav__link"
+         {% if request.url.path == "/history" %}aria-current="page"{% endif %}>
+        History
+      </a>
+    </div>
+  </div>
+</nav>

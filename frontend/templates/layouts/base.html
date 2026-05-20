@@ -1,0 +1,45 @@
+{#
+  base.html — page shell
+
+  Every page extends this. Owns:
+    - <head>: meta, fonts, stylesheets, HTMX
+    - global <nav>
+    - {% block content %}
+    - global <footer> with disclaimer
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>{% block title %}Price Predictor{% endblock %}</title>
+  <meta name="description"
+        content="Local-first AI-driven price predictions for NSE stocks. Bring your own keys, run on your laptop." />
+
+  {# Design system — load order matters: tokens → base → components #}
+  <link rel="stylesheet" href="/static/styles/tokens.css" />
+  <link rel="stylesheet" href="/static/styles/base.css" />
+  <link rel="stylesheet" href="/static/styles/components.css" />
+
+  {# Favicon (inline SVG — no extra request, no asset to manage) #}
+  <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Cpath d='M8 22 L13 14 L18 19 L24 10' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+  {# HTMX — vendored, no CDN at runtime #}
+  <script src="/static/vendor/htmx-1.9.12.min.js" defer></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% include "components/nav.html" %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include "components/footer.html" %}
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>
