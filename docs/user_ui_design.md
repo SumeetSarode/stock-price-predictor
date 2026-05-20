@@ -468,11 +468,34 @@ Each run = ~8 LLM calls per horizon.
 
 ### Q3. Universe scope
 
-| Option | Pros | Cons |
-|---|---|---|
-| **Nifty 50 only** | Simple, fast, covers most retail interest | Excludes mid/small caps users may track |
-| **Nifty 50 home + Nifty 500 searchable** *(recommended)* | Home stays focused, search covers 90% of useful universe | Slightly bigger autocomplete index |
-| **Nifty 50 home + all NSE-listed searchable** | Maximum coverage | ~2000 names, autocomplete UX gets messier |
+✅ **Decided:**
+
+| Layer | Scope |
+|---|---|
+| Home dashboard | Nifty 50 only (50 rows) |
+| Search bar universe | Nifty 500 |
+| Source of ticker list | Bundled `frontend/data/nifty500.csv` committed to the repo (in-memory at startup, no runtime fetch). Maintainer updates annually. |
+| Primary search input | **Company name** — humans think "Reliance", not "RELIANCE.NS" |
+| Also matches | Ticker symbol as fallback (power users / traders who think in tickers) |
+| Display in autocomplete results | Company name (big) · Ticker (small gray) · Sector (smaller gray) |
+| Match style | Case-insensitive. Prefix matches rank above substring matches. |
+| Result ordering | Nifty 50 stocks always rank above non-Nifty-50 when both match |
+
+Example CSV row:
+
+```csv
+ticker,company_name,sector
+RELIANCE.NS,Reliance Industries Ltd,Energy
+```
+
+Example autocomplete behavior — user types `rel`:
+
+```
+🔍 Reliance Industries        RELIANCE.NS  ·  Energy        ← Nifty 50, ranks first
+🔍 Reliance Infrastructure    RELINFRA.NS  ·  Infrastructure
+🔍 Reliance Power             RPOWER.NS    ·  Energy
+🔍 Relaxo Footwears           RELAXO.NS    ·  Consumer Goods
+```
 
 ### Q4. Row-click interaction
 
@@ -552,6 +575,7 @@ screenshot to match.
 | 2026-05-18 | Initial draft | Captures vision discussion through Q5 of the open questions. |
 | 2026-05-18 | Q1 decided: EOD + delayed intraday via yfinance, manual refresh, badges per row, side-panel shows both "current" and "predicted from" prices, env toggle to disable intraday. Sub-decisions Q1A–Q1E all locked. Q6 closed (no additional references; locked design philosophy stands). | User chose Option B with manual-refresh sub-pick. "Predicted from" intentionally kept off home table to preserve dashboard density. |
 | 2026-05-18 | Q2 + Q4 decided: pure on-demand predictions (no batch, no scheduler), side panel for Nifty 50 row clicks, full page for non-Nifty 50 search results. Horizon picker (4 tabs) with weekly default on the detail surface. Q5 partially closed: top conviction calls deferred to v0.2 (depends on Q2); index bar + market status pill confirmed; gainers/losers/watchlist/recent-predictions still pending. Home wireframe updated to reflect no prediction column. | User shifted to deliberate, intent-driven prediction model. Simpler v1, zero LLM cost without user action, prediction becomes a focused activity rather than background hum. |
+| 2026-05-18 | Q3 decided: Nifty 50 home + Nifty 500 searchable. Bundled CSV (`frontend/data/nifty500.csv`) committed to repo, no runtime fetch. Search matches company name (primary) + ticker (fallback), case-insensitive, prefix-first. Autocomplete displays name big, ticker + sector as metadata. Nifty 50 stocks ranked above non-Nifty-50 in results. | User confirmed primary input should be company name, not ticker. Both match for power-user convenience. Bundled CSV chosen for predictability + offline-capable + zero runtime deps. |
 
 ---
 
