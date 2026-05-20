@@ -478,6 +478,65 @@
 .htmx-request.htmx-indicator { display: inline-flex; }
 
 /* ──────────────────────────────────────────────────────────
+ * Button idle/busy state machine — swaps text while HTMX request
+ * is in flight. Used in tandem with `hx-disabled-elt` so the button
+ * also greys out and stops accepting clicks.
+ * ────────────────────────────────────────────────────────── */
+.btn--with-states .btn__busy { display: none; }
+.btn--with-states .btn__idle { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+.htmx-request .btn--with-states .btn__busy,
+.htmx-request.btn--with-states .btn__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.htmx-request .btn--with-states .btn__idle,
+.htmx-request.btn--with-states .btn__idle {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────────────
+ * Loading card — full-width placeholder shown in #result
+ * while a prediction is in flight. Animated, friendly, sets
+ * expectations about wait time.
+ * ────────────────────────────────────────────────────────── */
+.loading-card {
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  animation: fade-in 200ms ease-out;
+}
+
+.loading-card__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-primary-soft);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.loading-card__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  margin: 0 0 var(--space-1);
+  color: var(--color-fg);
+}
+
+.loading-card__hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ──────────────────────────────────────────────────────────
  * Footer / disclaimer
  * ────────────────────────────────────────────────────────── */
 .footer {
