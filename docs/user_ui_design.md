@@ -6,7 +6,7 @@
 > understand the design intent without trawling chat history.
 
 **Last updated:** 2026-05-18
-**Status:** Pre-build (vision + architecture phase). No frontend code written yet.
+**Status:** ✅ **Design phase complete — all open questions closed.** Ready to build.
 
 ---
 
@@ -243,27 +243,30 @@ Recommended skips for v1 (info overload):
 - ❌ Beta, RSI, MACD as columns — belongs on detail page
 - ❌ Sparklines per row — pretty but doubles render cost; v2 candidate
 
-### ⏸ Above-table elements (context strip)
+### ✅ Above-table elements (context strip)
 
-Menu, ranked by recommended priority. **🏆 Top conviction calls moved
-to v0.2** per Q2 decision (no precomputed predictions in v1).
+Final list for v1, in vertical order from top of page:
 
-| Element | Why | Effort | v1 status |
-|---|---|---|---|
-| **Index summary bar** — Nifty 50, Nifty Bank, Sensex values + change% | Sets day's mood at a glance. Every trader app has this. | Small | ✅ keep |
-| **Market status pill** — `🟢 Open` / `🔴 Closed` / `⏸ Holiday` with countdown | NSE trading-hours awareness | Tiny | ✅ keep |
-| **Top 5 gainers / Top 5 losers** | Quick "what moved today" without scanning 50 rows | Small | ⏸ pending (Q5) |
-| **Watchlist row** (if user has saved stocks) | Personalization | Small | ⏸ pending (Q5) |
-| **🏆 Top conviction calls** | Needs precomputed predictions | Medium | 🚫 v0.2 (per Q2) |
+| Element | Why | Effort |
+|---|---|---|
+| **Index summary bar** — Nifty 50, Nifty Bank, Sensex values + change% | Sets day's mood at a glance | Small |
+| **Market status pill** — `🟢 Open` / `🔴 Closed` / `⏸ Holiday` | NSE trading-hours awareness | Tiny |
+| **Manual refresh button** — `[ 🔄 Refresh prices · Last updated 11:42 AM ]` | Triggers yfinance batch fetch | Small |
+| **⭐ Watchlist row** — saved tickers shown as compact horizontal strip | Personalization. Hidden if user has zero saved tickers. | Small |
+| **📈 Top gainers / 📉 Top losers strip** — top 5 each, derived from Nifty 50 by sorting on Change% | Quick "what moved today" | Tiny |
 
-### ⏸ Below-table or side-panel elements
+### ✅ Below-table elements
 
-| Element | Why | Effort | v1 status |
-|---|---|---|---|
-| **Recent predictions you've run** — last 5 with grade (✅ on track / ❌ stopped / ⏳ pending) | Engagement loop. Reminds you what you predicted. Still feasible since history DB has user's own runs (not global). | Small | ⏸ pending (Q5) |
-| **Sector heatmap** — colored grid showing sector performance | Visual, fast, popular | Medium | 🚫 v0.2 |
-| **Top news headlines** — top 5 market news from GDELT | Context for *why* things are moving | Medium | 🚫 v0.2 |
-| **Calendar strip** — upcoming earnings / events for Nifty 50 in next 7 days | Forward-looking | Medium | 🚫 v0.2 |
+Final list for v1:
+
+| Element | Why | Effort |
+|---|---|---|
+| **🕘 Recent predictions panel** — last 5 predictions user has run, with grading (✅ on track / ❌ stopped / ⏳ in progress / ⏰ expired) | Engagement loop. Reminds user what they predicted. Builds accountability. Empty state shows friendly "Run your first prediction" prompt. | Small |
+
+Deferred to v0.2:
+- 🚫 Sector heatmap
+- 🚫 Top news headlines
+- 🚫 Calendar strip
 
 ### ⏸ Search bar
 
@@ -323,9 +326,18 @@ else on the row triggers the default action (open side panel).
 ├───────────────────────────────────────────────────────────────────┤
 │                                                                       │
 │   Nifty 50: 24,832 ▲ +0.42%   Bank Nifty: 53,210 ▼ -0.18%   🟢 Open  │  ← index bar
-│   [ 🔄 Refresh prices  ·  Last updated 11:42 AM ]                        │  ← manual refresh
+│   [ 🔄 Refresh prices  ·  Last updated 11:42 AM ]                       │  ← manual refresh
 │                                                                       │
-│   ┌─────────────────────────────────────────────────────────┐   │  ← Nifty 50 table
+│   ⭐ Your watchlist                                                    │  ← watchlist row
+│   INFY 1518 +1.06%  ·  RELIANCE 2871 +0.92%  ·  IRCTC 892 -0.34%       │     (hidden if empty)
+│                                                                       │
+│   📈 Top gainers                  📉 Top losers                       │  ← gainers/losers strip
+│   TATAMOTORS    +3.4%             ITC          -2.1%                  │
+│   ADANIENT      +2.8%             HINDUNILVR   -1.6%                  │
+│   ONGC          +2.1%             NESTLEIND    -1.4%                  │
+│   ...                              ...                                │
+│                                                                       │
+│   ┌──────────────────────────────────────────────────────────┐   │  ← Nifty 50 table
 │   │ Ticker      Open    Close   High    Low    Chg%   52WH    52WL   │   │     (sortable)
 │   ├─────────────────────────────────────────────────────────┤   │
 │   │ RELIANCE    2845    2871🟢  2880    2832   +0.92%  3024   2440    │   │  ← 🟢 = LIVE badge
@@ -335,6 +347,13 @@ else on the row triggers the default action (open side panel).
 │   └─────────────────────────────────────────────────────────┘   │
 │                                                                       │
 │   On row hover, reveal:  [ ⭐ Watch ]  [ 🔮 Predict ]  [ 📊 Details → ]    │
+│                                                                       │
+│   🕘 Your recent predictions                                          │  ← recent predictions
+│   RELIANCE   Weekly bullish 78%   2h ago      ⏳ in progress           │     panel
+│   TCS        Weekly bearish 62%   yesterday   ✅ on track              │
+│   INFY       Daily  neutral  50%  2 days      ⏰ expired               │
+│   IRCTC      Monthly bullish 71%  5 days      ❌ stopped out (-3.2%)   │
+│   (empty state: "Run your first prediction to see it here.")          │
 │                                                                       │
 │  ⚠ For educational purposes only. Not investment advice.   v0.1.0     │  ← footer
 └───────────────────────────────────────────────────────────────────┘
@@ -513,23 +532,27 @@ anywhere except those actions opens the side panel (default action).
 
 ### Q5. Which optional home-page sections survive v1?
 
-**Affected by Q2 decision** (no precomputed predictions). Updated recommendations:
+✅ **Decided: keep all three remaining items for v1.**
 
-Above-table candidates:
-- ✅ Index summary bar (Nifty 50 / Bank Nifty / Sensex) — keep
-- ✅ Market status pill (🟢 Open / 🔴 Closed / ⏸ Holiday) — keep
-- ⏸ Top gainers / losers strip — still possible from EOD/intraday, **pending**
-- 🚫 Top conviction calls — deferred to v0.2 (needs precomputed predictions)
-- ⏸ Watchlist row — **pending** (depends on watchlist being built in same phase)
+| Item | v1 status | Why |
+|---|---|---|
+| **Index summary bar** (Nifty 50 / Bank Nifty / Sensex) | ✅ keep | Sets day's mood at a glance |
+| **Market status pill** (🟢 Open / 🔴 Closed / ⏸ Holiday) | ✅ keep | NSE trading-hours awareness |
+| **Q5A: Top gainers / losers strip** | ✅ keep | Free given table data we already have; gives home page life beyond a plain grid |
+| **Q5B: Watchlist row above Nifty 50 table** | ✅ keep | Personalization. Especially valuable for non-Nifty-50 watched tickers. Empty state = invisible row (acceptable) |
+| **Q5C: Recent predictions panel below table** | ✅ keep | Engagement loop. Turns app from "prediction calculator" into "habit." High ROI for small effort. |
+| 🏆 Top conviction calls | 🚫 v0.2 | Needs precomputed predictions (no batch in v1 per Q2) |
+| Sector heatmap | 🚫 v0.2 | Lots of polish work; defer |
+| Top news headlines | 🚫 v0.2 | Needs scheduled fetch |
+| Calendar strip | 🚫 v0.2 | Defer |
 
-Below-table candidates:
-- ⏸ Recent predictions you've run (from history) — **pending**, still feasible since history DB has user's own runs
-- 🚫 Sector heatmap — defer to v0.2 (lots of work for v1 polish)
-- 🚫 Top news headlines — defer to v0.2 (needs scheduled fetch)
-- 🚫 Calendar strip — defer to v0.2
+**Empty-state design** for Q5B and Q5C:
 
-**Decision still needed on:** top gainers/losers strip, watchlist row,
-recent predictions panel.
+- Watchlist row: if user has zero saved tickers, the entire row is
+  hidden (no "add to watchlist" prompts cluttering home for first-timers)
+- Recent predictions panel: if user has zero history, show a friendly
+  empty card: "Run your first prediction to see it here." with a
+  subtle arrow pointing toward the search bar / Nifty 50 table.
 
 ### Q6. Reference UIs the user has in mind
 
@@ -576,6 +599,7 @@ screenshot to match.
 | 2026-05-18 | Q1 decided: EOD + delayed intraday via yfinance, manual refresh, badges per row, side-panel shows both "current" and "predicted from" prices, env toggle to disable intraday. Sub-decisions Q1A–Q1E all locked. Q6 closed (no additional references; locked design philosophy stands). | User chose Option B with manual-refresh sub-pick. "Predicted from" intentionally kept off home table to preserve dashboard density. |
 | 2026-05-18 | Q2 + Q4 decided: pure on-demand predictions (no batch, no scheduler), side panel for Nifty 50 row clicks, full page for non-Nifty 50 search results. Horizon picker (4 tabs) with weekly default on the detail surface. Q5 partially closed: top conviction calls deferred to v0.2 (depends on Q2); index bar + market status pill confirmed; gainers/losers/watchlist/recent-predictions still pending. Home wireframe updated to reflect no prediction column. | User shifted to deliberate, intent-driven prediction model. Simpler v1, zero LLM cost without user action, prediction becomes a focused activity rather than background hum. |
 | 2026-05-18 | Q3 decided: Nifty 50 home + Nifty 500 searchable. Bundled CSV (`frontend/data/nifty500.csv`) committed to repo, no runtime fetch. Search matches company name (primary) + ticker (fallback), case-insensitive, prefix-first. Autocomplete displays name big, ticker + sector as metadata. Nifty 50 stocks ranked above non-Nifty-50 in results. | User confirmed primary input should be company name, not ticker. Both match for power-user convenience. Bundled CSV chosen for predictability + offline-capable + zero runtime deps. |
+| 2026-05-18 | Q5 fully closed: keep all three remaining items for v1 (top gainers/losers strip, watchlist row above table, recent predictions panel below table). All deferred-to-v0.2 items remain deferred (sector heatmap, news, calendar). Wireframe updated to reflect final home layout. **ALL OPEN QUESTIONS NOW CLOSED.** Design phase complete; ready to build. | All three items are small effort with high ROI. Watchlist row and recent predictions panel both have well-defined empty states (hidden / friendly prompt). |
 
 ---
 
