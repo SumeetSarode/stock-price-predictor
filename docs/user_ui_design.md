@@ -229,11 +229,14 @@ User-requested:
 Recommended additions:
 - **Volume + 20-day average ratio** — volume spikes are signal
 - **Distance from 52W high/low (%)** — actionable framing
-- **🎯 Our prediction signal** — badge: `🟢 Bullish 78%` / `🔴 Bearish 65%`
-  / `⚪ Neutral 50%` / `—` (no recent prediction). **This is our moat.**
-  Sortable. Filterable.
-- **Last predicted at** (relative: "2h ago" / "yesterday") — trust signal
 - **Sector** (short label or icon) — enables filtering
+
+No prediction signal column — per Q2, predictions are pure on-demand.
+User clicks a row → side panel opens → user clicks Predict there.
+
+Table is **sortable by any column**, default sort by ticker A–Z. All 50
+rows always visible (no pagination, no "top movers only" default —
+simple, predictable, no hidden state).
 
 Recommended skips for v1 (info overload):
 - ❌ P/E, P/B, dividend yield — fundamental ratios, niche audience
@@ -242,24 +245,25 @@ Recommended skips for v1 (info overload):
 
 ### ⏸ Above-table elements (context strip)
 
-Menu, ranked by recommended priority:
+Menu, ranked by recommended priority. **🏆 Top conviction calls moved
+to v0.2** per Q2 decision (no precomputed predictions in v1).
 
-| Element | Why | Effort |
-|---|---|---|
-| **Index summary bar** — Nifty 50, Nifty Bank, Sensex values + change% | Sets day's mood at a glance. Every trader app has this. | Small |
-| **Top 5 gainers / Top 5 losers** | Quick "what moved today" without scanning 50 rows | Small |
-| **🏆 Our top conviction calls** — top 3 bullish + 3 bearish predictions by confidence | **THE differentiator.** Other tools show prices; we show opinions. Surface them. | Medium (needs nightly batch) |
-| **Watchlist row** (if user has saved stocks) | Personalization — their stuff before the universe | Small |
-| **Market status pill** — `🟢 Open` / `🔴 Closed` / `⏸ Holiday: Diwali` with countdown to next open | NSE trading-hours awareness, builds trust | Tiny |
+| Element | Why | Effort | v1 status |
+|---|---|---|---|
+| **Index summary bar** — Nifty 50, Nifty Bank, Sensex values + change% | Sets day's mood at a glance. Every trader app has this. | Small | ✅ keep |
+| **Market status pill** — `🟢 Open` / `🔴 Closed` / `⏸ Holiday` with countdown | NSE trading-hours awareness | Tiny | ✅ keep |
+| **Top 5 gainers / Top 5 losers** | Quick "what moved today" without scanning 50 rows | Small | ⏸ pending (Q5) |
+| **Watchlist row** (if user has saved stocks) | Personalization | Small | ⏸ pending (Q5) |
+| **🏆 Top conviction calls** | Needs precomputed predictions | Medium | 🚫 v0.2 (per Q2) |
 
 ### ⏸ Below-table or side-panel elements
 
-| Element | Why | Effort |
-|---|---|---|
-| **Sector heatmap** — colored grid showing sector performance (Finviz-style) | Visual, fast, popular | Medium |
-| **Recent predictions you've run** — last 5 with grade (✅ on track / ❌ stopped / ⏳ pending) | Engagement loop. Reminds you what you predicted. | Small (uses history DB) |
-| **Top news headlines** — top 5 market news from GDELT | Context for *why* things are moving | Medium (needs scheduled fetch) |
-| **Calendar strip** — upcoming earnings / events for Nifty 50 in next 7 days | Forward-looking, not just rear-view | Medium |
+| Element | Why | Effort | v1 status |
+|---|---|---|---|
+| **Recent predictions you've run** — last 5 with grade (✅ on track / ❌ stopped / ⏳ pending) | Engagement loop. Reminds you what you predicted. Still feasible since history DB has user's own runs (not global). | Small | ⏸ pending (Q5) |
+| **Sector heatmap** — colored grid showing sector performance | Visual, fast, popular | Medium | 🚫 v0.2 |
+| **Top news headlines** — top 5 market news from GDELT | Context for *why* things are moving | Medium | 🚫 v0.2 |
+| **Calendar strip** — upcoming earnings / events for Nifty 50 in next 7 days | Forward-looking | Medium | 🚫 v0.2 |
 
 ### ⏸ Search bar
 
@@ -278,20 +282,15 @@ Sub-decisions on the table:
 
 ### ⏸ Row click behavior
 
-Options on the table:
+✅ **Decided per Q4: side panel for Nifty 50, full page for non-Nifty 50.**
 
-- **A.** Inline expand — shows mini chart + summary inside the row
-- **B.** Side panel — slides in from right with full details + prediction (**recommended**)
-- **C.** Full detail page `/stock/RELIANCE.NS`
-- **D.** Modal
+- Click row in Nifty 50 table → side panel slides in from right
+- Search bar pick (stock IS Nifty 50) → scroll to row + open side panel
+- Search bar pick (stock is OUTSIDE Nifty 50) → full page nav to `/stock/<TICKER>`
 
-Recommendation: **B (side panel)**. Dashboard stays as reference; details
-slide in/out without losing context. Linear / Notion pattern. Modal feels
-heavier, full page loses dashboard context, inline expansion makes rows
-reflow ugly.
-
-Each row should also expose hover-revealed quick actions:
-`[ ⭐ Watch ]  [ 🔮 Predict now ]  [ 📊 Details → ]`
+Each row exposes hover-revealed quick actions:
+`[ ⭐ Watch ]  [ 🔮 Predict now ]  [ 📊 Details → ]`. Clicking anywhere
+else on the row triggers the default action (open side panel).
 
 ---
 
@@ -316,44 +315,70 @@ Each row should also expose hover-revealed quick actions:
 
 ## 6. Wireframe sketch (rough)
 
+### Home page
+
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  📈 Price Predictor   [Watchlist] [History] [⚙]   Search [____🔍] │  ← sticky nav
-├─────────────────────────────────────────────────────────────────────┤
+┌───────────────────────────────────────────────────────────────────┐
+│  📈 Price Predictor   Search [____________🔍]   [History] [⚙]   │  ← sticky nav
+├───────────────────────────────────────────────────────────────────┤
 │                                                                       │
-│   Nifty 50: 24,832 ▲ +0.42%   Bank Nifty: 53,210 ▼ -0.18%   🟢 Open │  ← index bar
+│   Nifty 50: 24,832 ▲ +0.42%   Bank Nifty: 53,210 ▼ -0.18%   🟢 Open  │  ← index bar
+│   [ 🔄 Refresh prices  ·  Last updated 11:42 AM ]                        │  ← manual refresh
 │                                                                       │
-│   🏆 Top conviction calls today                                       │
-│   🟢 RELIANCE +78%   🟢 INFY +72%   🔴 ITC -65%   🔴 HINDUNILVR -61% │
+│   ┌─────────────────────────────────────────────────────────┐   │  ← Nifty 50 table
+│   │ Ticker      Open    Close   High    Low    Chg%   52WH    52WL   │   │     (sortable)
+│   ├─────────────────────────────────────────────────────────┤   │
+│   │ RELIANCE    2845    2871🟢  2880    2832   +0.92%  3024   2440    │   │  ← 🟢 = LIVE badge
+│   │ TCS         3920    3895🔵  3935    3884   -0.64%  4120   3640    │   │  ← 🔵 = EOD badge
+│   │ INFY        1502    1518🟢  1525    1498   +1.06%  1620   1280    │   │
+│   │ ...                                                              │   │
+│   └─────────────────────────────────────────────────────────┘   │
 │                                                                       │
-│   📈 Top gainers              📉 Top losers                          │
-│   TATAMOTORS +3.4%            ITC -2.1%                              │
-│   ...                          ...                                    │
+│   On row hover, reveal:  [ ⭐ Watch ]  [ 🔮 Predict ]  [ 📊 Details → ]    │
 │                                                                       │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │ Ticker     Open  Close   High    Low    Chg%   52WH   52WL │   │  ← Nifty 50 table
-│   │           Pred         Last Pred                             │   │
-│   ├─────────────────────────────────────────────────────────────┤   │
-│   │ RELIANCE  2845  2871  2880   2832  +1.4%  3024  2440        │   │
-│   │           🟢 78% Wkly      2h ago      [⭐][🔮][📊]          │   │
-│   │ TCS       3920  3895  3935   3884  -0.6%  4120  3640        │   │
-│   │           🔴 62% Wkly      Yesterday   [⭐][🔮][📊]          │   │
-│   │ ...                                                          │   │
-│   └─────────────────────────────────────────────────────────────┘   │
-│                                                                       │
-│   📰 Top headlines                  🗓 Upcoming earnings              │
-│   ...                                ...                              │
-│                                                                       │
-│  ⚠ For educational purposes only. Not investment advice.   v0.1.0    │  ← footer
-└─────────────────────────────────────────────────────────────────────┘
+│  ⚠ For educational purposes only. Not investment advice.   v0.1.0     │  ← footer
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-When a row is clicked → side panel slides in from the right with:
-- Larger Lightweight Charts candlestick with entry/target/stop bands overlaid
-- Full prediction details (all 4 horizons)
-- Expandable LLM reasoning panel
-- News headlines specific to that stock
-- "Add to watchlist" / "Run fresh prediction" buttons
+### Side panel (opens when Nifty 50 row clicked)
+
+```
+                                  ┌──────────────────────────────────┐
+                                  │ RELIANCE INDUSTRIES        [ ✕ ] │
+                                  ├──────────────────────────────────┤
+                                  │ ₹2,871  🟢 LIVE ~18m            │
+                                  │ +₹26  (+0.92%)  vs yesterday      │
+                                  │                                   │
+                                  │ [ chart — candlestick + volume ] │
+                                  │                                   │
+                                  │ Open  2845   High  2880           │
+                                  │ Low   2832   Vol   8.2M           │
+                                  │ 52WH  3024   52WL  2440           │
+                                  │                                   │
+                                  │ ──────────────────────────────  │
+                                  │ Horizon                            │
+                                  │ [Daily][Weekly✓][Biweekly][Monthly]│
+                                  │                                   │
+                                  │        [ 🔮 Run prediction ]       │
+                                  │                                   │
+                                  │ (after prediction runs:)          │
+                                  │ 🔴 BEARISH · 65% confidence        │
+                                  │ Predicted from ₹2,845 (yest close)│
+                                  │ Entry  ₹2,840–2,850               │
+                                  │ Target ₹2,920    Stop ₹2,810      │
+                                  │                                   │
+                                  │ ▾ View reasoning                   │
+                                  │ ▾ Related news (3)                 │
+                                  │                                   │
+                                  │ [ ⭐ Add to watchlist ]            │
+                                  └──────────────────────────────────┘
+```
+
+### Full detail page (search for stock outside Nifty 50, e.g. `/stock/IRCTC.NS`)
+
+Same components as the side panel, but laid out as a full-width page
+with bigger chart and side-by-side panels for prediction + reasoning +
+news. URL is shareable (well, locally — each user's `localhost:8000`).
 
 ---
 
@@ -394,15 +419,52 @@ Two-source blend:
 | Q1D | **Fallback chain** when yfinance fails: `yfinance current → cached yfinance from <5 min ago → today's EOD close → yesterday's EOD close` | Defensive engineering, no real choice. |
 | Q1E | **Env toggle** `SHOW_INTRADAY=true` (default). Set to `false` for pure EOD mode (no yfinance calls at all). | Users who prefer privacy / lighter network can opt out. |
 
-### Q2. Prediction signal column from day 1?
+### Q2. When are predictions computed?
 
-If yes, requires a nightly batch script running Nifty 50 predictions so
-the home table has data on first page load. Without it, the column is
-empty on first load and users see "Run prediction" buttons per row.
+✅ **Decided: Pure on-demand. No batch, no scheduler, no background LLM calls.**
 
-**Decision needed.** My pick: nightly batch runs on first launch + every
-night thereafter, so the user opening the dashboard at 7 AM IST always
-sees fresh signals.
+Flow:
+
+```
+1. User opens localhost:8000
+   ↓
+2. Home: Nifty 50 dashboard — prices only, no prediction column
+   Two ways to engage:
+     a) Search bar at top → pick any stock (Nifty 50 or wider universe)
+     b) Click any row in the Nifty 50 table
+   ↓
+3. Detail surface opens for the chosen stock
+     • Side panel (slides in from right) if stock is in Nifty 50
+     • Full page navigation to /stock/<TICKER> if stock is outside Nifty 50
+   ↓
+4. Detail surface shows: chart, current price, key stats, horizon picker, Predict button
+   ↓
+5. User picks horizon (default: weekly) and clicks Predict
+   → ~30s wait → result renders inline with signal, confidence,
+     entry/target/stop, expandable reasoning. Saved to history.
+```
+
+**Why on-demand for v1:** zero scheduler complexity, zero risk of
+burning a user's free-tier quota in the background, home loads
+instantly, prediction is a *deliberate* action (matches the
+"thinking tool, not a feed" vibe), cost stays under user's full
+control.
+
+**What we deferred (not closed, just v0.2+):**
+
+- 🏆 "Top conviction calls" strip on home — needs precomputed
+  predictions, which we don't have without a batch. Add later as
+  opt-in nightly batch for power users.
+- Prediction signal column on the Nifty 50 table — same reason.
+- Auto-refresh / scheduled re-runs — same reason.
+
+**Horizon picker on the detail surface:**
+
+A horizon picker (4-tab control: Daily / Weekly / Biweekly / Monthly)
+sits above the Predict button. Default = weekly (configurable via
+`DEFAULT_HORIZON=weekly` in `.env`). User can switch before clicking.
+Power users can click all 4 sequentially if they want full coverage.
+Each run = ~8 LLM calls per horizon.
 
 ### Q3. Universe scope
 
@@ -414,28 +476,37 @@ sees fresh signals.
 
 ### Q4. Row-click interaction
 
-Recommended: side panel (B). See section 4 for full option list.
+✅ **Decided: Side panel for Nifty 50 stocks; full page for searched stocks outside Nifty 50.**
+
+| Source of selection | Surface | Why |
+|---|---|---|
+| Click row in Nifty 50 table | Side panel slides in from the right | Dashboard stays as context. Easy to close and pick another stock. Linear / Notion pattern. |
+| Search bar pick — stock IS in Nifty 50 | Scroll to that row in the table + open side panel | Same in-context flow. |
+| Search bar pick — stock is OUTSIDE Nifty 50 | Full page navigation to `/stock/<TICKER>` | Stock isn't on the dashboard, so there's no "context" to preserve. Bigger canvas. URL shareable. |
+
+Each row in the Nifty 50 table also exposes hover-revealed quick actions:
+`[ ⭐ Watch ]  [ 🔮 Predict now ]  [ 📊 Details → ]`. Clicking the row
+anywhere except those actions opens the side panel (default action).
 
 ### Q5. Which optional home-page sections survive v1?
 
-From the brainstorm menu in section 4, which to ship in v0 vs defer:
+**Affected by Q2 decision** (no precomputed predictions). Updated recommendations:
 
 Above-table candidates:
-- Index summary bar
-- Top gainers / losers
-- 🏆 Top conviction calls
-- Watchlist row
-- Market status pill
+- ✅ Index summary bar (Nifty 50 / Bank Nifty / Sensex) — keep
+- ✅ Market status pill (🟢 Open / 🔴 Closed / ⏸ Holiday) — keep
+- ⏸ Top gainers / losers strip — still possible from EOD/intraday, **pending**
+- 🚫 Top conviction calls — deferred to v0.2 (needs precomputed predictions)
+- ⏸ Watchlist row — **pending** (depends on watchlist being built in same phase)
 
 Below-table candidates:
-- Sector heatmap
-- Recent predictions you've run
-- Top news headlines
-- Calendar strip
+- ⏸ Recent predictions you've run (from history) — **pending**, still feasible since history DB has user's own runs
+- 🚫 Sector heatmap — defer to v0.2 (lots of work for v1 polish)
+- 🚫 Top news headlines — defer to v0.2 (needs scheduled fetch)
+- 🚫 Calendar strip — defer to v0.2
 
-**Decision needed per item.** My pick for v0: index summary bar + top
-conviction calls + market status pill above; recent predictions below.
-Defer the rest to v0.2.
+**Decision still needed on:** top gainers/losers strip, watchlist row,
+recent predictions panel.
 
 ### Q6. Reference UIs the user has in mind
 
@@ -480,6 +551,7 @@ screenshot to match.
 |---|---|---|
 | 2026-05-18 | Initial draft | Captures vision discussion through Q5 of the open questions. |
 | 2026-05-18 | Q1 decided: EOD + delayed intraday via yfinance, manual refresh, badges per row, side-panel shows both "current" and "predicted from" prices, env toggle to disable intraday. Sub-decisions Q1A–Q1E all locked. Q6 closed (no additional references; locked design philosophy stands). | User chose Option B with manual-refresh sub-pick. "Predicted from" intentionally kept off home table to preserve dashboard density. |
+| 2026-05-18 | Q2 + Q4 decided: pure on-demand predictions (no batch, no scheduler), side panel for Nifty 50 row clicks, full page for non-Nifty 50 search results. Horizon picker (4 tabs) with weekly default on the detail surface. Q5 partially closed: top conviction calls deferred to v0.2 (depends on Q2); index bar + market status pill confirmed; gainers/losers/watchlist/recent-predictions still pending. Home wireframe updated to reflect no prediction column. | User shifted to deliberate, intent-driven prediction model. Simpler v1, zero LLM cost without user action, prediction becomes a focused activity rather than background hum. |
 
 ---
 
