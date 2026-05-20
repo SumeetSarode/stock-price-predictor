@@ -1,0 +1,198 @@
+ticker,name,sector,nifty50
+ADANIENT.NS,Adani Enterprises,Metals & Mining,true
+ADANIPORTS.NS,Adani Ports & SEZ,Services,true
+APOLLOHOSP.NS,Apollo Hospitals,Healthcare,true
+ASIANPAINT.NS,Asian Paints,Consumer Durables,true
+AXISBANK.NS,Axis Bank,Financial Services,true
+BAJAJ-AUTO.NS,Bajaj Auto,Automobile and Auto Components,true
+BAJAJFINSV.NS,Bajaj Finserv,Financial Services,true
+BAJFINANCE.NS,Bajaj Finance,Financial Services,true
+BEL.NS,Bharat Electronics,Capital Goods,true
+BHARTIARTL.NS,Bharti Airtel,Telecommunication,true
+CIPLA.NS,Cipla,Healthcare,true
+COALINDIA.NS,Coal India,"Oil, Gas & Consumable Fuels",true
+DRREDDY.NS,Dr. Reddy's Laboratories,Healthcare,true
+EICHERMOT.NS,Eicher Motors,Automobile and Auto Components,true
+ETERNAL.NS,Eternal (formerly Zomato),Consumer Services,true
+GRASIM.NS,Grasim Industries,Construction Materials,true
+HCLTECH.NS,HCLTech,Information Technology,true
+HDFCBANK.NS,HDFC Bank,Financial Services,true
+HDFCLIFE.NS,HDFC Life,Financial Services,true
+HINDALCO.NS,Hindalco Industries,Metals & Mining,true
+HINDUNILVR.NS,Hindustan Unilever,Fast Moving Consumer Goods,true
+ICICIBANK.NS,ICICI Bank,Financial Services,true
+INDIGO.NS,IndiGo,Services,true
+INFY.NS,Infosys,Information Technology,true
+ITC.NS,ITC,Fast Moving Consumer Goods,true
+JIOFIN.NS,Jio Financial Services,Financial Services,true
+JSWSTEEL.NS,JSW Steel,Metals & Mining,true
+KOTAKBANK.NS,Kotak Mahindra Bank,Financial Services,true
+LT.NS,Larsen & Toubro,Construction,true
+M&M.NS,Mahindra & Mahindra,Automobile and Auto Components,true
+MARUTI.NS,Maruti Suzuki,Automobile and Auto Components,true
+MAXHEALTH.NS,Max Healthcare,Healthcare,true
+NESTLEIND.NS,Nestlé India,Fast Moving Consumer Goods,true
+NTPC.NS,NTPC,Power,true
+ONGC.NS,Oil and Natural Gas Corporation,"Oil, Gas & Consumable Fuels",true
+POWERGRID.NS,Power Grid,Power,true
+RELIANCE.NS,Reliance Industries,"Oil, Gas & Consumable Fuels",true
+SBILIFE.NS,SBI Life Insurance Company,Financial Services,true
+SBIN.NS,State Bank of India,Financial Services,true
+SHRIRAMFIN.NS,Shriram Finance,Financial Services,true
+SUNPHARMA.NS,Sun Pharma,Healthcare,true
+TATACONSUM.NS,Tata Consumer Products,Fast Moving Consumer Goods,true
+TATASTEEL.NS,Tata Steel,Metals & Mining,true
+TCS.NS,Tata Consultancy Services,Information Technology,true
+TECHM.NS,Tech Mahindra,Information Technology,true
+TITAN.NS,Titan Company,Consumer Durables,true
+TMPV.NS,Tata Motors Passenger Vehicles (TaMo),Automobile and Auto Components,true
+TRENT.NS,Trent,Consumer Services,true
+ULTRACEMCO.NS,UltraTech Cement,Construction Materials,true
+WIPRO.NS,Wipro,Information Technology,true
+AARTIIND.NS,Aarti Industries,Chemicals,false
+ABB.NS,ABB India,Capital Goods,false
+ABBOTINDIA.NS,Abbott India,Healthcare,false
+ABFRL.NS,Aditya Birla Fashion & Retail,Consumer Services,false
+ACC.NS,ACC,Construction Materials,false
+ADANIENSOL.NS,Adani Energy Solutions,Power,false
+ADANIGREEN.NS,Adani Green Energy,Power,false
+ADANIPOWER.NS,Adani Power,Power,false
+ALKEM.NS,Alkem Laboratories,Healthcare,false
+AMBUJACEM.NS,Ambuja Cements,Construction Materials,false
+ANGELONE.NS,Angel One,Financial Services,false
+APOLLOTYRE.NS,Apollo Tyres,Automobile and Auto Components,false
+ASHOKLEY.NS,Ashok Leyland,Automobile and Auto Components,false
+ATGL.NS,Adani Total Gas,"Oil, Gas & Consumable Fuels",false
+AUBANK.NS,AU Small Finance Bank,Financial Services,false
+AUROPHARMA.NS,Aurobindo Pharma,Healthcare,false
+BALKRISIND.NS,Balkrishna Industries,Automobile and Auto Components,false
+BANDHANBNK.NS,Bandhan Bank,Financial Services,false
+BANKBARODA.NS,Bank of Baroda,Financial Services,false
+BDL.NS,Bharat Dynamics,Capital Goods,false
+BERGEPAINT.NS,Berger Paints,Consumer Durables,false
+BHARATFORG.NS,Bharat Forge,Automobile and Auto Components,false
+BHEL.NS,BHEL,Capital Goods,false
+BIOCON.NS,Biocon,Healthcare,false
+BOSCHLTD.NS,Bosch,Automobile and Auto Components,false
+BPCL.NS,Bharat Petroleum,"Oil, Gas & Consumable Fuels",false
+BRIGADE.NS,Brigade Enterprises,Realty,false
+BRITANNIA.NS,Britannia Industries,Fast Moving Consumer Goods,false
+BSE.NS,BSE Limited,Financial Services,false
+CANBK.NS,Canara Bank,Financial Services,false
+CDSL.NS,Central Depository Services,Financial Services,false
+CESC.NS,CESC,Power,false
+CHOLAFIN.NS,Cholamandalam Investment,Financial Services,false
+COCHINSHIP.NS,Cochin Shipyard,Capital Goods,false
+COFORGE.NS,Coforge,Information Technology,false
+COLPAL.NS,Colgate-Palmolive (India),Fast Moving Consumer Goods,false
+CROMPTON.NS,Crompton Greaves Consumer,Consumer Durables,false
+CUMMINSIND.NS,Cummins India,Capital Goods,false
+DABUR.NS,Dabur India,Fast Moving Consumer Goods,false
+DALBHARAT.NS,Dalmia Bharat,Construction Materials,false
+DEEPAKNTR.NS,Deepak Nitrite,Chemicals,false
+DEVYANI.NS,Devyani International,Consumer Services,false
+DIVISLAB.NS,Divi's Laboratories,Healthcare,false
+DIXON.NS,Dixon Technologies,Consumer Durables,false
+DLF.NS,DLF,Realty,false
+DMART.NS,Avenue Supermarts (DMart),Consumer Services,false
+ENGINERSIN.NS,Engineers India,Construction,false
+ESCORTS.NS,Escorts Kubota,Automobile and Auto Components,false
+EXIDEIND.NS,Exide Industries,Automobile and Auto Components,false
+FEDERALBNK.NS,Federal Bank,Financial Services,false
+FINOLEXIND.NS,Finolex Industries,Capital Goods,false
+FORTIS.NS,Fortis Healthcare,Healthcare,false
+GAIL.NS,GAIL (India),"Oil, Gas & Consumable Fuels",false
+GLENMARK.NS,Glenmark Pharmaceuticals,Healthcare,false
+GODREJCP.NS,Godrej Consumer Products,Fast Moving Consumer Goods,false
+GODREJPROP.NS,Godrej Properties,Realty,false
+GRSE.NS,Garden Reach Shipbuilders,Capital Goods,false
+HAL.NS,Hindustan Aeronautics,Capital Goods,false
+HAVELLS.NS,Havells India,Consumer Durables,false
+HDFCAMC.NS,HDFC Asset Management,Financial Services,false
+HEROMOTOCO.NS,Hero MotoCorp,Automobile and Auto Components,false
+HINDCOPPER.NS,Hindustan Copper,Metals & Mining,false
+HINDPETRO.NS,Hindustan Petroleum,"Oil, Gas & Consumable Fuels",false
+ICICIGI.NS,ICICI Lombard General Insurance,Financial Services,false
+ICICIPRULI.NS,ICICI Prudential Life,Financial Services,false
+IDEA.NS,Vodafone Idea,Telecommunication,false
+IDFCFIRSTB.NS,IDFC First Bank,Financial Services,false
+INDIANB.NS,Indian Bank,Financial Services,false
+INDUSINDBK.NS,IndusInd Bank,Financial Services,false
+INDUSTOWER.NS,Indus Towers,Telecommunication,false
+IOB.NS,Indian Overseas Bank,Financial Services,false
+IOC.NS,Indian Oil Corporation,"Oil, Gas & Consumable Fuels",false
+IPCALAB.NS,IPCA Laboratories,Healthcare,false
+IRCON.NS,Ircon International,Construction,false
+IRCTC.NS,IRCTC,Consumer Services,false
+IREDA.NS,Indian Renewable Energy Dev,Financial Services,false
+IRFC.NS,Indian Railway Finance Corp,Financial Services,false
+JINDALSTEL.NS,Jindal Steel & Power,Metals & Mining,false
+JKCEMENT.NS,JK Cement,Construction Materials,false
+JUBLFOOD.NS,Jubilant FoodWorks,Consumer Services,false
+KANSAINER.NS,Kansai Nerolac Paints,Consumer Durables,false
+KEC.NS,KEC International,Construction,false
+KEI.NS,KEI Industries,Capital Goods,false
+KPITTECH.NS,KPIT Technologies,Information Technology,false
+LICI.NS,Life Insurance Corporation,Financial Services,false
+LODHA.NS,Macrotech Developers (Lodha),Realty,false
+LTIM.NS,LTIMindtree,Information Technology,false
+LTTS.NS,L&T Technology Services,Information Technology,false
+LUPIN.NS,Lupin,Healthcare,false
+MANKIND.NS,Mankind Pharma,Healthcare,false
+MARICO.NS,Marico,Fast Moving Consumer Goods,false
+MAZDOCK.NS,Mazagon Dock Shipbuilders,Capital Goods,false
+MCX.NS,Multi Commodity Exchange,Financial Services,false
+MFSL.NS,Max Financial Services,Financial Services,false
+MOIL.NS,MOIL,Metals & Mining,false
+MOTHERSON.NS,Samvardhana Motherson Intl,Automobile and Auto Components,false
+MPHASIS.NS,Mphasis,Information Technology,false
+MRF.NS,MRF,Automobile and Auto Components,false
+MUTHOOTFIN.NS,Muthoot Finance,Financial Services,false
+NALCO.NS,National Aluminium,Metals & Mining,false
+NAVINFLUOR.NS,Navin Fluorine,Chemicals,false
+NBCC.NS,NBCC (India),Construction,false
+NCC.NS,NCC Limited,Construction,false
+NHPC.NS,NHPC,Power,false
+NIPPONLIFE.NS,Nippon Life India AMC,Financial Services,false
+NMDC.NS,NMDC,Metals & Mining,false
+NYKAA.NS,FSN E-Commerce (Nykaa),Consumer Services,false
+OBEROIRLTY.NS,Oberoi Realty,Realty,false
+OFSS.NS,Oracle Financial Services,Information Technology,false
+OIL.NS,Oil India,"Oil, Gas & Consumable Fuels",false
+PAGEIND.NS,Page Industries,Consumer Services,false
+PAYTM.NS,One 97 Communications (Paytm),Financial Services,false
+PERSISTENT.NS,Persistent Systems,Information Technology,false
+PETRONET.NS,Petronet LNG,"Oil, Gas & Consumable Fuels",false
+PFC.NS,Power Finance Corporation,Financial Services,false
+PHOENIXLTD.NS,Phoenix Mills,Realty,false
+PIDILITIND.NS,Pidilite Industries,Chemicals,false
+PIIND.NS,PI Industries,Chemicals,false
+PNB.NS,Punjab National Bank,Financial Services,false
+POLICYBZR.NS,PB Fintech (Policybazaar),Financial Services,false
+POLYCAB.NS,Polycab India,Capital Goods,false
+PRESTIGE.NS,Prestige Estates,Realty,false
+RADICO.NS,Radico Khaitan,Fast Moving Consumer Goods,false
+RAMCOCEM.NS,Ramco Cements,Construction Materials,false
+RATNAMANI.NS,Ratnamani Metals & Tubes,Metals & Mining,false
+RECLTD.NS,REC Limited,Financial Services,false
+RVNL.NS,Rail Vikas Nigam,Construction,false
+SAIL.NS,Steel Authority of India,Metals & Mining,false
+SIEMENS.NS,Siemens,Capital Goods,false
+SJVN.NS,SJVN,Power,false
+SRF.NS,SRF,Chemicals,false
+TATACOMM.NS,Tata Communications,Telecommunication,false
+TATAELXSI.NS,Tata Elxsi,Information Technology,false
+TATAPOWER.NS,Tata Power,Power,false
+THERMAX.NS,Thermax,Capital Goods,false
+TORNTPHARM.NS,Torrent Pharmaceuticals,Healthcare,false
+TORNTPOWER.NS,Torrent Power,Power,false
+TVSMOTOR.NS,TVS Motor Company,Automobile and Auto Components,false
+UNIONBANK.NS,Union Bank of India,Financial Services,false
+UNITDSPR.NS,United Spirits,Fast Moving Consumer Goods,false
+UPL.NS,UPL,Chemicals,false
+VBL.NS,Varun Beverages,Fast Moving Consumer Goods,false
+VEDL.NS,Vedanta,Metals & Mining,false
+VOLTAS.NS,Voltas,Consumer Durables,false
+WHIRLPOOL.NS,Whirlpool of India,Consumer Durables,false
+YESBANK.NS,Yes Bank,Financial Services,false
+ZYDUSLIFE.NS,Zydus Lifesciences,Healthcare,false

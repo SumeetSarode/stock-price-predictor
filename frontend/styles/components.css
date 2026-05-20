@@ -457,6 +457,177 @@
 .signal-list--conflicts .signal-list__item::before { background-color: var(--color-bearish); }
 
 /* ──────────────────────────────────────────────────────────
+ * Search bar (nav-mounted autocomplete)
+ * Owns its own micro-layout: input, icon, spinner, dropdown.
+ * ────────────────────────────────────────────────────────── */
+.search {
+  position: relative;
+  flex: 0 1 360px;
+  min-width: 200px;
+}
+
+.search__icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+  pointer-events: none;
+}
+
+.search__input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) * 2 + 14px);
+  font-size: var(--fs-sm);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-fast),
+              border-color var(--transition-fast),
+              box-shadow var(--transition-fast);
+}
+
+.search__input::placeholder {
+  color: var(--color-fg-muted);
+}
+
+.search__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search__input:hover {
+  background-color: var(--color-bg);
+  border-color: var(--color-border-strong);
+}
+
+.search__input:focus {
+  outline: none;
+  background-color: var(--color-bg);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.search__spinner {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-primary);
+  display: none;
+}
+
+.htmx-request .search__spinner,
+.htmx-request.search__spinner {
+  display: inline-flex;
+}
+
+.search__dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  max-height: 360px;
+  overflow-y: auto;
+  /* When .search__list is absent (empty / closed), this div is
+     visually invisible. The collapsed border still ships a 2px
+     gap which looks like a glitch — hide entirely when empty. */
+}
+
+.search__dropdown:empty {
+  display: none;
+}
+
+.search__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1);
+}
+
+.search__item {
+  margin: 0;
+}
+
+.search__btn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.search__btn.is-active,
+.search__btn:hover,
+.search__btn:focus-visible {
+  background-color: var(--color-primary-soft);
+  outline: none;
+}
+
+.search__name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-fg);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search__n50-tag {
+  font-size: 9px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.05em;
+  background-color: var(--color-primary);
+  color: white;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.search__meta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+}
+
+.search__ticker {
+  font-weight: var(--fw-medium);
+  color: var(--color-fg-subtle);
+}
+
+.search__sector::before {
+  content: "· ";
+  margin-right: var(--space-1);
+}
+
+.search__empty {
+  padding: var(--space-5);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--color-fg-subtle);
+}
+
+.search__empty-hint {
+  margin-top: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+}
+
+/* ──────────────────────────────────────────────────────────
  * Loading indicator (HTMX request-in-flight)
  * ────────────────────────────────────────────────────────── */
 .spinner {

@@ -1,0 +1,42 @@
+{#
+  search_suggestions.html — HTMX partial rendered into the suggestions
+  dropdown when the user types in the nav search bar.
+
+  Each suggestion is a button (not a link) so keyboard nav can use
+  focus + Enter without browser interception. The click handler
+  navigates to /stock/<ticker> via JavaScript.
+
+  Empty-state intentionally shows nothing (HTMX swaps to empty,
+  effectively closing the dropdown).
+#}
+{% if matches %}
+  <ul class="search__list" role="listbox" aria-label="Ticker suggestions">
+    {% for s in matches %}
+      <li class="search__item" role="option">
+        <button type="button" class="search__btn"
+                data-ticker="{{ s.ticker }}"
+                tabindex="-1">
+          <span class="search__name">
+            {{ s.name }}
+            {% if s.is_nifty50 %}
+              <span class="search__n50-tag" title="Nifty 50 constituent">N50</span>
+            {% endif %}
+          </span>
+          <span class="search__meta">
+            <span class="search__ticker num">{{ s.ticker }}</span>
+            <span class="search__sector">{{ s.sector }}</span>
+          </span>
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+{% elif query and query.strip() %}
+  <div class="search__empty">
+    <span aria-hidden="true">🤷</span>
+    No matches for "<strong>{{ query }}</strong>"
+    <div class="search__empty-hint">
+      Try a shorter query, or enter the full ticker (e.g. <code>RELIANCE.NS</code>)
+      directly in the Predict form.
+    </div>
+  </div>
+{% endif %}

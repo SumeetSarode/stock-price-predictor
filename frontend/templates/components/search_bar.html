@@ -1,0 +1,34 @@
+{#
+  search_bar.html — sticky-nav ticker search with autocomplete.
+
+  HTMX handles the fetch + swap. A small inline script (kept in
+  /static/scripts/search.js) handles keyboard nav, click delegation,
+  and outside-click-to-close.
+
+  Markup contract:
+    .search                  — wrapper (positioned: relative for dropdown)
+      .search__input         — the <input>
+      .search__dropdown      — absolutely positioned, holds suggestions
+        ↑ HTMX swaps suggestion HTML into here
+#}
+<div class="search" id="ticker-search" data-search-root>
+  <span class="search__icon" aria-hidden="true">🔍</span>
+  <input class="search__input" type="search"
+         placeholder="Search 197 stocks (e.g. Reliance, HDFC, IRCTC)…"
+         aria-label="Search for a stock"
+         aria-autocomplete="list"
+         aria-controls="ticker-search-dropdown"
+         autocomplete="off"
+         spellcheck="false"
+         name="q"
+         hx-get="/api/search"
+         hx-trigger="input changed delay:120ms, focus"
+         hx-target="#ticker-search-dropdown"
+         hx-swap="innerHTML"
+         hx-indicator="#ticker-search-spinner" />
+  <span class="search__spinner" id="ticker-search-spinner" aria-hidden="true">
+    <span class="spinner"></span>
+  </span>
+  <div class="search__dropdown" id="ticker-search-dropdown" role="region"
+       aria-live="polite"></div>
+</div>

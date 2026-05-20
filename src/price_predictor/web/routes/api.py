@@ -18,6 +18,7 @@ from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
     run_prediction,
 )
+from price_predictor.web.services.search_service import search as search_stocks
 from price_predictor.web.settings import settings
 
 router = APIRouter(prefix="/api")
@@ -70,3 +71,40 @@ async def predict_endpoint(
 async def health() -> dict[str, str]:
     """Liveness check. Useful for Docker, scripts, and panic-debugging."""
     return {"status": "ok"}
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Search / autocomplete
+# ───────────────────────────────────────────────────────────────────────
+
+
+@router.get("/search", response_model=None)
+async def search_endpoint(
+    request: Request,
+    q: str = "",
+    limit: int = 8,
+) -> HTMLResponse | JSONResponse:
+    """Autocomplete search across the bundled ticker index.
+
+    Returns:
+        - HTML partial (suggestions dropdown) when called from HTMX
+        - JSON list of matches otherwise
+
+    Empty query returns an empty result — we don't show 'all tickers'
+    on focus; that's the dropdown closing, not opening.
+    """
+    # Clamp limit to a sane range to prevent abuse / accidents.
+    limit = max(1, min(limit, 20))
+
+    matches = search_stocks(q, limit=limit)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name="components/search_suggestions.html",
+            context={"matches": matches, "query": q},
+        )
+    return JSONResponse(content={
+        "query": q,
+        "matches": [m.to_dict() for m in matches],
+    })

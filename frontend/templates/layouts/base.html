@@ -29,6 +29,10 @@
   {# HTMX — vendored, no CDN at runtime #}
   <script src="/static/vendor/htmx-1.9.12.min.js" defer></script>
 
+  {# Tiny per-feature scripts. Keep these small + focused; each owns ONE
+     interaction (search keyboard nav, etc.). HTMX handles the rest. #}
+  <script src="/static/scripts/search.js" defer></script>
+
   {% block extra_head %}{% endblock %}
 </head>
 <body>
