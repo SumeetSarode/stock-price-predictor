@@ -363,14 +363,36 @@ Numbered for easy back-reference in chat.
 
 ### Q1. Data freshness: EOD-only or attempt intraday?
 
-| Option | Pros | Cons |
-|---|---|---|
-| **EOD only** *(recommended)* | Reliable. Honest. Simple code. Most retail-analysis happens EOD. | "Last updated 6 PM IST" feels stale during market hours. |
-| **Intraday via yfinance** | "Live-ish" prices during market hours | Flaky on free APIs, ~15–20 min delay, rate-limited. Have to display delay clearly to avoid mis-leading users. |
-| **Real-time via broker API (Zerodha Kite / Upstox)** | Actual real-time tick data | Requires user broker account + API subscription. Out of local-first scope. |
+✅ **Decided: EOD + delayed intraday via yfinance, with manual refresh.**
 
-**Decision needed.** My pick: EOD with a clear "Market is open — prices
-update after 6 PM IST" banner during 9:15–18:00 IST window.
+Two-source blend:
+
+| Field | During market hours (9:15–15:30 IST) | Outside market hours |
+|---|---|---|
+| Open | yfinance (locked once market opens) | EOD bhavcopy / jugaad-data |
+| **Close / current** | **yfinance LTP** (≈15–20 min delayed) | EOD close |
+| High (running) | yfinance | EOD |
+| Low (running) | yfinance | EOD |
+| 52W High/Low | EOD historical | EOD historical |
+| Change % | Computed from whichever "Close" is showing | EOD math |
+| Volume | yfinance (running cumulative) | EOD |
+
+**Per-row status badges** show data provenance honestly:
+
+- 🟢 `LIVE ~18m` — yfinance current, fresh
+- 🔵 `TODAY EOD` — after-market, today's settled close
+- ⚪ `PREV CLOSE` — weekend / holiday / pre-open
+- 🟡 `⚠ STALE 2h` — yfinance failed; fell back to last known value
+
+**Sub-decisions locked:**
+
+| | Decision | Note |
+|---|---|---|
+| Q1A | **Manual refresh only** — button in nav: `[ 🔄 Refresh prices  ·  Last updated 11:42 AM ]` | No background polling. User controls cadence. Simplest, most polite to yfinance. |
+| Q1B | **Bulk fetch** — 1 batched yfinance call per refresh (`yf.download([...50 tickers])`) | No-brainer. ~1 HTTP call vs 50. |
+| Q1C | **"Predicted from" price only on side panel, NOT home page** | Home table stays lean: one price per row + one badge + one signal. Side panel shows both `Current` and `Predicted from` for clarity when user drills into a specific stock. |
+| Q1D | **Fallback chain** when yfinance fails: `yfinance current → cached yfinance from <5 min ago → today's EOD close → yesterday's EOD close` | Defensive engineering, no real choice. |
+| Q1E | **Env toggle** `SHOW_INTRADAY=true` (default). Set to `false` for pure EOD mode (no yfinance calls at all). | Users who prefer privacy / lighter network can opt out. |
 
 ### Q2. Prediction signal column from day 1?
 
@@ -417,8 +439,9 @@ Defer the rest to v0.2.
 
 ### Q6. Reference UIs the user has in mind
 
-❓ Open. User mentioned having a vision; specific reference apps /
-screenshots not yet shared. Worth collecting if any.
+✅ **Decided: No additional references.** User confirmed the C+B design
+philosophy locked in section 3 captures the vision. No specific app /
+screenshot to match.
 
 ---
 
@@ -456,6 +479,7 @@ screenshots not yet shared. Worth collecting if any.
 | Date | Change | Why |
 |---|---|---|
 | 2026-05-18 | Initial draft | Captures vision discussion through Q5 of the open questions. |
+| 2026-05-18 | Q1 decided: EOD + delayed intraday via yfinance, manual refresh, badges per row, side-panel shows both "current" and "predicted from" prices, env toggle to disable intraday. Sub-decisions Q1A–Q1E all locked. Q6 closed (no additional references; locked design philosophy stands). | User chose Option B with manual-refresh sub-pick. "Predicted from" intentionally kept off home table to preserve dashboard density. |
 
 ---
 
