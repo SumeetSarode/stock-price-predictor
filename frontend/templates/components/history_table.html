@@ -4,7 +4,9 @@
   Caller provides:
     rows           — list of HistoryRow
     show_ticker    — bool, hide the Ticker column when listing one ticker
-    empty_message  — str, what to show when rows is empty
+    empty_icon     — OPTIONAL emoji/string (default 🔮)
+    empty_heading  — OPTIONAL bold first line
+    empty_message  — sub-hint text. Required — set to None for no hint.
     grades_by_id   — OPTIONAL dict[int, str] mapping row.id → outcome
                      ('hit'/'stopped'/'expired'/'pending'/'skipped').
                      If not provided or row.id missing → cell shows '—'.
@@ -76,7 +78,13 @@
     </table>
   </div>
 {% else %}
-  <div class="history-empty">
-    {{ empty_message }}
+  <div class="empty-state">
+    <div class="empty-state__icon" aria-hidden="true">{{ empty_icon|default("🔮") }}</div>
+    {% if empty_heading %}
+      <h3 class="empty-state__heading">{{ empty_heading }}</h3>
+    {% endif %}
+    {% if empty_message %}
+      <p class="empty-state__hint">{{ empty_message }}</p>
+    {% endif %}
   </div>
 {% endif %}

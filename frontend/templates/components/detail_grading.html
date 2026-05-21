@@ -171,10 +171,12 @@
       {% endfor %}
     </ul>
   {% else %}
-    <div class="grading-empty">
-      <p>No predictions for this ticker yet.</p>
-      <p class="grading-empty__hint">
-        Run a prediction (any horizon) and it'll show up here.
+    <div class="empty-state empty-state--inline">
+      <div class="empty-state__icon" aria-hidden="true">📊</div>
+      <h3 class="empty-state__heading">Nothing to grade yet</h3>
+      <p class="empty-state__hint">
+        Run a prediction on any horizon — outcomes show up here once the
+        market gives them a few bars to play out.
       </p>
     </div>
   {% endif %}

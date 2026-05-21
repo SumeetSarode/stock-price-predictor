@@ -89,8 +89,24 @@
     </div>
   </form>
 
-  {# ── Table ──────────────────────────────────────────────────── #}
-  {% with show_ticker=True, empty_message="No predictions match your filters yet. Star a stock and run a prediction to get started.", grades_by_id=grades_by_id %}
+  {# ── Table ─────────────────────────────────────────────────── #}
+  {# Two flavours of empty: filters returned nothing vs. the cache is
+     truly empty. We tell them apart from the filter inputs alone —
+     cheap, no extra DB roundtrip needed. #}
+  {% if filter_ticker or filter_horizon %}
+    {% set _empty_icon = "🔍" %}
+    {% set _empty_heading = "No matches" %}
+    {% set _empty_msg = "Nothing in your prediction history matches these filters. Try clearing them above." %}
+  {% else %}
+    {% set _empty_icon = "🔮" %}
+    {% set _empty_heading = "No predictions yet" %}
+    {% set _empty_msg = "Head to the dashboard, star a stock you care about, and run your first prediction. It lands here automatically." %}
+  {% endif %}
+  {% with show_ticker=True,
+          empty_icon=_empty_icon,
+          empty_heading=_empty_heading,
+          empty_message=_empty_msg,
+          grades_by_id=grades_by_id %}
     {% include "components/history_table.html" %}
   {% endwith %}
 
