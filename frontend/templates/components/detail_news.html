@@ -1,0 +1,51 @@
+{#
+  detail_news.html — HTMX partial for the "📰 News" tab.
+
+  Context:
+    news: NewsBundle dataclass
+      .ticker, .query, .days, .headlines (list[Headline]), .error
+    Each Headline: .title, .url, .source, .published_at, .age_label
+#}
+<div class="analysis-panel">
+
+  <header class="analysis-panel__header">
+    <h3 class="analysis-panel__title">
+      Recent news
+      <span class="analysis-panel__meta">"{{ news.query }}" · last {{ news.days }}d</span>
+    </h3>
+    <span class="analysis-panel__meta num">
+      {{ news.headlines | length }} headlines
+    </span>
+  </header>
+
+  {% if news.error %}
+    <div class="analysis-error analysis-error--soft">
+      <p>{{ news.error }} Try again in a minute.</p>
+    </div>
+  {% elif news.headlines %}
+    <ul class="news-list">
+      {% for h in news.headlines %}
+        <li class="news-list__item">
+          <a class="news-list__title"
+             href="{{ h.url }}"
+             target="_blank"
+             rel="noopener noreferrer">
+            {{ h.title }}
+          </a>
+          <div class="news-list__meta num">
+            <span class="news-list__source">{{ h.source }}</span>
+            <span class="news-list__age">· {{ h.age_label }}</span>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="analysis-card__empty">
+      No news in the last {{ news.days }} days for "{{ news.query }}".
+    </p>
+  {% endif %}
+
+  <p class="analysis-panel__footer">
+    Source: GDELT 2.0 · external links open in a new tab.
+  </p>
+</div>

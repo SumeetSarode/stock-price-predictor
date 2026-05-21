@@ -1,0 +1,219 @@
+{#
+  detail_indicators.html — HTMX partial for the "📊 Indicators" tab.
+
+  Context (provided by routes/api.py::analysis_indicators_endpoint):
+    analysis: LiveAnalysis dataclass
+      .ticker, .as_of, .bars_used, .trend, .momentum, .volatility, .levels
+    error: optional str — soft-error message when fetch failed
+
+  Renders four sections (Trend / Momentum / Volatility / Levels) as
+  compact label→value rows. No JavaScript — pure server-rendered HTML.
+#}
+{% if error %}
+  <div class="analysis-error">
+    <p>{{ error }}</p>
+  </div>
+{% else %}
+<div class="analysis-panel">
+
+  <header class="analysis-panel__header">
+    <h3 class="analysis-panel__title">Live indicators</h3>
+    <span class="analysis-panel__meta num">
+      {{ analysis.bars_used }} bars · as of
+      {{ analysis.as_of.strftime("%d %b %H:%M") }}
+    </span>
+  </header>
+
+  <div class="analysis-grid">
+
+    {# ── Trend ───────────────────────────────────────────────── #}
+    <section class="analysis-card">
+      <h4 class="analysis-card__title">Trend</h4>
+      <dl class="analysis-card__rows">
+        <dt>Close</dt>
+        <dd class="num">₹{{ "%.2f"|format(analysis.trend.close) }}</dd>
+
+        {% for length, value in analysis.trend.sma.items() %}
+          <dt>SMA {{ length }}</dt>
+          <dd class="num">
+            {% if value is not none %}
+              ₹{{ "%.2f"|format(value) }}
+              {% set pct = analysis.trend.pct_above_sma[length] %}
+              {% if pct is not none %}
+                <span class="analysis-card__delta analysis-card__delta--{{ 'pos' if pct >= 0 else 'neg' }}">
+                  ({{ "%+.2f"|format(pct) }}%)
+                </span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </dd>
+        {% endfor %}
+
+        <dt>EMA</dt>
+        <dd class="num">
+          {% if analysis.trend.ema is not none %}
+            ₹{{ "%.2f"|format(analysis.trend.ema) }}
+          {% else %}—{% endif %}
+        </dd>
+
+        <dt>ADX (14)</dt>
+        <dd class="num">
+          {% if analysis.trend.adx.adx is not none %}
+            {{ "%.1f"|format(analysis.trend.adx.adx) }}
+            <span class="analysis-card__meta">
+              +DI {{ "%.1f"|format(analysis.trend.adx.di_plus) }} ·
+              −DI {{ "%.1f"|format(analysis.trend.adx.di_minus) }}
+            </span>
+          {% else %}—{% endif %}
+        </dd>
+      </dl>
+    </section>
+
+    {# ── Momentum ────────────────────────────────────────────── #}
+    <section class="analysis-card">
+      <h4 class="analysis-card__title">Momentum</h4>
+      <dl class="analysis-card__rows">
+        <dt>RSI (14)</dt>
+        <dd class="num">
+          {% if analysis.momentum.rsi is not none %}
+            {{ "%.1f"|format(analysis.momentum.rsi) }}
+            {% if analysis.momentum.rsi >= 70 %}
+              <span class="analysis-card__tag analysis-card__tag--warn">overbought</span>
+            {% elif analysis.momentum.rsi <= 30 %}
+              <span class="analysis-card__tag analysis-card__tag--warn">oversold</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </dd>
+
+        {% set macd = analysis.momentum.macd %}
+        <dt>MACD</dt>
+        <dd class="num">
+          {% if macd and macd.macd is not none %}
+            {{ "%.2f"|format(macd.macd) }}
+            <span class="analysis-card__meta">
+              sig {{ "%.2f"|format(macd.signal) }} ·
+              hist {{ "%+.2f"|format(macd.histogram) }}
+            </span>
+          {% else %}—{% endif %}
+        </dd>
+
+        {% set stoch = analysis.momentum.stoch %}
+        <dt>Stochastic</dt>
+        <dd class="num">
+          {% if stoch and stoch.k is not none %}
+            %K {{ "%.1f"|format(stoch.k) }} ·
+            %D {{ "%.1f"|format(stoch.d) }}
+          {% else %}—{% endif %}
+        </dd>
+      </dl>
+    </section>
+
+    {# ── Volatility ──────────────────────────────────────────── #}
+    <section class="analysis-card">
+      <h4 class="analysis-card__title">Volatility</h4>
+      <dl class="analysis-card__rows">
+        <dt>ATR (14)</dt>
+        <dd class="num">
+          {% if analysis.volatility.atr is not none %}
+            {{ "%.2f"|format(analysis.volatility.atr) }}
+            {% if analysis.volatility.atr_pct_of_price is not none %}
+              <span class="analysis-card__meta">
+                ({{ "%.2f"|format(analysis.volatility.atr_pct_of_price) }}%)
+              </span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </dd>
+
+        {% set bb = analysis.volatility.bbands %}
+        {% if bb %}
+          <dt>Bollinger</dt>
+          <dd class="num">
+            {% if bb.upper is not none %}
+              U {{ "%.1f"|format(bb.upper) }} ·
+              M {{ "%.1f"|format(bb.middle) }} ·
+              L {{ "%.1f"|format(bb.lower) }}
+            {% else %}—{% endif %}
+          </dd>
+        {% endif %}
+
+        {% set sq = analysis.volatility.ttm_squeeze %}
+        {% if sq %}
+          <dt>TTM Squeeze</dt>
+          <dd>
+            {% if sq.on %}
+              <span class="analysis-card__tag analysis-card__tag--warn">on</span>
+              <span class="analysis-card__meta">{{ sq.bars_in_squeeze }} bars</span>
+            {% elif sq.fire %}
+              <span class="analysis-card__tag analysis-card__tag--pos">fired</span>
+            {% else %}
+              <span class="analysis-card__meta">off</span>
+            {% endif %}
+          </dd>
+        {% endif %}
+      </dl>
+    </section>
+
+    {# ── Levels ─────────────────────────────────────────────── #}
+    <section class="analysis-card">
+      <h4 class="analysis-card__title">Levels</h4>
+      <dl class="analysis-card__rows">
+        {% set sw = analysis.levels.swing %}
+        {% set d = analysis.levels.distance_pct %}
+        <dt>Swing high</dt>
+        <dd class="num">
+          {% if sw.swing_high is not none %}
+            ₹{{ "%.2f"|format(sw.swing_high) }}
+            {% if d.swing_high is not none %}
+              <span class="analysis-card__delta analysis-card__delta--pos">({{ "%+.2f"|format(d.swing_high) }}%)</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </dd>
+        <dt>Swing low</dt>
+        <dd class="num">
+          {% if sw.swing_low is not none %}
+            ₹{{ "%.2f"|format(sw.swing_low) }}
+            {% if d.swing_low is not none %}
+              <span class="analysis-card__delta analysis-card__delta--neg">({{ "%+.2f"|format(d.swing_low) }}%)</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </dd>
+
+        {% set fw = analysis.levels.fifty_two_week %}
+        <dt>52w high</dt>
+        <dd class="num">
+          {% if fw.high_52w is not none %}
+            ₹{{ "%.2f"|format(fw.high_52w) }}
+            {% if d.high_52w is not none %}
+              <span class="analysis-card__meta">({{ "%+.2f"|format(d.high_52w) }}%)</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </dd>
+        <dt>52w low</dt>
+        <dd class="num">
+          {% if fw.low_52w is not none %}
+            ₹{{ "%.2f"|format(fw.low_52w) }}
+            {% if d.low_52w is not none %}
+              <span class="analysis-card__meta">({{ "%+.2f"|format(d.low_52w) }}%)</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </dd>
+
+        {% set v = analysis.levels.vwap %}
+        {% if v and v.vwap_rolling is not none %}
+          <dt>VWAP (rolling)</dt>
+          <dd class="num">
+            ₹{{ "%.2f"|format(v.vwap_rolling) }}
+            {% if d.vwap_rolling is not none %}
+              <span class="analysis-card__meta">({{ "%+.2f"|format(d.vwap_rolling) }}%)</span>
+            {% endif %}
+          </dd>
+        {% endif %}
+      </dl>
+    </section>
+
+  </div>
+
+  <p class="analysis-panel__footer">
+    Live values — recomputed each time you open this tab. Standard preset.
+  </p>
+</div>
+{% endif %}

@@ -73,6 +73,7 @@
 
       <div class="panel__card-footer">
         <span class="panel__card-conf">
+          <span class="horizon-pill">{{ (p.horizon | default(horizon)) | capitalize }}</span>
           {{ p.direction|capitalize }} · {{ p.confidence_pct }}%
           {% if p.risk_reward %}· R/R {{ "%.1f"|format(p.risk_reward) }}×{% endif %}
         </span>

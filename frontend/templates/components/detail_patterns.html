@@ -1,0 +1,96 @@
+{#
+  detail_patterns.html — HTMX partial for the "🕯 Patterns" tab.
+
+  Context:
+    analysis: LiveAnalysis dataclass
+      .candlesticks: list[dict] from detect_recent_patterns
+        each has: name, bar_date, bar_index, direction, confidence
+      .chart_patterns: list[dict] from detect_all_patterns
+        each has: name, confidence, key_levels, bar_indices
+    error: optional str — soft-error message
+#}
+{% if error %}
+  <div class="analysis-error">
+    <p>{{ error }}</p>
+  </div>
+{% else %}
+<div class="analysis-panel">
+
+  <header class="analysis-panel__header">
+    <h3 class="analysis-panel__title">Detected patterns</h3>
+    <span class="analysis-panel__meta num">
+      {{ analysis.bars_used }} bars · as of
+      {{ analysis.as_of.strftime("%d %b %H:%M") }}
+    </span>
+  </header>
+
+  <div class="analysis-grid analysis-grid--two">
+
+    {# ── Candlestick patterns (recent N bars) ───────────────── #}
+    <section class="analysis-card">
+      <h4 class="analysis-card__title">
+        Candlesticks
+        <span class="analysis-card__meta">last 5 bars</span>
+      </h4>
+
+      {% if analysis.candlesticks %}
+        <ul class="pattern-list">
+          {% for p in analysis.candlesticks %}
+            <li class="pattern-list__item pattern-list__item--{{ p.direction }}">
+              <div class="pattern-list__name">
+                {{ p.name.replace("_", " ") | title }}
+                {% if p.confidence >= 200 %}
+                  <span class="analysis-card__tag analysis-card__tag--pos">high-confidence</span>
+                {% endif %}
+              </div>
+              <div class="pattern-list__meta num">
+                {{ p.bar_date }} ·
+                <span class="pattern-list__dir">{{ p.direction }}</span>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="analysis-card__empty">No candlestick patterns in the last 5 bars.</p>
+      {% endif %}
+    </section>
+
+    {# ── Chart patterns (full lookback) ─────────────────────── #}
+    <section class="analysis-card">
+      <h4 class="analysis-card__title">
+        Chart patterns
+        <span class="analysis-card__meta">full window</span>
+      </h4>
+
+      {% if analysis.chart_patterns %}
+        <ul class="pattern-list">
+          {% for p in analysis.chart_patterns %}
+            <li class="pattern-list__item">
+              <div class="pattern-list__name">
+                {{ p.name.replace("_", " ") | title }}
+                <span class="analysis-card__meta num">
+                  {{ "%.0f"|format(p.confidence * 100) }}% confidence
+                </span>
+              </div>
+              {% if p.key_levels %}
+                <div class="pattern-list__meta num">
+                  {% for k, v in p.key_levels.items() %}
+                    {{ k.replace("_", " ") }}: ₹{{ "%.2f"|format(v) }}{% if not loop.last %} · {% endif %}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="analysis-card__empty">No chart patterns detected in the current window.</p>
+      {% endif %}
+    </section>
+
+  </div>
+
+  <p class="analysis-panel__footer">
+    Recent candlesticks scan the last 5 bars; chart patterns scan the full {{ analysis.bars_used }}-bar window.
+  </p>
+</div>
+{% endif %}

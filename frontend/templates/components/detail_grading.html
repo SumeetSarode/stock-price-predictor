@@ -1,0 +1,158 @@
+{#
+  detail_grading.html — right-rail panel on the stock detail page.
+
+  Context (set by routes/api.py::grading_ticker_endpoint):
+    grading: TickerGrading dataclass
+      .ticker, .computed_at, .scorecard, .graded[]
+    selected_horizon: "all" | "daily" | "weekly" | "biweekly" | "monthly"
+
+  Sections (top → bottom):
+    1. Header (title + refresh)
+    2. Scorecard (hit-rate, avg R, counts)
+    3. Horizon filter chips (HTMX-swappable in place)
+    4. Graded prediction list (one row per past prediction)
+
+  Empty / pending states are first-class so this never looks broken.
+#}
+<aside class="grading-panel" aria-label="Prediction tracker">
+
+  <header class="grading-panel__header">
+    <div>
+      <h2 class="grading-panel__title">Prediction tracker</h2>
+      <p class="grading-panel__hint">
+        How past predictions actually played out.
+      </p>
+    </div>
+    <button type="button"
+            class="grading-panel__refresh"
+            hx-get="/api/grading/ticker?ticker={{ grading.ticker }}{% if selected_horizon != 'all' %}&horizon={{ selected_horizon }}{% endif %}"
+            hx-target="#grading-panel-wrap"
+            hx-swap="innerHTML"
+            title="Recompute grading">↻</button>
+  </header>
+
+  {# ── Scorecard ─────────────────────────────────────────────── #}
+  {% set sc = grading.scorecard %}
+  <section class="grading-scorecard">
+    <div class="grading-scorecard__primary">
+      <div class="grading-scorecard__metric">
+        <div class="grading-scorecard__metric-label">Hit rate</div>
+        <div class="grading-scorecard__metric-value num">
+          {% if sc.hit_rate is not none %}
+            {{ "%.0f"|format(sc.hit_rate * 100) }}%
+          {% else %}—{% endif %}
+        </div>
+        <div class="grading-scorecard__metric-meta">
+          {{ sc.hits }} hit / {{ sc.stops }} stop
+        </div>
+      </div>
+      <div class="grading-scorecard__metric">
+        <div class="grading-scorecard__metric-label">Avg R</div>
+        <div class="grading-scorecard__metric-value num grading-scorecard__metric-value--{{ 'pos' if sc.avg_r and sc.avg_r > 0 else 'neg' if sc.avg_r and sc.avg_r < 0 else 'neutral' }}">
+          {% if sc.avg_r is not none %}
+            {{ "%+.2f"|format(sc.avg_r) }}×
+          {% else %}—{% endif %}
+        </div>
+        <div class="grading-scorecard__metric-meta">across resolved</div>
+      </div>
+    </div>
+
+    <ul class="grading-scorecard__counts">
+      <li>
+        <span class="grading-badge grading-badge--hit">✓</span>
+        <span class="num">{{ sc.hits }}</span> hit
+      </li>
+      <li>
+        <span class="grading-badge grading-badge--stopped">✕</span>
+        <span class="num">{{ sc.stops }}</span> stopped
+      </li>
+      <li>
+        <span class="grading-badge grading-badge--expired">⌛</span>
+        <span class="num">{{ sc.expired }}</span> expired
+      </li>
+      <li>
+        <span class="grading-badge grading-badge--pending">⏳</span>
+        <span class="num">{{ sc.pending }}</span> pending
+      </li>
+    </ul>
+  </section>
+
+  {# ── Horizon filter chips ──────────────────────────────────── #}
+  <nav class="grading-filters" role="tablist" aria-label="Filter by horizon">
+    {% for chip_value, chip_label in [
+        ("all",      "All"),
+        ("daily",    "Daily"),
+        ("weekly",   "Weekly"),
+        ("biweekly", "Biweekly"),
+        ("monthly",  "Monthly"),
+    ] %}
+      <button type="button"
+              class="grading-chip {% if chip_value == selected_horizon %}grading-chip--active{% endif %}"
+              role="tab"
+              aria-selected="{{ 'true' if chip_value == selected_horizon else 'false' }}"
+              hx-get="/api/grading/ticker?ticker={{ grading.ticker }}{% if chip_value != 'all' %}&horizon={{ chip_value }}{% endif %}"
+              hx-target="#grading-panel-wrap"
+              hx-swap="innerHTML">
+        {{ chip_label }}
+      </button>
+    {% endfor %}
+  </nav>
+
+  {# ── Graded predictions list ─────────────────────────────── #}
+  {% if grading.graded %}
+    <ul class="grading-list">
+      {% for g in grading.graded %}
+        {% set r = g.row %}
+        <li class="grading-list__item grading-list__item--{{ g.outcome }}">
+
+          <div class="grading-list__row">
+            <span class="grading-badge grading-badge--{{ g.outcome }}"
+                  title="{{ g.outcome | capitalize }}">
+              {% if g.outcome == "hit" %}✓
+              {% elif g.outcome == "stopped" %}✕
+              {% elif g.outcome == "expired" %}⌛
+              {% elif g.outcome == "pending" %}⏳
+              {% else %}·{% endif %}
+            </span>
+            <div class="grading-list__main">
+              <div class="grading-list__top">
+                <span class="horizon-pill">{{ r.horizon | capitalize }}</span>
+                <span class="grading-list__direction grading-list__direction--{{ r.direction }}">
+                  {{ r.direction | capitalize }}
+                </span>
+                <span class="grading-list__date num">
+                  {{ r.created_at.strftime("%d %b") }}
+                </span>
+              </div>
+              <div class="grading-list__levels num">
+                E ₹{{ "%.0f"|format((r.entry_low + r.entry_high) / 2) }} ·
+                <span class="grading-list__target">T ₹{{ "%.0f"|format(r.target_value) }}</span> ·
+                <span class="grading-list__stop">S ₹{{ "%.0f"|format(r.stop_value) }}</span>
+              </div>
+            </div>
+            {% if g.r_multiple is not none %}
+              <div class="grading-list__r num grading-list__r--{{ 'pos' if g.r_multiple > 0 else 'neg' if g.r_multiple < 0 else 'neutral' }}">
+                {{ "%+.2f"|format(g.r_multiple) }}R
+              </div>
+            {% endif %}
+          </div>
+
+          {% if g.note %}
+            <div class="grading-list__note">{{ g.note }}</div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="grading-empty">
+      <p>No predictions for this ticker yet.</p>
+      <p class="grading-empty__hint">
+        Run a prediction (any horizon) and it'll show up here.
+      </p>
+    </div>
+  {% endif %}
+
+  <p class="grading-panel__footer">
+    Replays daily bars from the cache · {{ grading.computed_at.strftime("%d %b %H:%M") }}
+  </p>
+</aside>

@@ -1,134 +1,107 @@
 {#
-  stock_detail.html — full stock detail page (Step 2G phase 1).
+  stock_detail.html — center prediction stack + sticky right tracker.
 
   Layout:
-    Header card:
-      - Ticker + ⭐ star button + N50 badge + sector
-      - Company name (h1)
-      - Current price + day change (live from dashboard cache)
+    <container--wide>
+      <detail-grid>
+        ├── main column (header → tabs → prediction body)
+        └── right rail (prediction tracker, sticky)
 
-    Horizon tabs (Daily / Weekly / Biweekly / Monthly).
-      Default active tab matches the URL's ?horizon= param (Weekly by
-      default). Clicking a tab swaps the body via HTMX.
+  Header lives INSIDE the main column so its width matches the
+  prediction card below it — same edges, no L-shaped whitespace.
+  Stacks below the main column on screens ≤1100px.
 
-    Detail body (#detail-body):
-      - If a prediction is cached for the chosen horizon → render the
-        full rich prediction_card.html + refresh button below.
-      - Otherwise → render a prominent "Run prediction" CTA.
-
-  No more "form to predict" UI — the tabs do the right thing
-  automatically.
+  Removed (history in git):
+    - 90-day price chart, "Show the receipts" tabs, per-ticker history table.
+    - Tracker on the right subsumes the per-ticker history.
 #}
 {% extends "layouts/base.html" %}
 
 {% block title %}{{ detail.display_ticker }} · Price Predictor{% endblock %}
 
 {% block content %}
-<div class="container container--narrow stack stack--lg">
+<div class="container container--wide">
 
-  {# ── Header card ────────────────────────────────────────────── #}
-  <header class="card detail-header detail-header--{{ detail.price_direction }}">
-    <div class="detail-header__top">
-      <div class="detail-header__title-row">
-        <h1 class="detail-header__title">{{ detail.name }}</h1>
-        {% with ticker=detail.ticker, is_watched=detail.is_watched, toast=None %}
-          {% include "components/star_button.html" %}
-        {% endwith %}
-      </div>
-      <div class="detail-header__meta">
-        <span class="num detail-header__ticker">{{ detail.display_ticker }}</span>
-        {% if detail.is_nifty50 %}
-          <span class="search__n50-tag" title="Nifty 50">N50</span>
+  <div class="detail-grid">
+
+    <div class="detail-grid__main stack stack--lg">
+
+      {# ── Header card ─────────────────────────────────────────── #}
+      <header class="card detail-header detail-header--{{ detail.price_direction }}">
+        <div class="detail-header__top">
+          <div class="detail-header__title-row">
+            <h1 class="detail-header__title">{{ detail.name }}</h1>
+            {% with ticker=detail.ticker, is_watched=detail.is_watched, toast=None %}
+              {% include "components/star_button.html" %}
+            {% endwith %}
+          </div>
+          <div class="detail-header__meta">
+            <span class="num detail-header__ticker">{{ detail.display_ticker }}</span>
+            {% if detail.is_nifty50 %}
+              <span class="search__n50-tag" title="Nifty 50">N50</span>
+            {% endif %}
+            <span class="detail-header__sector">· {{ detail.sector }}</span>
+          </div>
+        </div>
+
+        {% if detail.close is not none %}
+          <div class="detail-header__price-row">
+            <span class="detail-header__price num">
+              ₹{{ "%.2f"|format(detail.close) }}
+            </span>
+            {% if detail.change_pct is not none %}
+              <span class="detail-header__change detail-header__change--{{ detail.price_direction }} num">
+                {% if detail.change_pct > 0 %}▲{% elif detail.change_pct < 0 %}▼{% else %}—{% endif %}
+                {{ "%+.2f"|format(detail.change_pct) }}%
+              </span>
+            {% endif %}
+            <span class="detail-header__price-label">today's close</span>
+          </div>
         {% endif %}
-        <span class="detail-header__sector">· {{ detail.sector }}</span>
-      </div>
+      </header>
+
+      {# ── Horizon tabs — swap the body via HTMX in-place ─────── #}
+      <nav class="panel__tabs detail-tabs" role="tablist" aria-label="Prediction horizon">
+        {% for tab_value, tab_label in [
+            ("daily",    "Daily"),
+            ("weekly",   "Weekly"),
+            ("biweekly", "Biweekly"),
+            ("monthly",  "Monthly"),
+        ] %}
+          <button type="button"
+                  class="panel__tab {% if tab_value == detail.horizon %}panel__tab--active{% endif %}"
+                  role="tab"
+                  aria-selected="{{ 'true' if tab_value == detail.horizon else 'false' }}"
+                  hx-get="/api/predictions/detail?ticker={{ detail.ticker }}&horizon={{ tab_value }}"
+                  hx-target="#detail-body"
+                  hx-swap="innerHTML"
+                  hx-push-url="/stock/{{ detail.ticker }}?horizon={{ tab_value }}"
+                  hx-on::after-request="document.querySelectorAll('.detail-tabs .panel__tab').forEach(t => { t.classList.toggle('panel__tab--active', t === this); t.setAttribute('aria-selected', t === this ? 'true' : 'false'); })">
+            {{ tab_label }}
+          </button>
+        {% endfor %}
+      </nav>
+
+      {# The one panel in the center: prediction body. #}
+      <section id="detail-body">
+        {% include "components/detail_body.html" %}
+      </section>
+
     </div>
 
-    {% if detail.close is not none %}
-      <div class="detail-header__price-row">
-        <span class="detail-header__price num">
-          ₹{{ "%.2f"|format(detail.close) }}
-        </span>
-        {% if detail.change_pct is not none %}
-          <span class="detail-header__change detail-header__change--{{ detail.price_direction }} num">
-            {% if detail.change_pct > 0 %}▲{% elif detail.change_pct < 0 %}▼{% else %}—{% endif %}
-            {{ "%+.2f"|format(detail.change_pct) }}%
-          </span>
-        {% endif %}
-        <span class="detail-header__price-label">today's close</span>
+    {# Right rail: prediction tracker. Lazy-loads on page open;
+       chip clicks + refresh both swap innerHTML here. #}
+    <aside class="detail-grid__rail"
+           id="grading-panel-wrap"
+           hx-get="/api/grading/ticker?ticker={{ detail.ticker }}"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+      <div class="grading-panel grading-panel--skeleton">
+        <p class="grading-panel__hint">Loading prediction tracker…</p>
       </div>
-    {% endif %}
-  </header>
+    </aside>
 
-  {# ── Price chart (loaded on every visit; pure client-side render) ─── #}
-  <section class="chart-section">
-    <header class="chart-section__header">
-      <h2 class="chart-section__title">90-day price</h2>
-      <span class="chart-section__hint">Hover for values · entry/target/stop overlaid when cached</span>
-    </header>
-    <div class="price-chart-wrap">
-      <div class="price-chart"
-           data-ticker="{{ detail.ticker }}"
-           {% if detail.prediction %}
-             data-direction="{{ detail.prediction.direction }}"
-             data-entry-low="{{ detail.prediction.entry_low }}"
-             data-entry-high="{{ detail.prediction.entry_high }}"
-             data-target="{{ detail.prediction.target_value }}"
-             data-stop="{{ detail.prediction.stop_value }}"
-           {% endif %}>
-        <canvas></canvas>
-      </div>
-    </div>
-  </section>
-
-  {# ── Horizon tabs ───────────────────────────────────────────────── #}
-  <nav class="panel__tabs detail-tabs" role="tablist" aria-label="Prediction horizon">
-    {% for tab_value, tab_label in [
-        ("daily",    "Daily"),
-        ("weekly",   "Weekly"),
-        ("biweekly", "Biweekly"),
-        ("monthly",  "Monthly"),
-    ] %}
-      <button type="button"
-              class="panel__tab {% if tab_value == detail.horizon %}panel__tab--active{% endif %}"
-              role="tab"
-              aria-selected="{{ 'true' if tab_value == detail.horizon else 'false' }}"
-              hx-get="/api/predictions/detail?ticker={{ detail.ticker }}&horizon={{ tab_value }}"
-              hx-target="#detail-body"
-              hx-swap="innerHTML"
-              hx-push-url="/stock/{{ detail.ticker }}?horizon={{ tab_value }}"
-              hx-on::after-request="document.querySelectorAll('.detail-tabs .panel__tab').forEach(t => { t.classList.toggle('panel__tab--active', t === this); t.setAttribute('aria-selected', t === this ? 'true' : 'false'); })">
-        {{ tab_label }}
-      </button>
-    {% endfor %}
-  </nav>
-
-  {# ── Body slot (swappable) ──────────────────────────────────── #}
-  <section id="detail-body">
-    {% include "components/detail_body.html" %}
-  </section>
-
-  {# Pass per-ticker history rows in via the route context. #}
-  {% set rows = ticker_history %}
-
-  {# ── Per-ticker history ─────────────────────────────────────────────────────────────────────────── #}
-  <section class="history-section">
-    <header class="history-section__header">
-      <h2 class="history-section__title">Recent predictions for {{ detail.display_ticker }}</h2>
-      <a class="history-section__more" href="/history?ticker={{ detail.ticker }}">
-        View all →
-      </a>
-    </header>
-    {% with show_ticker=False, empty_message="No predictions yet for this stock." %}
-      {% include "components/history_table.html" %}
-    {% endwith %}
-  </section>
+  </div>
 
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-  {# Chart.js (vendored, ~200KB) — loaded only on the detail page. #}
-  <script src="/static/vendor/chart-4.4.6.umd.min.js" defer></script>
-  <script src="/static/scripts/chart.js" defer></script>
 {% endblock %}

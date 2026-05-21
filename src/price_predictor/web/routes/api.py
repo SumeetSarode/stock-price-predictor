@@ -14,12 +14,18 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from price_predictor.web.services.analysis_service import (
+    AnalysisServiceError,
+    compute_live_analysis,
+)
 from price_predictor.web.services.dashboard_service import (
     get_dashboard,
     snapshot_with_watchlist,
 )
 from price_predictor.web.services.chart_service import get_chart_series
 from price_predictor.web.services.detail_service import get_stock_detail
+from price_predictor.web.services.grading_service import grade_ticker
+from price_predictor.web.services.news_service import fetch_recent_headlines
 from price_predictor.web.services.panel_service import get_one_card, get_panel_cards
 from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
@@ -382,4 +388,172 @@ async def chart_endpoint(
         "dates": series.dates,
         "closes": series.closes,
         "is_empty": series.is_empty,
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Live analysis tabs (stock detail page)
+# ───────────────────────────────────────────────────────────────────────
+
+
+async def _render_analysis_tab(
+    request: Request,
+    ticker: str,
+    template_name: str,
+) -> HTMLResponse | JSONResponse:
+    """Shared helper for the indicators + patterns tabs.
+
+    Both tabs need the same LiveAnalysis bundle; only the template
+    differs. Keeping this DRY also means error-handling is identical
+    across both tabs.
+    """
+    try:
+        analysis = await compute_live_analysis(ticker)
+        error: str | None = None
+    except AnalysisServiceError as exc:
+        analysis = None
+        error = exc.message
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name=template_name,
+            context={"analysis": analysis, "error": error},
+        )
+    if analysis is None:
+        return JSONResponse(status_code=503, content={"error": error})
+    return JSONResponse(content={
+        "ticker": analysis.ticker,
+        "as_of": analysis.as_of.isoformat(),
+        "bars_used": analysis.bars_used,
+        "trend": analysis.trend,
+        "momentum": analysis.momentum,
+        "volatility": analysis.volatility,
+        "levels": analysis.levels,
+        "candlesticks": analysis.candlesticks,
+        "chart_patterns": analysis.chart_patterns,
+    })
+
+
+@router.get("/analysis/indicators", response_model=None)
+async def analysis_indicators_endpoint(
+    request: Request,
+    ticker: str,
+) -> HTMLResponse | JSONResponse:
+    """Live trend / momentum / volatility / levels for `ticker`."""
+    return await _render_analysis_tab(
+        request, ticker, "components/detail_indicators.html",
+    )
+
+
+@router.get("/analysis/patterns", response_model=None)
+async def analysis_patterns_endpoint(
+    request: Request,
+    ticker: str,
+) -> HTMLResponse | JSONResponse:
+    """Live candlestick + chart pattern hits for `ticker`."""
+    return await _render_analysis_tab(
+        request, ticker, "components/detail_patterns.html",
+    )
+
+
+@router.get("/analysis/news", response_model=None)
+async def analysis_news_endpoint(
+    request: Request,
+    ticker: str,
+    days: int = 7,
+) -> HTMLResponse | JSONResponse:
+    """Last `days` of GDELT headlines for `ticker`. Soft-fails on GDELT errors."""
+    news = await fetch_recent_headlines(ticker, days=days)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name="components/detail_news.html",
+            context={"news": news},
+        )
+    return JSONResponse(content={
+        "ticker": news.ticker,
+        "query": news.query,
+        "days": news.days,
+        "error": news.error,
+        "headlines": [
+            {
+                "title": h.title,
+                "url": h.url,
+                "source": h.source,
+                "published_at": h.published_at.isoformat(),
+                "age_label": h.age_label,
+            }
+            for h in news.headlines
+        ],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Per-ticker grading sidebar (stock detail page)
+# ───────────────────────────────────────────────────────────────────────
+
+
+@router.get("/grading/ticker", response_model=None)
+async def grading_ticker_endpoint(
+    request: Request,
+    ticker: str,
+    horizon: str | None = None,
+    limit: int = 25,
+) -> HTMLResponse | JSONResponse:
+    """Grade the recent predictions for `ticker`. Optional horizon filter.
+
+    HTMX returns the right-rail partial; plain GET returns JSON for
+    programmatic use (e.g. CLI quickcheck of model calibration).
+    """
+    # Clamp limit to a sane window — the right rail isn't infinite scroll.
+    limit = max(1, min(limit, 100))
+    if horizon:
+        horizon = horizon.lower().strip()
+        if horizon not in _VALID_HORIZONS:
+            horizon = None  # treat unknown filter as "all horizons"
+
+    grading = await grade_ticker(ticker, horizon=horizon, limit=limit)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name="components/detail_grading.html",
+            context={
+                "grading": grading,
+                "selected_horizon": horizon or "all",
+            },
+        )
+    return JSONResponse(content={
+        "ticker": grading.ticker,
+        "computed_at": grading.computed_at.isoformat(),
+        "scorecard": {
+            "total":    grading.scorecard.total,
+            "hits":     grading.scorecard.hits,
+            "stops":    grading.scorecard.stops,
+            "expired":  grading.scorecard.expired,
+            "pending":  grading.scorecard.pending,
+            "skipped":  grading.scorecard.skipped,
+            "hit_rate": grading.scorecard.hit_rate,
+            "avg_r":    grading.scorecard.avg_r,
+        },
+        "graded": [
+            {
+                "id": g.row.id,
+                "horizon": g.row.horizon,
+                "created_at": g.row.created_at.isoformat(),
+                "direction": g.row.direction,
+                "entry_low": g.row.entry_low,
+                "entry_high": g.row.entry_high,
+                "target": g.row.target_value,
+                "stop": g.row.stop_value,
+                "outcome": g.outcome,
+                "r_multiple": g.r_multiple,
+                "resolved_at": g.resolved_at.isoformat() if g.resolved_at else None,
+                "bars_used": g.bars_used,
+                "note": g.note,
+            }
+            for g in grading.graded
+        ],
     })

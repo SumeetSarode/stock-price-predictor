@@ -13,7 +13,10 @@
       (fired by the star toggle endpoint) and refreshes itself.
 
   Default horizon = weekly (user's preference per design Q5).
+  Falls back to "weekly" if the caller doesn't pass `horizon` — keeps
+  the include self-sufficient so any page can drop it in.
 #}
+{% set horizon = horizon | default("weekly") %}
 <aside class="panel" aria-label="Watchlist predictions">
 
   <header class="panel__header">
