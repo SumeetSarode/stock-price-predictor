@@ -39,6 +39,13 @@
   align-items: start;
 }
 
+/* min-width:0 lets these grid children shrink BELOW their intrinsic
+   content width. Without it, a wide table inside .home-grid__main
+   pushes the whole grid past the viewport (no horizontal scroll on
+   the table-wrap can save you if the grid itself is oversized). */
+.home-grid__main,
+.home-grid__aside { min-width: 0; }
+
 @media (max-width: 1024px) {
   .home-grid {
     grid-template-columns: 1fr;
@@ -1701,7 +1708,8 @@
   margin: var(--space-1) 0 0;
 }
 
-.dashboard__table-wrap {
+.dashboard__table-wrap,
+.data-table-wrap {
   overflow-x: auto;  /* horizontal scroll on narrow viewports */
 }
 
@@ -2970,3 +2978,56 @@ body.no-scroll {
   stroke: var(--color-bearish);
 }
 .r-sparkline--neg .r-sparkline__dot { fill: var(--color-bearish); }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Mobile responsiveness — fixes for narrow viewports (<640px).
+
+   Two distinct problem classes addressed:
+
+   1) Nav overflowing on phones. The desktop nav fits brand+search+links
+      comfortably at 1280px but those three items add up to >700px even
+      at their smallest, blowing past a 390px viewport. Fix: hide the
+      brand text (icon survives), tighten gaps & padding, let the search
+      shrink to its placeholder-width minimum.
+
+   2) Off-screen `position:fixed` siblings (the analysis drawer, slid out
+      via translateX(100%)) get counted by some browsers in
+      documentElement.scrollWidth, painting a phantom 130-ish-px scroll
+      bar. `overflow-x: clip` on the body kills that cleanly without
+      blocking legitimate inner scroll containers.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+html, body {
+  /* `clip` is preferred over `hidden` here — `hidden` creates a new
+     scrolling context that breaks `position: sticky` for descendants
+     (our nav, watchlist aside, etc). `clip` just prevents the page
+     itself from horizontally scrolling without that side effect. */
+  overflow-x: clip;
+}
+
+@media (max-width: 640px) {
+  .nav__inner {
+    padding-inline: var(--space-4);
+    gap: var(--space-3);
+  }
+
+  /* Hide the "Price Predictor" label, keep the icon as the home link. */
+  .nav__brand > span:not(.nav__brand-mark) {
+    display: none;
+  }
+
+  .search {
+    min-width: 0;   /* allow it to shrink below 200px */
+    flex: 1 1 auto;
+  }
+
+  .nav__links {
+    gap: var(--space-3);
+  }
+
+  .nav__link {
+    font-size: var(--fs-xs);
+    padding: var(--space-2) 0;
+  }
+}
