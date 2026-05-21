@@ -1,89 +1,57 @@
 {#
-  home.html — landing page
+  home.html — landing page.
 
-  Step 1 scope: ONE polished end-to-end flow. The user enters a ticker,
-  picks a horizon, hits Predict, and sees a beautifully-rendered result
-  card inline (HTMX swap).
+  Step 2A scope: a friendly empty state that points users to the
+  global search bar in the nav. Predicting always flows through:
+    search → pick result → /stock/<ticker> → pick horizon → predict.
 
-  The full Nifty 50 dashboard (watchlist, gainers/losers, recent
-  predictions panel, search bar with autocomplete) lands in Step 2.
+  Step 2B replaces this with the Nifty 50 dashboard (table + watchlist
+  + gainers/losers strip + recent predictions panel).
 #}
 {% extends "layouts/base.html" %}
 
-{% block title %}Predict · Price Predictor{% endblock %}
+{% block title %}Price Predictor{% endblock %}
 
 {% block content %}
 <div class="container container--narrow">
-  <header class="page-header">
+  <header class="page-header center">
     <div class="page-header__eyebrow">Local-first · BYO keys</div>
     <h1 class="page-header__title">What's the next move?</h1>
-    <p class="page-header__subtitle">
-      AI-driven price predictions for NSE stocks. Pick a ticker and a horizon —
-      we'll synthesize technicals, news, and filings into a single actionable view.
+    <p class="page-header__subtitle" style="margin-inline: auto;">
+      AI-driven price predictions for NSE stocks. Search a ticker above
+      to get started — we'll synthesize technicals, news, and filings
+      into a single actionable view.
     </p>
   </header>
 
-  <section class="card card--lg">
-    <h2 class="card__title">Run a prediction</h2>
-    <p class="card__hint">Enter an NSE ticker (e.g. <code>RELIANCE.NS</code> or just <code>RELIANCE</code>)
-      and pick a horizon. Typical run: <span class="num">~30s</span>.</p>
+  <section class="card card--lg center">
+    <div style="font-size: 48px; margin-bottom: var(--space-4);" aria-hidden="true">🔍</div>
+    <h2 class="card__title">Start with a search</h2>
+    <p class="muted" style="max-width: 44ch; margin: var(--space-2) auto 0;">
+      Use the search bar in the top navigation. Try
+      <strong>Reliance</strong>, <strong>HDFC</strong>,
+      <strong>IRCTC</strong>, or any of the 197 bundled NSE tickers.
+    </p>
 
-    <form class="stack stack--lg"
-          hx-post="/api/predict"
-          hx-target="#result"
-          hx-swap="innerHTML"
-          hx-disabled-elt="#submit-btn"
-          hx-on::before-request="document.getElementById('result').innerHTML = document.getElementById('loading-tpl').innerHTML">
-
-      <div class="flex gap-4" style="flex-wrap: wrap;">
-        <div class="field" style="flex: 2 1 240px;">
-          <label class="field__label" for="ticker">Ticker</label>
-          <input class="input" type="text" id="ticker" name="ticker"
-                 placeholder="RELIANCE.NS"
-                 autocomplete="off"
-                 autocapitalize="characters"
-                 spellcheck="false"
-                 required />
-        </div>
-
-        <div class="field" style="flex: 1 1 160px;">
-          <label class="field__label" for="horizon">Horizon</label>
-          <select class="select" id="horizon" name="horizon">
-            <option value="daily">Daily</option>
-            <option value="weekly" selected>Weekly</option>
-            <option value="biweekly">Biweekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-      </div>
-
-      <button id="submit-btn" type="submit" class="btn btn--primary btn--lg btn--with-states"
-              style="align-self: flex-start;">
-        <span class="btn__idle">🔮 Predict</span>
-        <span class="btn__busy">
-          <span class="spinner" aria-hidden="true"></span>
-          Predicting…
-        </span>
-      </button>
-    </form>
-  </section>
-
-  {# Loading template — cloned into #result via hx-on::before-request. #}
-  <template id="loading-tpl">
-    <div class="card card--lg loading-card">
-      <div class="loading-card__spinner" aria-hidden="true"></div>
-      <div>
-        <h3 class="loading-card__title">Running prediction…</h3>
-        <p class="loading-card__hint">
-          Synthesizing technicals, news, and filings. This typically takes
-          <strong>30–60 seconds</strong>.
-        </p>
-      </div>
+    <div class="mt-6 flex gap-3" style="justify-content: center; flex-wrap: wrap;">
+      {# A few popular starter tickers as one-click shortcuts. #}
+      {% for shortcut in [
+          ("RELIANCE.NS", "Reliance"),
+          ("HDFCBANK.NS", "HDFC Bank"),
+          ("TCS.NS", "TCS"),
+          ("INFY.NS", "Infosys"),
+          ("IRCTC.NS", "IRCTC"),
+      ] %}
+        <a href="/stock/{{ shortcut[0] }}" class="btn btn--secondary">
+          {{ shortcut[1] }}
+        </a>
+      {% endfor %}
     </div>
-  </template>
-
-  <section id="result" class="mt-6">
-    {# HTMX swaps prediction_card.html in here on success, or error.html on failure. #}
   </section>
+
+  <p class="muted center mt-6" style="font-size: var(--fs-sm);">
+    Coming soon: live Nifty 50 dashboard with watchlist, gainers/losers,
+    and recent predictions.
+  </p>
 </div>
 {% endblock %}
