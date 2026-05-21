@@ -53,7 +53,34 @@
             {{ "%+.2f"|format(sc.avg_r) }}×
           {% else %}—{% endif %}
         </div>
-        <div class="grading-scorecard__metric-meta">across resolved</div>
+
+        {# Recent-R sparkline — only when we have ≥2 resolved predictions.
+           Below that threshold a "trend" is meaningless; show a muted hint
+           instead so the slot doesn't collapse silently. #}
+        {% if sparkline %}
+          <svg class="r-sparkline r-sparkline--{{ sparkline.sign }}"
+               viewBox="0 0 {{ sparkline.width }} {{ sparkline.height }}"
+               width="{{ sparkline.width }}" height="{{ sparkline.height }}"
+               preserveAspectRatio="none"
+               role="img"
+               aria-label="Last {{ resolved_count }} R-multiples">
+            {% if sparkline.has_baseline %}
+              <line class="r-sparkline__baseline"
+                    x1="0" y1="{{ sparkline.baseline_y }}"
+                    x2="{{ sparkline.width }}" y2="{{ sparkline.baseline_y }}"/>
+            {% endif %}
+            <polyline class="r-sparkline__line"
+                      points="{{ sparkline.points }}"/>
+            <circle class="r-sparkline__dot"
+                    cx="{{ sparkline.last_x }}" cy="{{ sparkline.last_y }}"
+                    r="2.5"/>
+          </svg>
+          <div class="grading-scorecard__metric-meta">
+            last {{ resolved_count }} resolved
+          </div>
+        {% else %}
+          <div class="grading-scorecard__metric-meta">across resolved</div>
+        {% endif %}
       </div>
     </div>
 

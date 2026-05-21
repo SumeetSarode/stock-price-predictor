@@ -517,12 +517,24 @@ async def grading_ticker_endpoint(
     grading = await grade_ticker(ticker, horizon=horizon, limit=limit)
 
     if _is_htmx(request):
+        # Build the R-multiple sparkline from resolved predictions only.
+        # `graded` is newest-first; we reverse to chronological so the line
+        # reads left=old → right=new like every other trend chart in the app.
+        from price_predictor.web.utils.sparkline import build_sparkline
+        resolved_r = [
+            g.r_multiple for g in reversed(grading.graded)
+            if g.r_multiple is not None
+        ]
+        sparkline = build_sparkline(resolved_r)
+
         return templates.TemplateResponse(
             request=request,
             name="components/detail_grading.html",
             context={
                 "grading": grading,
                 "selected_horizon": horizon or "all",
+                "sparkline": sparkline,
+                "resolved_count": len(resolved_r),
             },
         )
     return JSONResponse(content={

@@ -2879,3 +2879,47 @@
 body.no-scroll {
   overflow: hidden;
 }
+
+
+/* R-multiple sparkline — tiny SVG trend line in the tracker scorecard.
+   Colors driven by the --pos / --neg / --neutral modifier on the SVG
+   root, so the line + dot stay in sync without per-element style attrs. */
+.r-sparkline {
+  display: block;
+  margin-top: var(--space-2);
+  width: 100%;
+  height: 28px;
+  overflow: visible;  /* let the trailing dot peek past the right edge */
+}
+
+.r-sparkline__line {
+  fill: none;
+  stroke: var(--color-fg-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.r-sparkline__baseline {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.r-sparkline__dot {
+  fill: var(--color-fg-muted);
+  stroke: var(--color-bg);
+  stroke-width: 1.5;
+}
+
+.r-sparkline--pos .r-sparkline__line,
+.r-sparkline--pos .r-sparkline__dot {
+  stroke: var(--color-bullish);
+}
+.r-sparkline--pos .r-sparkline__dot { fill: var(--color-bullish); }
+
+.r-sparkline--neg .r-sparkline__line,
+.r-sparkline--neg .r-sparkline__dot {
+  stroke: var(--color-bearish);
+}
+.r-sparkline--neg .r-sparkline__dot { fill: var(--color-bearish); }
