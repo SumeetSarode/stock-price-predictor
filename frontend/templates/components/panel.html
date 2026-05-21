@@ -1,0 +1,54 @@
+{#
+  panel.html — the watchlist predictions panel (left sidebar on home).
+
+  Structure:
+    .panel
+      .panel__header        — title + count
+      .panel__tabs          — Daily / Weekly / Biweekly / Monthly
+      .panel__body          — cards OR empty state (HTMX-swappable)
+
+  HTMX wiring:
+    - Tabs hx-get /api/predictions/panel?horizon=X, swap into .panel__body.
+    - .panel__body listens for window-level 'watchlist-changed' event
+      (fired by the star toggle endpoint) and refreshes itself.
+
+  Default horizon = weekly (user's preference per design Q5).
+#}
+<aside class="panel" aria-label="Watchlist predictions">
+
+  <header class="panel__header">
+    <h2 class="panel__title">Watchlist</h2>
+    <p class="panel__hint">
+      Predictions for your starred stocks. Switch horizons with the tabs.
+    </p>
+  </header>
+
+  <nav class="panel__tabs" role="tablist" aria-label="Prediction horizon">
+    {% for tab_value, tab_label in [
+        ("daily",    "Daily"),
+        ("weekly",   "Weekly"),
+        ("biweekly", "Biweekly"),
+        ("monthly",  "Monthly"),
+    ] %}
+      <button type="button"
+              class="panel__tab {% if tab_value == horizon %}panel__tab--active{% endif %}"
+              role="tab"
+              aria-selected="{{ 'true' if tab_value == horizon else 'false' }}"
+              hx-get="/api/predictions/panel?horizon={{ tab_value }}"
+              hx-target="#panel-body"
+              hx-swap="innerHTML"
+              hx-on::after-request="document.querySelectorAll('.panel__tab').forEach(t => { t.classList.toggle('panel__tab--active', t === this); t.setAttribute('aria-selected', t === this ? 'true' : 'false'); })">
+        {{ tab_label }}
+      </button>
+    {% endfor %}
+  </nav>
+
+  <div id="panel-body" class="panel__body"
+       hx-get="/api/predictions/panel?horizon={{ horizon }}"
+       hx-trigger="load, watchlist-changed from:body"
+       hx-swap="innerHTML">
+    {# Skeleton/loading state is inserted by the GET above on page load.
+       Body content lives in panel_body.html (the partial). #}
+  </div>
+
+</aside>

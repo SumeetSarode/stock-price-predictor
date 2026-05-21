@@ -24,6 +24,43 @@
   max-width: var(--max-width-narrow);
 }
 
+.container--wide {
+  max-width: 1400px;
+}
+
+/* ──────────────────────────────────────────────────────────
+ * Home grid — left panel (~360px) + dashboard (fluid).
+ * Stacks vertically below 1024px.
+ * ────────────────────────────────────────────────────────── */
+.home-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-grid__aside {
+  /* Sticky so the panel stays visible while you scroll the dashboard. */
+  position: sticky;
+  top: calc(var(--nav-height) + var(--space-6));
+  /* Cap height so very long watchlists don't push other UI off-screen.
+     The panel body scrolls internally. */
+  max-height: calc(100vh - var(--nav-height) - var(--space-12));
+}
+
+@media (max-width: 1024px) {
+  .home-grid__aside {
+    position: static;
+    max-height: none;
+  }
+}
+
 .stack > * + * {
   margin-top: var(--space-4);
 }
@@ -455,6 +492,255 @@
 
 .signal-list--supports .signal-list__item::before { background-color: var(--color-bullish); }
 .signal-list--conflicts .signal-list__item::before { background-color: var(--color-bearish); }
+
+/* ──────────────────────────────────────────────────────────
+ * Watchlist predictions panel (left sidebar)
+ * ────────────────────────────────────────────────────────── */
+.panel {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;  /* respect parent sticky-aside cap */
+}
+
+.panel__header {
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel__title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.panel__hint {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+  margin: var(--space-1) 0 0;
+}
+
+.panel__tabs {
+  display: flex;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel__tab {
+  flex: 1;
+  padding: var(--space-2) var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--color-fg-muted);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+              color var(--transition-fast);
+  text-align: center;
+}
+
+.panel__tab:hover {
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+}
+
+.panel__tab--active {
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+  box-shadow: var(--shadow-xs);
+}
+
+.panel__body {
+  flex: 1;
+  min-height: 200px;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+.panel__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.panel__card {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+  transition: border-color var(--transition-fast),
+              box-shadow var(--transition-fast),
+              transform var(--transition-fast);
+}
+
+.panel__card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+/* Soft tint by direction — the whole card subtly washes green/red. */
+.panel__card--bullish {
+  background-color: var(--color-bullish-soft);
+  border-color: #bbf7d0;
+}
+
+.panel__card--bearish {
+  background-color: var(--color-bearish-soft);
+  border-color: #fecaca;
+}
+
+/* neutral card uses the default white background */
+
+.panel__card-link {
+  display: block;
+  padding: var(--space-3);
+  color: inherit;
+  text-decoration: none;
+}
+
+.panel__card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.panel__card-ticker {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.panel__card-change {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+.panel__card-change--bullish {
+  background-color: white;
+  color: var(--color-bullish);
+}
+
+.panel__card-change--bearish {
+  background-color: white;
+  color: var(--color-bearish);
+}
+
+.panel__card-change--neutral {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg-muted);
+}
+
+.panel__card-name {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+  margin-bottom: var(--space-3);
+  /* Long names truncate with ellipsis — panel is narrow. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel__card-cols {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+  margin-bottom: var(--space-2);
+}
+
+.panel__card-col {
+  min-width: 0;  /* allow shrink */
+}
+
+.panel__card-col-label {
+  font-size: 9px;
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-fg-muted);
+  margin-bottom: 2px;
+}
+
+.panel__card-col-value {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-fg);
+}
+
+.panel__card-footer {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+}
+
+.panel__card-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-style: italic;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────────────── */
+.panel__empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.panel__empty-icon {
+  font-size: 32px;
+  opacity: 0.45;
+}
+
+.panel__empty-text {
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+  line-height: var(--lh-snug);
+  margin: 0;
+}
+
+.panel__empty-arrow {
+  font-size: 28px;
+  color: var(--color-primary);
+  font-weight: var(--fw-bold);
+  /* Subtle bounce points the user toward the dashboard's star column. */
+  animation: empty-arrow-bounce 1.6s ease-in-out infinite;
+}
+
+@keyframes empty-arrow-bounce {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(6px); }
+}
+
+/* On mobile (stacked layout), the arrow points down instead of right. */
+@media (max-width: 1024px) {
+  .panel__empty-arrow {
+    transform: rotate(90deg);
+  }
+  @keyframes empty-arrow-bounce {
+    0%, 100% { transform: rotate(90deg) translateX(0); }
+    50%      { transform: rotate(90deg) translateX(6px); }
+  }
+}
 
 /* ──────────────────────────────────────────────────────────
  * Star button (watchlist toggle)

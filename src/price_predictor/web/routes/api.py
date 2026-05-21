@@ -18,6 +18,7 @@ from price_predictor.web.services.dashboard_service import (
     get_dashboard,
     snapshot_with_watchlist,
 )
+from price_predictor.web.services.panel_service import get_panel_cards
 from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
     run_prediction,
@@ -181,4 +182,47 @@ async def toggle_watchlist_endpoint(
         "ticker": ticker,
         "is_watched": now_watched,
         "watchlist_full": was_full,
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Predictions panel (left sidebar)
+# ───────────────────────────────────────────────────────────────────────
+
+
+_VALID_HORIZONS = {"daily", "weekly", "biweekly", "monthly"}
+
+
+@router.get("/predictions/panel", response_model=None)
+async def predictions_panel_endpoint(
+    request: Request,
+    horizon: str = "weekly",
+) -> HTMLResponse | JSONResponse:
+    """Return the watchlist predictions panel body for the given horizon.
+
+    Phase 2 returns price/context cards. Phase 3 will add cached
+    prediction data per card.
+    """
+    horizon = horizon.lower().strip()
+    if horizon not in _VALID_HORIZONS:
+        horizon = "weekly"
+
+    cards = await get_panel_cards(horizon=horizon)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name="components/panel_body.html",
+            context={"cards": cards, "horizon": horizon},
+        )
+    return JSONResponse(content={
+        "horizon": horizon,
+        "cards": [
+            {
+                "ticker": c.ticker, "name": c.name, "sector": c.sector,
+                "is_nifty50": c.is_nifty50, "close": c.close,
+                "change_pct": c.change_pct, "direction": c.direction,
+            }
+            for c in cards
+        ],
     })

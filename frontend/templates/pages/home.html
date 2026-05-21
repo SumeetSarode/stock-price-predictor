@@ -1,32 +1,42 @@
 {#
-  home.html — landing page (Step 2B).
+  home.html — landing page (Phase 2 layout).
 
-  Layout:
-    - Compact page header with eyebrow + title (no oversized hero —
-      the dashboard table is the star)
-    - Nifty 50 dashboard renders inline. Loads asynchronously via
-      HTMX (skeleton first, real data after ~5-10s).
-    - The 'click search to predict any ticker' affordance lives in
-      the always-visible nav search bar; no need for separate copy here.
+  Two-column grid:
+    .home-grid
+      ├── .home-grid__aside  (left, ~360px)  → watchlist panel
+      └── .home-grid__main   (right, fluid)  → Nifty 50 dashboard
+
+  Stacks vertically below 1024px (mobile/tablet).
 #}
 {% extends "layouts/base.html" %}
 
 {% block title %}Price Predictor{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container container--wide">
+
   <header class="page-header">
     <div class="page-header__eyebrow">Local-first · BYO keys</div>
-    <h1 class="page-header__title">Nifty 50 Live</h1>
+    <h1 class="page-header__title">Your daily edge</h1>
     <p class="page-header__subtitle">
-      End-of-day prices for every Nifty 50 constituent. Click a row
-      to dig into a stock, or use the search bar above to look up any
-      of the 197 bundled NSE tickers.
+      Watchlist predictions on the left, full Nifty 50 on the right.
+      Star anything you care about to get predictions for it.
     </p>
   </header>
 
-  <section id="dashboard">
-    {% include "components/dashboard_skeleton.html" %}
-  </section>
+  <div class="home-grid">
+
+    <aside class="home-grid__aside">
+      {% include "components/panel.html" %}
+    </aside>
+
+    <main class="home-grid__main">
+      <section id="dashboard">
+        {% include "components/dashboard_skeleton.html" %}
+      </section>
+    </main>
+
+  </div>
+
 </div>
 {% endblock %}
