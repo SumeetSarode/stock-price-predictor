@@ -11,18 +11,55 @@
 #}
 <div class="dashboard">
 
+  {# ── Market summary mood bar (2D phase 1) ──────────────────────── #}
+  {% if summary %}
+    {% include "components/market_summary.html" %}
+  {% endif %}
+
+  {# ── Top gainers + losers strip (2D phase 2) ──────────────────── #}
+  {% if movers %}
+    {% include "components/movers_strip.html" %}
+  {% endif %}
+
   <header class="dashboard__header">
     <div>
-      <h2 class="dashboard__title">Nifty 50</h2>
+      <h2 class="dashboard__title">
+        Nifty 50
+        {% if snapshot.is_market_open %}
+          <span class="live-pill" title="NSE market session is currently open (09:15-15:30 IST)">
+            <span class="live-pill__dot" aria-hidden="true"></span>
+            LIVE
+          </span>
+        {% endif %}
+      </h2>
       <p class="dashboard__meta">
         {% if snapshot.trading_day %}
           Trading day <span class="num">{{ snapshot.trading_day.strftime("%d %b %Y") }}</span>
-          · Fetched <span class="num">{{ snapshot.fetched_at_str }}</span>
+          · <span title="{{ snapshot.fetched_at_str }}">
+            Fetched <span class="num">{{ snapshot.fetched_age_label }}</span>
+          </span>
         {% else %}
           No data available
         {% endif %}
       </p>
     </div>
+
+    {# Refresh button — forces a fresh fetch from NSE/yfinance,
+       bypassing the in-memory cache. ~5-10s. The whole dashboard
+       partial is swapped (table + summary + movers) atomically. #}
+    <button type="button"
+            class="btn btn--secondary btn--sm btn--with-states dashboard__refresh"
+            hx-get="/api/dashboard?refresh=true"
+            hx-target="closest .dashboard"
+            hx-swap="outerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="closest .dashboard">
+      <span class="btn__idle">↻ Refresh</span>
+      <span class="btn__busy">
+        <span class="spinner" aria-hidden="true"></span>
+        Fetching…
+      </span>
+    </button>
   </header>
 
   <div class="dashboard__table-wrap">

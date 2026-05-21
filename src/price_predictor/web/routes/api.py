@@ -136,15 +136,40 @@ async def dashboard_endpoint(
     snapshot = await get_dashboard(force_refresh=refresh)
     snapshot = snapshot_with_watchlist(snapshot)
 
+    # Derive the top-of-page widgets from the same snapshot — no extra
+    # fetches. Keeps the home page atomic: one refresh updates all
+    # three widgets together (summary bar, movers strips, table).
+    from price_predictor.web.services.market_summary_service import (
+        get_movers,
+        summarize_market,
+    )
+    summary = summarize_market(snapshot)
+    movers = get_movers(snapshot, top_n=5)
+
     if _is_htmx(request):
         return templates.TemplateResponse(
             request=request,
             name="components/dashboard_table.html",
-            context={"snapshot": snapshot},
+            context={
+                "snapshot": snapshot,
+                "summary": summary,
+                "movers": movers,
+            },
         )
     return JSONResponse(content={
         "fetched_at": snapshot.fetched_at.isoformat(),
         "trading_day": snapshot.trading_day.isoformat() if snapshot.trading_day else None,
+        "summary": {
+            "avg_change_pct": summary.avg_change_pct,
+            "n_advancing": summary.n_advancing,
+            "n_declining": summary.n_declining,
+            "n_unchanged": summary.n_unchanged,
+            "n_total": summary.n_total,
+        },
+        "movers": {
+            "gainers": [r.to_dict() for r in movers.gainers],
+            "losers":  [r.to_dict() for r in movers.losers],
+        },
         "rows": [r.to_dict() for r in snapshot.rows],
     })
 

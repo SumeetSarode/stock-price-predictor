@@ -1,0 +1,46 @@
+{#
+  market_summary.html — top-of-dashboard mood-ring widget.
+
+  Shows:
+    - Index-proxy (avg of Nifty 50 daily % changes) with direction tint
+    - Breadth count: X advancing / Y declining / Z unchanged
+    - Total stocks scanned (with error count if any)
+    - Optional refresh button (caller decides; we just render the bar)
+#}
+<section class="market-summary market-summary--{{ summary.direction }}">
+  <div class="market-summary__index">
+    <div class="market-summary__index-label">Nifty 50 (avg)</div>
+    <div class="market-summary__index-value">
+      {% if summary.avg_change_pct is not none %}
+        <span class="num">
+          {% if summary.avg_change_pct > 0 %}▲{% elif summary.avg_change_pct < 0 %}▼{% else %}—{% endif %}
+          {{ "%+.2f"|format(summary.avg_change_pct) }}%
+        </span>
+      {% else %}
+        <span class="muted">no data</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="market-summary__breadth">
+    <div class="breadth-cell breadth-cell--up">
+      <span class="breadth-cell__count num">{{ summary.n_advancing }}</span>
+      <span class="breadth-cell__label">advancing</span>
+    </div>
+    <div class="breadth-cell breadth-cell--down">
+      <span class="breadth-cell__count num">{{ summary.n_declining }}</span>
+      <span class="breadth-cell__label">declining</span>
+    </div>
+    <div class="breadth-cell breadth-cell--flat">
+      <span class="breadth-cell__count num">{{ summary.n_unchanged }}</span>
+      <span class="breadth-cell__label">unchanged</span>
+    </div>
+  </div>
+
+  <div class="market-summary__total">
+    <span class="num">{{ summary.n_total }}</span> stocks
+    {% if summary.n_errors %}
+      <span class="muted">· <span class="num">{{ summary.n_errors }}</span> failed</span>
+    {% endif %}
+  </div>
+</section>

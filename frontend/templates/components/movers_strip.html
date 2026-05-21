@@ -1,0 +1,51 @@
+{#
+  movers_strip.html — top-5 gainers / top-5 losers side-by-side.
+
+  Two MoversStrip mini-cards in a single row. Each ticker is a chip
+  with name + % change. Click → /stock/<ticker>.
+
+  Renders nothing when both lists are empty (avoid an awkward stub).
+#}
+{% if movers.gainers or movers.losers %}
+  <section class="movers">
+    <div class="movers-card movers-card--up">
+      <header class="movers-card__header">
+        <span class="movers-card__title">▲ Top gainers</span>
+      </header>
+      <ol class="movers-card__list">
+        {% for r in movers.gainers %}
+          <li>
+            <a class="mover" href="/stock/{{ r.ticker }}">
+              <span class="mover__ticker num">{{ r.ticker.removesuffix(".NS") }}</span>
+              <span class="mover__sep">·</span>
+              <span class="mover__name">{{ r.name }}</span>
+              <span class="mover__change mover__change--up num">+{{ "%.2f"|format(r.change_pct) }}%</span>
+            </a>
+          </li>
+        {% else %}
+          <li class="muted">No gainers yet.</li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    <div class="movers-card movers-card--down">
+      <header class="movers-card__header">
+        <span class="movers-card__title">▼ Top losers</span>
+      </header>
+      <ol class="movers-card__list">
+        {% for r in movers.losers %}
+          <li>
+            <a class="mover" href="/stock/{{ r.ticker }}">
+              <span class="mover__ticker num">{{ r.ticker.removesuffix(".NS") }}</span>
+              <span class="mover__sep">·</span>
+              <span class="mover__name">{{ r.name }}</span>
+              <span class="mover__change mover__change--down num">{{ "%.2f"|format(r.change_pct) }}%</span>
+            </a>
+          </li>
+        {% else %}
+          <li class="muted">No losers yet.</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </section>
+{% endif %}

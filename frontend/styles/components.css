@@ -871,6 +871,186 @@
 }
 
 /* ──────────────────────────────────────────────────────────
+ * Market summary mood bar (top of dashboard)
+ * ────────────────────────────────────────────────────────── */
+.market-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+.market-summary--bullish { border-left-color: var(--color-bullish); }
+.market-summary--bearish { border-left-color: var(--color-bearish); }
+.market-summary--neutral { border-left-color: var(--color-border-strong); }
+
+.market-summary__index-label {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-fg-muted);
+  font-weight: var(--fw-medium);
+}
+
+.market-summary__index-value {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+}
+
+.market-summary--bullish .market-summary__index-value { color: var(--color-bullish); }
+.market-summary--bearish .market-summary__index-value { color: var(--color-bearish); }
+
+.market-summary__breadth {
+  display: flex;
+  gap: var(--space-5);
+  justify-content: center;
+}
+
+.breadth-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.breadth-cell__count {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.breadth-cell__label {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+}
+
+.breadth-cell--up   .breadth-cell__count { color: var(--color-bullish); }
+.breadth-cell--down .breadth-cell__count { color: var(--color-bearish); }
+.breadth-cell--flat .breadth-cell__count { color: var(--color-fg-muted); }
+
+.market-summary__total {
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .market-summary {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .market-summary__total { text-align: center; }
+  .market-summary__breadth { justify-content: space-around; }
+}
+
+/* ──────────────────────────────────────────────────────────
+ * Movers strip (top gainers + losers)
+ * ────────────────────────────────────────────────────────── */
+.movers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .movers { grid-template-columns: 1fr; }
+}
+
+.movers-card {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.movers-card__header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+}
+
+.movers-card--up   .movers-card__header { background-color: var(--color-bullish-soft); }
+.movers-card--down .movers-card__header { background-color: var(--color-bearish-soft); }
+
+.movers-card__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.movers-card--up   .movers-card__title { color: var(--color-bullish); }
+.movers-card--down .movers-card__title { color: var(--color-bearish); }
+
+.movers-card__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.movers-card__list > li {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.movers-card__list > li:last-child {
+  border-bottom: none;
+}
+
+.movers-card__list .muted {
+  display: block;
+  padding: var(--space-4);
+  text-align: center;
+  font-style: italic;
+}
+
+.mover {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-fg);
+  text-decoration: none;
+  transition: background-color var(--transition-base);
+}
+
+.mover:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+.mover__ticker {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+}
+
+.mover__sep {
+  color: var(--color-fg-muted);
+}
+
+.mover__name {
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mover__change {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+}
+
+.mover__change--up   { color: var(--color-bullish); }
+.mover__change--down { color: var(--color-bearish); }
+
+/* ──────────────────────────────────────────────────────────
  * Watchlist predictions panel (left sidebar)
  * ────────────────────────────────────────────────────────── */
 .panel {
@@ -1369,6 +1549,51 @@
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── LIVE pill (visible only during NSE market hours) ─────────────── */
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  color: var(--color-bullish);
+  background-color: var(--color-bullish-soft);
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+}
+
+.live-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-bullish);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1.0; transform: scale(1.0); }
+  50%      { opacity: 0.4; transform: scale(1.3); }
+}
+
+/* ── Dashboard refresh button ────────────────────────────────────── */
+.dashboard__refresh {
+  flex-shrink: 0;
+}
+
+/* Dim the entire dashboard partial while a refresh is in flight —
+   identical pattern to #detail-body. The closest .dashboard selector
+   in hx-indicator targets the wrapper so the whole widget greys out. */
+.dashboard.htmx-request {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity var(--transition-base);
 }
 
 .dashboard__meta {

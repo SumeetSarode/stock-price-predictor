@@ -102,6 +102,35 @@ class DashboardSnapshot:
         """e.g. '15 May 2026 18:45 IST'."""
         return self.fetched_at.strftime("%d %b %Y %H:%M IST")
 
+    @property
+    def is_market_open(self) -> bool:
+        """True iff fetched_at falls within NSE market hours.
+
+        NSE equity session: Mon-Fri 09:15-15:30 IST. We approximate
+        (no holiday calendar) — the worst case is a 'LIVE' pill on a
+        bank holiday, which is harmless.
+        """
+        ts = self.fetched_at  # already IST (tz-aware)
+        if ts.weekday() >= 5:  # 5=Sat, 6=Sun
+            return False
+        # 09:15 ≤ hh:mm < 15:30
+        minutes = ts.hour * 60 + ts.minute
+        return 555 <= minutes < 930
+
+    @property
+    def fetched_age_label(self) -> str:
+        """Relative friendly label — 'just now', '5 min ago', '2 hrs ago'.
+
+        Drives the freshness microcopy next to the refresh button.
+        """
+        from datetime import datetime as _dt
+        now = _dt.now(self.fetched_at.tzinfo)
+        secs = (now - self.fetched_at).total_seconds()
+        if secs < 60:    return "just now"
+        if secs < 3600:  return f"{int(secs//60)} min ago"
+        if secs < 86400: hrs = int(secs//3600); return f"{hrs} hr ago" if hrs == 1 else f"{hrs} hrs ago"
+        return self.fetched_at.strftime("%d %b")
+
 
 # ── In-memory cache ─────────────────────────────────────────────────
 #
