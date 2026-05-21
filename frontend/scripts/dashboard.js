@@ -21,6 +21,8 @@
   document.addEventListener("click", function (e) {
     // Ignore clicks inside the header (sort handles those).
     if (e.target.closest("thead")) return;
+    // Ignore clicks in the star cell — the star button owns those.
+    if (e.target.closest(".data-table__td--star")) return;
 
     const row = e.target.closest(".data-table__row");
     if (!row) return;

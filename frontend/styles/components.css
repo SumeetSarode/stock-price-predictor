@@ -457,6 +457,99 @@
 .signal-list--conflicts .signal-list__item::before { background-color: var(--color-bearish); }
 
 /* ──────────────────────────────────────────────────────────
+ * Star button (watchlist toggle)
+ *
+ * Off  = empty outline star,  muted gray
+ * On   = filled star,         brand gold
+ * Hover (off) = gold tinted outline
+ * ────────────────────────────────────────────────────────── */
+.star-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-border-strong);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast),
+              background-color var(--transition-fast),
+              transform var(--transition-fast);
+}
+
+.star-btn:hover {
+  background-color: var(--color-bg-muted);
+  color: #d97706;  /* amber-600 — prelude to the filled state */
+  transform: scale(1.1);
+}
+
+.star-btn--on {
+  color: #f59e0b;  /* amber-500 — "starred" tone */
+}
+
+.star-btn--on:hover {
+  color: #d97706;
+}
+
+/* Used inside skeleton rows so star column reserves space */
+.star-btn--placeholder {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+/* Toast hint when watchlist is full — see toast.js for the show/hide.
+ * The toast itself lives at the document level, only the trigger data
+ * is on the button. */
+
+/* Star column sizing on the dashboard */
+.data-table__th--star,
+.data-table__td--star {
+  width: 36px;
+  padding-left: var(--space-3);
+  padding-right: 0;
+}
+
+.data-table__td--star {
+  /* Stop row-click navigation; the button handles its own click. */
+  cursor: default;
+}
+
+/* ──────────────────────────────────────────────────────────
+ * Toast — transient feedback for actions like 'watchlist full'
+ * Positioned bottom-right, auto-dismisses, no JS framework.
+ * ────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 1000;
+  padding: var(--space-3) var(--space-5);
+  background-color: var(--color-fg);
+  color: var(--color-bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  animation: toast-in 200ms ease-out, toast-out 200ms ease-in 2.6s forwards;
+  pointer-events: none;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(8px); }
+}
+
+/* ──────────────────────────────────────────────────────────
  * Dashboard (Nifty 50 table) — components.css continues...
  * ────────────────────────────────────────────────────────── */
 .dashboard {

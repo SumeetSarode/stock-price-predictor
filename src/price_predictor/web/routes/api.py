@@ -14,12 +14,16 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from price_predictor.web.services.dashboard_service import get_dashboard
+from price_predictor.web.services.dashboard_service import (
+    get_dashboard,
+    snapshot_with_watchlist,
+)
 from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
     run_prediction,
 )
 from price_predictor.web.services.search_service import search as search_stocks
+from price_predictor.web.services.watchlist_service import is_watched, toggle as toggle_watchlist
 from price_predictor.web.settings import settings
 
 router = APIRouter(prefix="/api")
@@ -127,6 +131,7 @@ async def dashboard_endpoint(
     instant until tomorrow.
     """
     snapshot = await get_dashboard(force_refresh=refresh)
+    snapshot = snapshot_with_watchlist(snapshot)
 
     if _is_htmx(request):
         return templates.TemplateResponse(
@@ -138,4 +143,42 @@ async def dashboard_endpoint(
         "fetched_at": snapshot.fetched_at.isoformat(),
         "trading_day": snapshot.trading_day.isoformat() if snapshot.trading_day else None,
         "rows": [r.to_dict() for r in snapshot.rows],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Watchlist
+# ───────────────────────────────────────────────────────────────────────
+
+
+@router.post("/watchlist/toggle", response_model=None)
+async def toggle_watchlist_endpoint(
+    request: Request,
+    ticker: str = Form(...),
+) -> HTMLResponse | JSONResponse:
+    """Star or unstar a ticker. Returns the swapped star button HTML for HTMX.
+
+    Response also includes an HX-Trigger header firing 'watchlist-changed'
+    so any listening components (the side panel in Phase 3) can refresh.
+    """
+    now_watched, was_full = toggle_watchlist(ticker)
+
+    if _is_htmx(request):
+        response = templates.TemplateResponse(
+            request=request,
+            name="components/star_button.html",
+            context={
+                "ticker": ticker,
+                "is_watched": now_watched,
+                "toast": "Watchlist is full (10 max)" if was_full else None,
+            },
+        )
+        # Custom HTMX event so future side-panel listens for changes.
+        response.headers["HX-Trigger"] = "watchlist-changed"
+        return response
+
+    return JSONResponse(content={
+        "ticker": ticker,
+        "is_watched": now_watched,
+        "watchlist_full": was_full,
     })

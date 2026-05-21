@@ -29,6 +29,7 @@
     <table class="data-table" data-sortable>
       <thead>
         <tr>
+          <th class="data-table__th data-table__th--star" aria-label="Watchlist"></th>
           <th class="data-table__th"  data-sort="ticker">Ticker</th>
           <th class="data-table__th"  data-sort="name">Company</th>
           <th class="data-table__th"  data-sort="sector">Sector</th>
@@ -47,6 +48,13 @@
               data-sort-close="{{ row.close if row.close is not none else -1 }}"
               data-sort-change_pct="{{ row.change_pct if row.change_pct is not none else -999 }}"
               data-sort-volume="{{ row.volume if row.volume is not none else -1 }}">
+
+            <td class="data-table__td data-table__td--star"
+                onclick="event.stopPropagation()">
+              {% with ticker=row.ticker, is_watched=row.is_watched, toast=None %}
+                {% include "components/star_button.html" %}
+              {% endwith %}
+            </td>
 
             <td class="data-table__td num data-table__ticker">
               {{ row.ticker.replace(".NS", "") }}

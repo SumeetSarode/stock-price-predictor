@@ -65,10 +65,18 @@ class WebSettings(BaseSettings):
         description="Uvicorn auto-reload (developer-only — don't enable for normal use).",
     )
 
-    # ── Asset paths (resolved relative to repo root, not CWD) ──────────
+    # ── Asset paths (resolved relative to repo root, not CWD) ──────
     frontend_dir: Path = Field(
         default=_REPO_ROOT / "frontend",
         description="Root of the frontend/ directory (templates + static assets).",
+    )
+
+    # ── Persistent storage (SQLite) ───────────────────────────────────────────
+    # Default lives under the user's home so it survives upgrades /
+    # reinstalls. Override via WEB_DB_PATH for tests or alternate setups.
+    db_path: Path = Field(
+        default=Path.home() / ".price_predictor" / "app.db",
+        description="Where to store the SQLite database for watchlist + caches.",
     )
 
     @property

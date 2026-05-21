@@ -28,6 +28,7 @@
     <table class="data-table">
       <thead>
         <tr>
+          <th class="data-table__th data-table__th--star"></th>
           <th class="data-table__th">Ticker</th>
           <th class="data-table__th">Company</th>
           <th class="data-table__th">Sector</th>
@@ -39,6 +40,7 @@
       <tbody>
         {% for _ in range(10) %}
           <tr class="data-table__row data-table__row--skeleton">
+            <td class="data-table__td data-table__td--star"><span class="star-btn star-btn--placeholder">☆</span></td>
             <td class="data-table__td"><span class="skel skel--sm"></span></td>
             <td class="data-table__td"><span class="skel skel--md"></span></td>
             <td class="data-table__td"><span class="skel skel--md"></span></td>

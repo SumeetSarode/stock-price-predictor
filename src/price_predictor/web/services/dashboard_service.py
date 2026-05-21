@@ -25,6 +25,7 @@ from loguru import logger
 
 from price_predictor.data.prices import PriceFetchError, fetch_ohlcv
 from price_predictor.web.services.search_service import Stock, all_nifty50
+from price_predictor.web.services.watchlist_service import watchlist_tickers
 
 # India Standard Time, UTC+5:30. We use IST for the cache key because
 # the dashboard's freshness is gated by Indian trading days, not UTC.
@@ -45,6 +46,9 @@ class DashboardRow:
     Any field except ``ticker``, ``name``, ``sector`` may be ``None``
     if the per-ticker fetch failed. ``error`` carries the message in
     that case so the UI can show a friendly hint.
+
+    ``is_watched`` is populated at snapshot-render time from the
+    watchlist table; it's *not* part of the price-cache key.
     """
 
     ticker: str
@@ -56,6 +60,7 @@ class DashboardRow:
     volume: int | None = None
     last_trading_day: date | None = None
     error: str | None = None
+    is_watched: bool = False
 
     @property
     def direction(self) -> str:
@@ -80,6 +85,7 @@ class DashboardRow:
             "direction": self.direction,
             "last_trading_day": self.last_trading_day.isoformat() if self.last_trading_day else None,
             "error": self.error,
+            "is_watched": self.is_watched,
         }
 
 
@@ -224,6 +230,34 @@ async def get_dashboard(*, force_refresh: bool = False) -> DashboardSnapshot:
     logger.info("dashboard: fetch done {}/{} ok trading_day={}",
                 n_ok, len(rows), trading_day)
     return snapshot
+
+
+def snapshot_with_watchlist(snapshot: DashboardSnapshot) -> DashboardSnapshot:
+    """Return a copy of `snapshot` with `is_watched` populated per row.
+
+    Kept separate from get_dashboard() because the price cache is keyed
+    by date but watchlist state can change at any moment. Cheap (one
+    SQL query + dataclass copy) so we just run it on every render.
+    """
+    watched = watchlist_tickers()
+    if not watched:
+        return snapshot  # short-circuit: no work to do
+
+    new_rows = tuple(
+        DashboardRow(
+            ticker=r.ticker, name=r.name, sector=r.sector,
+            close=r.close, prev_close=r.prev_close,
+            change_pct=r.change_pct, volume=r.volume,
+            last_trading_day=r.last_trading_day, error=r.error,
+            is_watched=(r.ticker in watched),
+        )
+        for r in snapshot.rows
+    )
+    return DashboardSnapshot(
+        rows=new_rows,
+        fetched_at=snapshot.fetched_at,
+        trading_day=snapshot.trading_day,
+    )
 
 
 def reset_cache_for_tests() -> None:

@@ -1,0 +1,25 @@
+{#
+  star_button.html — single-element HTMX partial.
+
+  Renders an empty or filled star, with the post-toggle ticker as the
+  hx-post target so clicking it cycles state. Optional toast for the
+  "watchlist full" case.
+
+  Designed to be:
+    - The initial render (passed via context in the table row)
+    - The swap target after /api/watchlist/toggle returns
+
+  Both produce identical markup. DRY.
+#}
+<button type="button"
+        class="star-btn {% if is_watched %}star-btn--on{% endif %}"
+        hx-post="/api/watchlist/toggle"
+        hx-vals='{"ticker": "{{ ticker }}"}'
+        hx-target="this"
+        hx-swap="outerHTML"
+        aria-label="{{ 'Remove from' if is_watched else 'Add to' }} watchlist"
+        aria-pressed="{{ 'true' if is_watched else 'false' }}"
+        title="{{ 'In your watchlist' if is_watched else 'Add to watchlist' }}"
+        {% if toast %}data-toast="{{ toast }}"{% endif %}>
+  {% if is_watched %}★{% else %}☆{% endif %}
+</button>
