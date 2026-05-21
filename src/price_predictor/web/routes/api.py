@@ -14,6 +14,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from price_predictor.web.services.dashboard_service import get_dashboard
 from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
     run_prediction,
@@ -107,4 +108,34 @@ async def search_endpoint(
     return JSONResponse(content={
         "query": q,
         "matches": [m.to_dict() for m in matches],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Nifty 50 dashboard
+# ───────────────────────────────────────────────────────────────────────
+
+
+@router.get("/dashboard", response_model=None)
+async def dashboard_endpoint(
+    request: Request,
+    refresh: bool = False,
+) -> HTMLResponse | JSONResponse:
+    """Return the Nifty 50 dashboard (HTML partial for HTMX, JSON otherwise).
+
+    Cache-aware: first call of the day takes ~5-10s, later calls are
+    instant until tomorrow.
+    """
+    snapshot = await get_dashboard(force_refresh=refresh)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name="components/dashboard_table.html",
+            context={"snapshot": snapshot},
+        )
+    return JSONResponse(content={
+        "fetched_at": snapshot.fetched_at.isoformat(),
+        "trading_day": snapshot.trading_day.isoformat() if snapshot.trading_day else None,
+        "rows": [r.to_dict() for r in snapshot.rows],
     })

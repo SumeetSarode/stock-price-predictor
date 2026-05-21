@@ -1,0 +1,53 @@
+{#
+  dashboard_skeleton.html — placeholder rendered into the page on first
+  paint, before the real data arrives. Auto-fetches /api/dashboard via
+  HTMX, replacing itself when the snapshot is ready.
+
+  Why a skeleton (vs. plain "Loading…"):
+    - User sees the column structure immediately → feels responsive
+    - Sets expectations: how many rows, how wide, where prices go
+    - Pulsing shimmer signals 'work in progress' without being annoying
+#}
+<div class="dashboard"
+     hx-get="/api/dashboard"
+     hx-trigger="load"
+     hx-swap="outerHTML">
+
+  <header class="dashboard__header">
+    <div>
+      <h2 class="dashboard__title">Nifty 50</h2>
+      <p class="dashboard__meta">
+        <span class="spinner" aria-hidden="true"
+              style="vertical-align: -2px; margin-right: 6px;"></span>
+        Loading prices… (first load takes ~5-10s, then it's instant)
+      </p>
+    </div>
+  </header>
+
+  <div class="dashboard__table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="data-table__th">Ticker</th>
+          <th class="data-table__th">Company</th>
+          <th class="data-table__th">Sector</th>
+          <th class="data-table__th data-table__th--num">Close (₹)</th>
+          <th class="data-table__th data-table__th--num">Change</th>
+          <th class="data-table__th data-table__th--num">Volume</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for _ in range(10) %}
+          <tr class="data-table__row data-table__row--skeleton">
+            <td class="data-table__td"><span class="skel skel--sm"></span></td>
+            <td class="data-table__td"><span class="skel skel--md"></span></td>
+            <td class="data-table__td"><span class="skel skel--md"></span></td>
+            <td class="data-table__td data-table__td--num"><span class="skel skel--sm"></span></td>
+            <td class="data-table__td data-table__td--num"><span class="skel skel--sm"></span></td>
+            <td class="data-table__td data-table__td--num"><span class="skel skel--sm"></span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

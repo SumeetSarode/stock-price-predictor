@@ -1,57 +1,32 @@
 {#
-  home.html — landing page.
+  home.html — landing page (Step 2B).
 
-  Step 2A scope: a friendly empty state that points users to the
-  global search bar in the nav. Predicting always flows through:
-    search → pick result → /stock/<ticker> → pick horizon → predict.
-
-  Step 2B replaces this with the Nifty 50 dashboard (table + watchlist
-  + gainers/losers strip + recent predictions panel).
+  Layout:
+    - Compact page header with eyebrow + title (no oversized hero —
+      the dashboard table is the star)
+    - Nifty 50 dashboard renders inline. Loads asynchronously via
+      HTMX (skeleton first, real data after ~5-10s).
+    - The 'click search to predict any ticker' affordance lives in
+      the always-visible nav search bar; no need for separate copy here.
 #}
 {% extends "layouts/base.html" %}
 
 {% block title %}Price Predictor{% endblock %}
 
 {% block content %}
-<div class="container container--narrow">
-  <header class="page-header center">
+<div class="container">
+  <header class="page-header">
     <div class="page-header__eyebrow">Local-first · BYO keys</div>
-    <h1 class="page-header__title">What's the next move?</h1>
-    <p class="page-header__subtitle" style="margin-inline: auto;">
-      AI-driven price predictions for NSE stocks. Search a ticker above
-      to get started — we'll synthesize technicals, news, and filings
-      into a single actionable view.
+    <h1 class="page-header__title">Nifty 50 Live</h1>
+    <p class="page-header__subtitle">
+      End-of-day prices for every Nifty 50 constituent. Click a row
+      to dig into a stock, or use the search bar above to look up any
+      of the 197 bundled NSE tickers.
     </p>
   </header>
 
-  <section class="card card--lg center">
-    <div style="font-size: 48px; margin-bottom: var(--space-4);" aria-hidden="true">🔍</div>
-    <h2 class="card__title">Start with a search</h2>
-    <p class="muted" style="max-width: 44ch; margin: var(--space-2) auto 0;">
-      Use the search bar in the top navigation. Try
-      <strong>Reliance</strong>, <strong>HDFC</strong>,
-      <strong>IRCTC</strong>, or any of the 197 bundled NSE tickers.
-    </p>
-
-    <div class="mt-6 flex gap-3" style="justify-content: center; flex-wrap: wrap;">
-      {# A few popular starter tickers as one-click shortcuts. #}
-      {% for shortcut in [
-          ("RELIANCE.NS", "Reliance"),
-          ("HDFCBANK.NS", "HDFC Bank"),
-          ("TCS.NS", "TCS"),
-          ("INFY.NS", "Infosys"),
-          ("IRCTC.NS", "IRCTC"),
-      ] %}
-        <a href="/stock/{{ shortcut[0] }}" class="btn btn--secondary">
-          {{ shortcut[1] }}
-        </a>
-      {% endfor %}
-    </div>
+  <section id="dashboard">
+    {% include "components/dashboard_skeleton.html" %}
   </section>
-
-  <p class="muted center mt-6" style="font-size: var(--fs-sm);">
-    Coming soon: live Nifty 50 dashboard with watchlist, gainers/losers,
-    and recent predictions.
-  </p>
 </div>
 {% endblock %}

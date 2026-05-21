@@ -457,6 +457,201 @@
 .signal-list--conflicts .signal-list__item::before { background-color: var(--color-bearish); }
 
 /* ──────────────────────────────────────────────────────────
+ * Dashboard (Nifty 50 table) — components.css continues...
+ * ────────────────────────────────────────────────────────── */
+.dashboard {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;  /* clip table corners to the radius */
+}
+
+.dashboard__header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.dashboard__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.dashboard__meta {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+  margin: var(--space-1) 0 0;
+}
+
+.dashboard__table-wrap {
+  overflow-x: auto;  /* horizontal scroll on narrow viewports */
+}
+
+/* ──────────────────────────────────────────────────────────
+ * Data table — reusable for any tabular data (dashboard, history, etc).
+ * ────────────────────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.data-table__th {
+  font-weight: var(--fw-medium);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg-muted);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  position: sticky;
+  top: var(--nav-height);  /* sticks below the sticky nav */
+  z-index: 1;
+}
+
+.data-table__th--num {
+  text-align: right;
+}
+
+/* Sortable column headers */
+.data-table[data-sortable] .data-table__th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast),
+              background-color var(--transition-fast);
+}
+
+.data-table[data-sortable] .data-table__th[data-sort]:hover {
+  color: var(--color-fg);
+  background-color: var(--color-bg-muted);
+}
+
+.data-table__th[data-sort]::after {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 4px;
+  vertical-align: middle;
+  opacity: 0.3;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.data-table__th[data-sort-active="asc"]::after {
+  opacity: 1;
+  transform: rotate(180deg);
+}
+
+.data-table__th[data-sort-active="desc"]::after {
+  opacity: 1;
+}
+
+.data-table__th[data-sort-active]::after {
+  color: var(--color-primary);
+}
+
+.data-table__row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.data-table__row:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+.data-table__td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.data-table__td--num {
+  text-align: right;
+}
+
+.data-table__row:last-child .data-table__td {
+  border-bottom: none;
+}
+
+.data-table__ticker {
+  font-weight: var(--fw-semibold);
+  color: var(--color-fg);
+  font-size: var(--fs-sm);
+}
+
+.data-table__name {
+  color: var(--color-fg);
+  font-weight: var(--fw-medium);
+}
+
+.data-table__sector {
+  color: var(--color-fg-muted);
+  font-size: var(--fs-xs);
+}
+
+.data-table__change--bullish {
+  color: var(--color-bullish);
+  font-weight: var(--fw-medium);
+}
+
+.data-table__change--bearish {
+  color: var(--color-bearish);
+  font-weight: var(--fw-medium);
+}
+
+.data-table__change--neutral {
+  color: var(--color-fg-muted);
+}
+
+.data-table__volume {
+  color: var(--color-fg-muted);
+}
+
+/* ──────────────────────────────────────────────────────────
+ * Skeleton — pulsing placeholders shown while real data loads.
+ * ────────────────────────────────────────────────────────── */
+.skel {
+  display: inline-block;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg,
+              var(--color-bg-muted) 0%,
+              var(--color-border) 50%,
+              var(--color-bg-muted) 100%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+
+.skel--sm { width: 60px; }
+.skel--md { width: 140px; }
+.skel--lg { width: 220px; }
+
+@keyframes skel-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.data-table__row--skeleton {
+  cursor: default;
+}
+
+.data-table__row--skeleton:hover {
+  background-color: transparent;
+}
+
+/* ──────────────────────────────────────────────────────────
  * Search bar (nav-mounted autocomplete)
  * Owns its own micro-layout: input, icon, spinner, dropdown.
  * ────────────────────────────────────────────────────────── */
