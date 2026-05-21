@@ -661,6 +661,60 @@
 }
 
 /* ──────────────────────────────────────────────────────────
+ * Price chart (Chart.js on the stock detail page)
+ * ────────────────────────────────────────────────────────── */
+.chart-section {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.chart-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chart-section__title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.chart-section__hint {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+}
+
+.price-chart-wrap {
+  padding: var(--space-4);
+}
+
+.price-chart {
+  /* Per Chart.js convention: responsive:true ignores canvas height
+   * attribute, so the parent must have an explicit height. */
+  position: relative;
+  height: 280px;
+  width: 100%;
+}
+
+.price-chart__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-fg-muted);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
+/* ──────────────────────────────────────────────────────────
  * Watchlist predictions panel (left sidebar)
  * ────────────────────────────────────────────────────────── */
 .panel {

@@ -18,6 +18,7 @@ from price_predictor.web.services.dashboard_service import (
     get_dashboard,
     snapshot_with_watchlist,
 )
+from price_predictor.web.services.chart_service import get_chart_series
 from price_predictor.web.services.detail_service import get_stock_detail
 from price_predictor.web.services.panel_service import get_one_card, get_panel_cards
 from price_predictor.web.services.prediction_service import (
@@ -335,4 +336,25 @@ async def predictions_detail_endpoint(
         "has_prediction": detail.prediction is not None,
         "close": detail.close,
         "change_pct": detail.change_pct,
+    })
+
+
+@router.get("/chart", response_model=None)
+async def chart_endpoint(
+    request: Request,
+    ticker: str,
+    days: int = 90,
+) -> JSONResponse:
+    """Return historical closes for chart rendering.
+
+    JSON-only — the chart is rendered client-side by Chart.js. No HTMX
+    swap variant needed.
+    """
+    days = max(7, min(365, days))  # clamp to a sane range
+    series = await get_chart_series(ticker, window_days=days)
+    return JSONResponse(content={
+        "ticker": series.ticker,
+        "dates": series.dates,
+        "closes": series.closes,
+        "is_empty": series.is_empty,
     })

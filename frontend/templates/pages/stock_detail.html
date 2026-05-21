@@ -60,7 +60,28 @@
     {% endif %}
   </header>
 
-  {# ── Horizon tabs ───────────────────────────────────────────── #}
+  {# ── Price chart (loaded on every visit; pure client-side render) ─── #}
+  <section class="chart-section">
+    <header class="chart-section__header">
+      <h2 class="chart-section__title">90-day price</h2>
+      <span class="chart-section__hint">Hover for values · entry/target/stop overlaid when cached</span>
+    </header>
+    <div class="price-chart-wrap">
+      <div class="price-chart"
+           data-ticker="{{ detail.ticker }}"
+           {% if detail.prediction %}
+             data-direction="{{ detail.prediction.direction }}"
+             data-entry-low="{{ detail.prediction.entry_low }}"
+             data-entry-high="{{ detail.prediction.entry_high }}"
+             data-target="{{ detail.prediction.target_value }}"
+             data-stop="{{ detail.prediction.stop_value }}"
+           {% endif %}>
+        <canvas></canvas>
+      </div>
+    </div>
+  </section>
+
+  {# ── Horizon tabs ───────────────────────────────────────────────── #}
   <nav class="panel__tabs detail-tabs" role="tablist" aria-label="Prediction horizon">
     {% for tab_value, tab_label in [
         ("daily",    "Daily"),
@@ -88,4 +109,10 @@
   </section>
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+  {# Chart.js (vendored, ~200KB) — loaded only on the detail page. #}
+  <script src="/static/vendor/chart-4.4.6.umd.min.js" defer></script>
+  <script src="/static/scripts/chart.js" defer></script>
 {% endblock %}
