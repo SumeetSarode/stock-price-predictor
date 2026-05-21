@@ -685,6 +685,10 @@
 }
 
 .panel__card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--fs-xs);
   color: var(--color-fg-muted);
 }
@@ -694,6 +698,134 @@
   align-items: center;
   gap: var(--space-1);
   font-style: italic;
+}
+
+.panel__card-conf {
+  font-weight: var(--fw-medium);
+  color: var(--color-fg);
+}
+
+.panel__card-age {
+  color: var(--color-fg-muted);
+  font-size: 10px;
+}
+
+.panel__card-age--stale {
+  color: #b45309;  /* amber-700 — "caution, getting old" */
+  font-weight: var(--fw-medium);
+}
+
+/* Direction-colored target/stop values inside the 4-col grid. */
+.panel__card-col-value--bullish {
+  color: var(--color-bullish);
+}
+
+.panel__card-col-value--bearish {
+  color: var(--color-bearish);
+}
+
+.panel__card-col-value--neutral {
+  color: var(--color-fg);
+}
+
+/* ── Run / Refresh button ──────────────────────────────────────────────────────
+ *
+ * Lives at the bottom-right corner of each card (absolutely positioned
+ * inside .panel__card). Three visual states:
+ *   - Run        (no prediction yet): primary-tinted, full label
+ *   - Refresh    (has prediction):    muted icon-only on small cards
+ *   - Computing  (htmx in-flight):    spinner + 'Computing...' label
+ *
+ * The .htmx-request class is added automatically by HTMX to the
+ * `hx-indicator` element while the request is in flight. We use it on
+ * the parent card to swap visibility of the static label vs. pending.
+ * ────────────────────────────────────────────────────────── */
+.panel__card {
+  position: relative;  /* anchor for the absolutely-positioned button */
+}
+
+.panel__card-run {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px var(--space-2);
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-primary);
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast);
+  z-index: 2;  /* above the card link */
+}
+
+.panel__card-run:hover:not(:disabled) {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.panel__card-run:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.panel__card-run-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.panel__card-run--refresh {
+  color: var(--color-fg-muted);
+  /* On cards with predictions, hide the label to stay compact —
+     just show the ↻ icon. Hover reveals the label via tooltip. */
+}
+
+.panel__card-run--refresh .panel__card-run-label {
+  display: none;
+}
+
+/* Pending state — HTMX adds .htmx-request to the hx-indicator (the
+ * card itself) while the request is in flight. */
+.panel__card-run-pending {
+  display: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel__card.htmx-request .panel__card-run-icon,
+.panel__card.htmx-request .panel__card-run-label {
+  display: none;
+}
+
+.panel__card.htmx-request .panel__card-run-pending {
+  display: inline-flex;
+}
+
+.panel__card.htmx-request .panel__card-run {
+  /* Full-width pill while computing so 'Computing...' has room. */
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+/* Dim the card body while predicting so user sees it's locked. */
+.panel__card.htmx-request .panel__card-link {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Tiny spinner variant for inline button use */
+.spinner--xs {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
 }
 
 /* ── Empty state ───────────────────────────────────────────────────────────── */

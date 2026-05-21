@@ -1,0 +1,139 @@
+{#
+  panel_card.html — a single card in the watchlist panel.
+
+  Reused in two contexts:
+    1. Rendered inside panel_body.html for each card (initial load,
+       tab switch, watchlist-changed events).
+    2. Returned standalone by POST /api/predictions/run to swap a
+       single card in-place after a fresh prediction.
+
+  Both contexts get identical markup — DRY in action.
+
+  Three states, branched by `card.prediction`:
+    - None             → "Run prediction" CTA
+    - Fresh prediction → Entry / Target / Stop populated. Refresh icon.
+    - Stale prediction → Same as fresh + stale badge (⚠ instead of 🕒).
+
+  Whole-card tint follows `card.card_direction` (prefers prediction
+  direction over today's price move). The <a> wraps the body; the
+  Run/Refresh button lives OUTSIDE the <a> so clicking it doesn't
+  trigger navigation.
+#}
+<li class="panel__card panel__card--{{ card.card_direction }}"
+    data-ticker="{{ card.ticker }}"
+    id="panel-card-{{ card.ticker|replace('.', '_') }}">
+
+  <a href="/stock/{{ card.ticker }}" class="panel__card-link">
+
+    <header class="panel__card-header">
+      <div>
+        <span class="panel__card-ticker num">{{ card.display_ticker }}</span>
+        {% if card.is_nifty50 %}
+          <span class="search__n50-tag" title="Nifty 50">N50</span>
+        {% endif %}
+      </div>
+      {% if card.change_pct is not none %}
+        <span class="panel__card-change panel__card-change--{{ card.price_direction }} num">
+          {{ "%+.2f"|format(card.change_pct) }}%
+        </span>
+      {% endif %}
+    </header>
+
+    <div class="panel__card-name">{{ card.name }}</div>
+
+    {% if card.prediction %}
+      {# ── Populated state: real prediction values ───────────── #}
+      {% set p = card.prediction %}
+      <div class="panel__card-cols">
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Prev Close</div>
+          <div class="panel__card-col-value num">
+            ₹{{ "%.0f"|format(p.close_price) }}
+          </div>
+        </div>
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Entry</div>
+          <div class="panel__card-col-value num">
+            ₹{{ "%.0f"|format((p.entry_low + p.entry_high) / 2) }}
+          </div>
+        </div>
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Target</div>
+          <div class="panel__card-col-value num panel__card-col-value--{{ p.direction }}">
+            ₹{{ "%.0f"|format(p.target_value) }}
+          </div>
+        </div>
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Stop</div>
+          <div class="panel__card-col-value num panel__card-col-value--{{ 'bearish' if p.direction == 'bullish' else 'bullish' if p.direction == 'bearish' else 'neutral' }}">
+            ₹{{ "%.0f"|format(p.stop_value) }}
+          </div>
+        </div>
+      </div>
+
+      <div class="panel__card-footer">
+        <span class="panel__card-conf">
+          {{ p.direction|capitalize }} · {{ p.confidence_pct }}%
+          {% if p.risk_reward %}· R/R {{ "%.1f"|format(p.risk_reward) }}×{% endif %}
+        </span>
+        <span class="panel__card-age {% if p.is_stale %}panel__card-age--stale{% endif %}">
+          {% if p.is_stale %}⚠ {% else %}🕒 {% endif %}{{ p.age_label }}
+        </span>
+      </div>
+
+    {% else %}
+      {# ── Empty state: no prediction yet ───────────────────── #}
+      <div class="panel__card-cols">
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Prev Close</div>
+          <div class="panel__card-col-value num">
+            {% if card.close is not none %}₹{{ "%.0f"|format(card.close) }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Entry</div>
+          <div class="panel__card-col-value num muted">—</div>
+        </div>
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Target</div>
+          <div class="panel__card-col-value num muted">—</div>
+        </div>
+        <div class="panel__card-col">
+          <div class="panel__card-col-label">Stop</div>
+          <div class="panel__card-col-value num muted">—</div>
+        </div>
+      </div>
+      <div class="panel__card-footer">
+        <span class="panel__card-pending">
+          <span aria-hidden="true">🔮</span>
+          No {{ horizon }} prediction yet
+        </span>
+      </div>
+    {% endif %}
+
+  </a>
+
+  {# Run / Refresh button — outside the <a> so it doesn't navigate.
+     Long-running (~30-60s); we show pending state via the .htmx-request
+     class HTMX adds automatically to the indicator element. #}
+  <button type="button"
+          class="panel__card-run {% if card.prediction %}panel__card-run--refresh{% endif %}"
+          hx-post="/api/predictions/run"
+          hx-vals='{"ticker": "{{ card.ticker }}", "horizon": "{{ horizon }}"}'
+          hx-target="#panel-card-{{ card.ticker|replace('.', '_') }}"
+          hx-swap="outerHTML"
+          hx-disabled-elt="this"
+          hx-indicator="#panel-card-{{ card.ticker|replace('.', '_') }}"
+          aria-label="{{ 'Refresh prediction' if card.prediction else 'Run prediction' }}"
+          title="{{ 'Refresh (~30-60s)' if card.prediction else 'Run (~30-60s)' }}">
+    <span class="panel__card-run-icon" aria-hidden="true">{% if card.prediction %}↻{% else %}▶{% endif %}</span>
+    <span class="panel__card-run-label">
+      {% if card.prediction %}Refresh{% else %}Run prediction{% endif %}
+    </span>
+    <span class="panel__card-run-pending">
+      <span class="spinner spinner--xs" aria-hidden="true"></span>
+      Computing… ~30-60s
+    </span>
+  </button>
+
+</li>

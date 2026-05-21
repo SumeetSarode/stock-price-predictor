@@ -21,6 +21,10 @@ from price_predictor.web.services.dashboard_service import (
     DashboardRow,
     get_dashboard,
 )
+from price_predictor.web.services.prediction_cache import (
+    CachedPrediction,
+    get_latest_many,
+)
 from price_predictor.web.services.search_service import Stock, get_by_ticker
 from price_predictor.web.services.watchlist_service import list_watchlist
 
@@ -29,8 +33,10 @@ from price_predictor.web.services.watchlist_service import list_watchlist
 class PanelCard:
     """One card in the watchlist predictions panel.
 
-    Phase 2 only has the 'context' fields populated. Phase 3 will add
-    a ``prediction`` field carrying the cached PredictionView.
+    Three states, ordered by progressive enhancement:
+      1. No prediction cached      → prediction is None,  "Run prediction" CTA
+      2. Fresh cached prediction   → prediction populated, normal age label
+      3. Stale cached prediction   → prediction populated + is_stale=True
     """
 
     ticker: str           # 'RELIANCE.NS'
@@ -39,20 +45,38 @@ class PanelCard:
     is_nifty50: bool
     close: float | None = None
     change_pct: float | None = None
-    direction: str = "neutral"  # bullish | bearish | neutral
+    price_direction: str = "neutral"  # day's move direction (separate from prediction!)
+    prediction: CachedPrediction | None = None
 
     @property
     def display_ticker(self) -> str:
         """Show 'RELIANCE' not 'RELIANCE.NS' — the .NS noise hurts scannability."""
         return self.ticker.removesuffix(".NS")
 
+    @property
+    def card_direction(self) -> str:
+        """Which direction class to tint the whole card with.
+
+        Prefers the prediction direction (the headline) over the day's
+        move (the context). Falls back to today's price move when no
+        prediction is cached — keeps the card meaningful in either state.
+        """
+        if self.prediction is not None:
+            return self.prediction.direction
+        return self.price_direction
+
 
 async def get_panel_cards(horizon: str = "weekly") -> list[PanelCard]:
     """Return all watchlist cards for the given horizon, in watchlist order.
 
-    The ``horizon`` parameter is accepted now even though Phase 2 doesn't
-    use it — Phase 3 will key the prediction cache by (ticker, horizon).
-    Keeping the signature forward-compatible avoids touching callers later.
+    Joins:
+      - watchlist (SQLite)         → which tickers user has starred
+      - search index (CSV)         → names + sectors + N50 flag
+      - dashboard cache (memory)   → today's close + day change (context)
+      - predictions_cache (SQLite) → latest cached prediction per ticker
+
+    The prediction lookup is a single bulk query (get_latest_many) —
+    not N queries — so this is O(1) regardless of watchlist size.
     """
     entries = list_watchlist()
     if not entries:
@@ -60,18 +84,16 @@ async def get_panel_cards(horizon: str = "weekly") -> list[PanelCard]:
 
     # Use the dashboard snapshot for current prices. Don't force_refresh —
     # if the dashboard is cold for this process, we'd block for ~5-10s.
-    # Better: render cards instantly with None close and let the user
-    # refresh manually. (In practice the dashboard cache is almost always
-    # warm because the user opens the home page first.)
     snapshot = await get_dashboard()
     price_lookup: dict[str, DashboardRow] = {r.ticker: r for r in snapshot.rows}
+
+    # Bulk-fetch cached predictions for all watched tickers, one DB hit.
+    tickers = [e.ticker for e in entries]
+    prediction_lookup = get_latest_many(tickers, horizon)
 
     cards: list[PanelCard] = []
     for entry in entries:
         stock: Stock | None = get_by_ticker(entry.ticker)
-        # Fall back to the ticker itself if it's a non-N500 unknown — the
-        # search index is bounded; user could have starred via the
-        # detail page for any NSE symbol.
         name = stock.name if stock else entry.ticker.removesuffix(".NS")
         sector = stock.sector if stock else "—"
         is_n50 = stock.is_nifty50 if stock else False
@@ -84,7 +106,44 @@ async def get_panel_cards(horizon: str = "weekly") -> list[PanelCard]:
             is_nifty50=is_n50,
             close=price_row.close if price_row else None,
             change_pct=price_row.change_pct if price_row else None,
-            direction=price_row.direction if price_row else "neutral",
+            price_direction=price_row.direction if price_row else "neutral",
+            prediction=prediction_lookup.get(entry.ticker),
         ))
 
     return cards
+
+
+async def get_one_card(ticker: str, horizon: str = "weekly") -> PanelCard:
+    """Build a single PanelCard — used by POST /api/predictions/run to
+    swap one card after a fresh prediction without re-rendering the
+    entire panel.
+
+    Reuses the same data sources as get_panel_cards() but skips the
+    list_watchlist() filter — we just need the single ticker's view
+    even if the user has un-starred it mid-request (graceful degrade).
+    """
+    # Normalize to match dashboard / cache conventions.
+    t = ticker.strip().upper()
+    if not t.endswith(".NS"):
+        t = f"{t}.NS"
+
+    stock: Stock | None = get_by_ticker(t)
+    name = stock.name if stock else t.removesuffix(".NS")
+    sector = stock.sector if stock else "—"
+    is_n50 = stock.is_nifty50 if stock else False
+
+    snapshot = await get_dashboard()
+    price_row = next((r for r in snapshot.rows if r.ticker == t), None)
+
+    cached = get_latest_many([t], horizon).get(t)
+
+    return PanelCard(
+        ticker=t,
+        name=name,
+        sector=sector,
+        is_nifty50=is_n50,
+        close=price_row.close if price_row else None,
+        change_pct=price_row.change_pct if price_row else None,
+        price_direction=price_row.direction if price_row else "neutral",
+        prediction=cached,
+    )

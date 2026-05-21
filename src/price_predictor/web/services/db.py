@@ -59,6 +59,35 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS ix_watchlist_added_at
             ON watchlist(added_at);
+
+        -- Predictions cache — append-only history of prediction results.
+        -- We intentionally do NOT upsert: every run gets a new row, so we
+        -- can grade past predictions against subsequent price moves and
+        -- compute calibration metrics. "Current" prediction = latest row
+        -- for (ticker, horizon).
+        --
+        -- view_json holds the full _to_view_dict() output so the stock
+        -- detail page can re-render rich content without re-running the
+        -- LLM. The denormalized columns (direction, entry_low, etc.) are
+        -- there for fast queries / sort / filter without parsing JSON.
+        CREATE TABLE IF NOT EXISTS predictions_cache (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker          TEXT    NOT NULL,
+            horizon         TEXT    NOT NULL,
+            created_at      TEXT    NOT NULL,
+            direction       TEXT    NOT NULL,
+            confidence_pct  INTEGER NOT NULL,
+            close_price     REAL    NOT NULL,
+            entry_low       REAL    NOT NULL,
+            entry_high      REAL    NOT NULL,
+            target_value    REAL    NOT NULL,
+            stop_value      REAL    NOT NULL,
+            risk_reward     REAL,
+            view_json       TEXT    NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_predictions_lookup
+            ON predictions_cache(ticker, horizon, created_at DESC);
         """
     )
     conn.commit()

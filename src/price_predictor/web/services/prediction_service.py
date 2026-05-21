@@ -24,6 +24,7 @@ from price_predictor.prediction import (
     PredictionHorizon,
     predict,
 )
+from price_predictor.web.services import prediction_cache
 
 
 # ── Mapping helpers ──────────────────────────────────────────────────
@@ -147,7 +148,24 @@ async def run_prediction(ticker: str, horizon: str) -> dict[str, Any]:
             hint="This is unusual — please report on GitHub if it persists.",
         )
 
-    return _to_view_dict(results[horizon_enum])
+    view = _to_view_dict(results[horizon_enum])
+
+    # Persist to the cache so the watchlist panel can render this
+    # prediction instantly on subsequent loads. Failure to cache is
+    # NOT fatal — we'd rather show the user their result than blow
+    # up over a disk write.
+    try:
+        prediction_cache.save(view)
+    except Exception:
+        # Logged at DEBUG only; cache failures shouldn't pollute the
+        # main log stream. The user still sees their prediction.
+        from loguru import logger as _logger
+        _logger.opt(exception=True).debug(
+            "prediction_cache.save() failed for {} {} — ignoring",
+            view.get("ticker"), view.get("horizon"),
+        )
+
+    return view
 
 
 def _hint_for_error(exc: PredictionError) -> str | None:

@@ -1,5 +1,9 @@
 {#
-  panel_body.html — the cards (or empty state) inside the panel.
+  panel_body.html — list of cards (or empty state) inside the panel.
+
+  Card rendering delegated to panel_card.html so that template is
+  reused both here (initial render) AND by the standalone single-card
+  swap response from POST /api/predictions/run.
 
   Swapped into #panel-body by HTMX whenever:
     - Page loads
@@ -9,62 +13,10 @@
 {% if cards %}
   <ul class="panel__cards">
     {% for card in cards %}
-      <li class="panel__card panel__card--{{ card.direction }}"
-          data-ticker="{{ card.ticker }}">
-        <a href="/stock/{{ card.ticker }}" class="panel__card-link">
-
-          <header class="panel__card-header">
-            <div>
-              <span class="panel__card-ticker num">{{ card.display_ticker }}</span>
-              {% if card.is_nifty50 %}
-                <span class="search__n50-tag" title="Nifty 50">N50</span>
-              {% endif %}
-            </div>
-            {% if card.change_pct is not none %}
-              <span class="panel__card-change panel__card-change--{{ card.direction }} num">
-                {{ "%+.2f"|format(card.change_pct) }}%
-              </span>
-            {% endif %}
-          </header>
-
-          <div class="panel__card-name">{{ card.name }}</div>
-
-          <div class="panel__card-cols">
-            <div class="panel__card-col">
-              <div class="panel__card-col-label">Prev Close</div>
-              <div class="panel__card-col-value num">
-                {% if card.close is not none %}₹{{ "%.0f"|format(card.close) }}{% else %}—{% endif %}
-              </div>
-            </div>
-            <div class="panel__card-col">
-              <div class="panel__card-col-label">Entry</div>
-              <div class="panel__card-col-value num muted">—</div>
-            </div>
-            <div class="panel__card-col">
-              <div class="panel__card-col-label">Target</div>
-              <div class="panel__card-col-value num muted">—</div>
-            </div>
-            <div class="panel__card-col">
-              <div class="panel__card-col-label">Stop</div>
-              <div class="panel__card-col-value num muted">—</div>
-            </div>
-          </div>
-
-          <div class="panel__card-footer">
-            <span class="panel__card-pending">
-              <span aria-hidden="true">🔮</span>
-              No {{ horizon }} prediction yet · click to run
-            </span>
-          </div>
-
-        </a>
-      </li>
+      {% include "components/panel_card.html" %}
     {% endfor %}
   </ul>
-
 {% else %}
-
-  {# Empty state — first-run experience. Arrow points right toward the dashboard. #}
   <div class="panel__empty">
     <div class="panel__empty-icon" aria-hidden="true">⭐</div>
     <p class="panel__empty-text">
@@ -73,5 +25,4 @@
     </p>
     <div class="panel__empty-arrow" aria-hidden="true">→</div>
   </div>
-
 {% endif %}

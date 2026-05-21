@@ -18,7 +18,7 @@ from price_predictor.web.services.dashboard_service import (
     get_dashboard,
     snapshot_with_watchlist,
 )
-from price_predictor.web.services.panel_service import get_panel_cards
+from price_predictor.web.services.panel_service import get_one_card, get_panel_cards
 from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
     run_prediction,
@@ -221,8 +221,61 @@ async def predictions_panel_endpoint(
             {
                 "ticker": c.ticker, "name": c.name, "sector": c.sector,
                 "is_nifty50": c.is_nifty50, "close": c.close,
-                "change_pct": c.change_pct, "direction": c.direction,
+                "change_pct": c.change_pct, "direction": c.price_direction,
+                "has_prediction": c.prediction is not None,
             }
             for c in cards
         ],
+    })
+
+
+@router.post("/predictions/run", response_model=None)
+async def run_prediction_endpoint(
+    request: Request,
+    ticker: str = Form(...),
+    horizon: str = Form("weekly"),
+) -> HTMLResponse | JSONResponse:
+    """Run a prediction for `ticker` at `horizon`, save to cache, return
+    the updated single-card HTML (HTMX) or JSON.
+
+    Long-running: ~30-60s. The card's hx-disabled-elt + hx-indicator
+    handle the pending UI state on the client.
+    """
+    horizon_norm = horizon.lower().strip()
+    if horizon_norm not in _VALID_HORIZONS:
+        horizon_norm = "weekly"
+
+    error_message: str | None = None
+    try:
+        await run_prediction(ticker, horizon_norm)
+    except PredictionServiceError as exc:
+        error_message = exc.message
+
+    # Rebuild the card from the cache. If the run succeeded, the just-
+    # saved row is now the latest. If it failed, we render whatever was
+    # there before (or no prediction at all).
+    card = await get_one_card(ticker, horizon_norm)
+
+    if _is_htmx(request):
+        response = templates.TemplateResponse(
+            request=request,
+            name="components/panel_card.html",
+            context={"card": card, "horizon": horizon_norm},
+        )
+        # Surface errors via the toast mechanism by hijacking the
+        # response: append data-toast to the swapped card. Simpler
+        # than custom HX-Trigger handlers.
+        if error_message:
+            response.body = response.body.replace(
+                b'<li class="panel__card',
+                f'<li data-toast="{error_message}" class="panel__card'.encode(),
+                1,
+            )
+        return response
+
+    return JSONResponse(content={
+        "ticker": card.ticker,
+        "horizon": horizon_norm,
+        "has_prediction": card.prediction is not None,
+        "error": error_message,
     })
