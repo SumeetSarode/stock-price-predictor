@@ -494,6 +494,173 @@
 .signal-list--conflicts .signal-list__item::before { background-color: var(--color-bearish); }
 
 /* ──────────────────────────────────────────────────────────
+ * Stock detail page — header, tabs, run CTA, refresh footer.
+ * ────────────────────────────────────────────────────────── */
+.detail-header {
+  padding: var(--space-6);
+  /* Subtle left border in the day's direction color — visual cue
+     mirroring the watchlist card tinting. */
+  border-left: 4px solid var(--color-border-strong);
+}
+
+.detail-header--bullish { border-left-color: var(--color-bullish); }
+.detail-header--bearish { border-left-color: var(--color-bearish); }
+.detail-header--neutral { border-left-color: var(--color-border-strong); }
+
+.detail-header__top {
+  margin-bottom: var(--space-3);
+}
+
+.detail-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.detail-header__title {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* On the detail header the star button is bigger — it's an action,
+   not a list-row accessory. */
+.detail-header__title-row .star-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 22px;
+}
+
+.detail-header__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  color: var(--color-fg-muted);
+  font-size: var(--fs-sm);
+}
+
+.detail-header__ticker {
+  font-weight: var(--fw-semibold);
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.detail-header__sector {
+  color: var(--color-fg-muted);
+}
+
+.detail-header__price-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.detail-header__price {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+  color: var(--color-fg);
+}
+
+.detail-header__change {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+.detail-header__change--bullish {
+  background-color: var(--color-bullish-soft);
+  color: var(--color-bullish);
+}
+
+.detail-header__change--bearish {
+  background-color: var(--color-bearish-soft);
+  color: var(--color-bearish);
+}
+
+.detail-header__change--neutral {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg-muted);
+}
+
+.detail-header__price-label {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+  margin-left: auto;
+}
+
+/* ── Horizon tabs (reuses .panel__tabs styles) ─────────────────────────────────── */
+.detail-tabs {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Run CTA (no-cache state) ───────────────────────────────────────────────────── */
+.detail-run {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.detail-run__icon {
+  font-size: 48px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.detail-run__copy {
+  flex: 1;
+  min-width: 240px;
+}
+
+.detail-run__copy .card__title {
+  margin-bottom: var(--space-1);
+}
+
+.detail-run__btn {
+  flex-shrink: 0;
+}
+
+/* ── Refresh footer (under cached prediction card) ────────────────────────────── */
+.detail-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-6);
+  margin-top: var(--space-4);
+  background-color: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.detail-refresh__meta {
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+}
+
+.detail-refresh__meta--stale {
+  color: #b45309;  /* amber-700 */
+  font-weight: var(--fw-medium);
+}
+
+/* Dim the body while a refresh is in flight so user sees it's locked.
+   #detail-body is the hx-indicator. */
+#detail-body.htmx-request {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity var(--transition-base);
+}
+
+/* ──────────────────────────────────────────────────────────
  * Watchlist predictions panel (left sidebar)
  * ────────────────────────────────────────────────────────── */
 .panel {

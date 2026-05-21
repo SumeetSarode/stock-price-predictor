@@ -18,6 +18,7 @@ from price_predictor.web.services.dashboard_service import (
     get_dashboard,
     snapshot_with_watchlist,
 )
+from price_predictor.web.services.detail_service import get_stock_detail
 from price_predictor.web.services.panel_service import get_one_card, get_panel_cards
 from price_predictor.web.services.prediction_service import (
     PredictionServiceError,
@@ -234,11 +235,16 @@ async def run_prediction_endpoint(
     request: Request,
     ticker: str = Form(...),
     horizon: str = Form("weekly"),
+    context: str = Form("panel"),
 ) -> HTMLResponse | JSONResponse:
     """Run a prediction for `ticker` at `horizon`, save to cache, return
-    the updated single-card HTML (HTMX) or JSON.
+    the updated UI partial.
 
-    Long-running: ~30-60s. The card's hx-disabled-elt + hx-indicator
+    `context` decides which partial we return on HTMX requests:
+      - "panel" (default) → components/panel_card.html   (single watchlist card swap)
+      - "detail"          → components/detail_body.html  (stock detail page body swap)
+
+    Long-running: ~30-60s. The caller's hx-disabled-elt + hx-indicator
     handle the pending UI state on the client.
     """
     horizon_norm = horizon.lower().strip()
@@ -251,31 +257,82 @@ async def run_prediction_endpoint(
     except PredictionServiceError as exc:
         error_message = exc.message
 
-    # Rebuild the card from the cache. If the run succeeded, the just-
-    # saved row is now the latest. If it failed, we render whatever was
-    # there before (or no prediction at all).
-    card = await get_one_card(ticker, horizon_norm)
-
     if _is_htmx(request):
-        response = templates.TemplateResponse(
-            request=request,
-            name="components/panel_card.html",
-            context={"card": card, "horizon": horizon_norm},
-        )
-        # Surface errors via the toast mechanism by hijacking the
-        # response: append data-toast to the swapped card. Simpler
-        # than custom HX-Trigger handlers.
+        if context == "detail":
+            detail = await get_stock_detail(ticker, horizon_norm)
+            response = templates.TemplateResponse(
+                request=request,
+                name="components/detail_body.html",
+                context={"detail": detail},
+            )
+        else:
+            card = await get_one_card(ticker, horizon_norm)
+            response = templates.TemplateResponse(
+                request=request,
+                name="components/panel_card.html",
+                context={"card": card, "horizon": horizon_norm},
+            )
+
         if error_message:
+            # Inject a data-toast attribute into the first element of
+            # the response so toast.js picks it up after the swap.
             response.body = response.body.replace(
                 b'<li class="panel__card',
                 f'<li data-toast="{error_message}" class="panel__card'.encode(),
                 1,
+            ).replace(
+                b'<article class="card',
+                f'<article data-toast="{error_message}" class="card'.encode(),
+                1,
             )
         return response
 
+    # JSON fallback — same payload regardless of context.
+    if context == "detail":
+        detail = await get_stock_detail(ticker, horizon_norm)
+        return JSONResponse(content={
+            "ticker": detail.ticker,
+            "horizon": horizon_norm,
+            "has_prediction": detail.prediction is not None,
+            "error": error_message,
+        })
+    card = await get_one_card(ticker, horizon_norm)
     return JSONResponse(content={
         "ticker": card.ticker,
         "horizon": horizon_norm,
         "has_prediction": card.prediction is not None,
         "error": error_message,
+    })
+
+
+@router.get("/predictions/detail", response_model=None)
+async def predictions_detail_endpoint(
+    request: Request,
+    ticker: str,
+    horizon: str = "weekly",
+) -> HTMLResponse | JSONResponse:
+    """Return the detail-body partial for a stock at a horizon.
+
+    Swapped into #detail-body on the stock detail page when the user
+    clicks a horizon tab. Renders the cached prediction in full if
+    present, or a "Run prediction" CTA if not.
+    """
+    horizon_norm = horizon.lower().strip()
+    if horizon_norm not in _VALID_HORIZONS:
+        horizon_norm = "weekly"
+
+    detail = await get_stock_detail(ticker, horizon_norm)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            request=request,
+            name="components/detail_body.html",
+            context={"detail": detail},
+        )
+    return JSONResponse(content={
+        "ticker": detail.ticker,
+        "horizon": detail.horizon,
+        "has_prediction": detail.prediction is not None,
+        "close": detail.close,
+        "change_pct": detail.change_pct,
     })

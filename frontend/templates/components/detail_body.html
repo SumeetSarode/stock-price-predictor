@@ -1,0 +1,74 @@
+{#
+  detail_body.html — content area below the horizon tabs on the
+  stock detail page.
+
+  Two states:
+    1. Cached prediction present → render the full prediction_card.html
+       (rich card with rationale, signals, technical summary), PLUS a
+       refresh button and freshness label below it.
+    2. No prediction cached      → render a "Run prediction" CTA card
+       with horizon-aware wording.
+
+  Both Run and Refresh use POST /api/predictions/run, which auto-saves
+  to the cache and returns this same partial. HTMX swaps it back in.
+#}
+{% if detail.prediction %}
+  {# ── Cached prediction: rich card + refresh control ───────────── #}
+  {# We hand the prediction_card.html template the same shape it
+     expects from a live predict() call — the view dict is preserved
+     verbatim in the cache for exactly this reason. #}
+  {% set result = detail.view %}
+  {% include "components/prediction_card.html" %}
+
+  <div class="detail-refresh">
+    <span class="detail-refresh__meta {% if detail.prediction.is_stale %}detail-refresh__meta--stale{% endif %}">
+      {% if detail.prediction.is_stale %}
+        ⚠ Stale · cached {{ detail.prediction.age_label }}
+      {% else %}
+        🕒 Cached {{ detail.prediction.age_label }}
+      {% endif %}
+    </span>
+    <button type="button"
+            class="btn btn--secondary btn--sm btn--with-states"
+            hx-post="/api/predictions/run"
+            hx-vals='{"ticker": "{{ detail.ticker }}", "horizon": "{{ detail.horizon }}", "context": "detail"}'
+            hx-target="#detail-body"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#detail-body">
+      <span class="btn__idle">↻ Refresh prediction</span>
+      <span class="btn__busy">
+        <span class="spinner" aria-hidden="true"></span>
+        Refreshing… ~30-60s
+      </span>
+    </button>
+  </div>
+
+{% else %}
+  {# ── No cache: prominent "Run" CTA ────────────────────────── #}
+  <article class="card card--lg detail-run">
+    <div class="detail-run__icon" aria-hidden="true">🔮</div>
+    <div class="detail-run__copy">
+      <h2 class="card__title">No {{ detail.horizon }} prediction yet</h2>
+      <p class="card__hint">
+        Run a fresh {{ detail.horizon }} prediction for
+        <strong>{{ detail.display_ticker }}</strong>. Typical run:
+        <span class="num">~30-60s</span>.
+      </p>
+    </div>
+    <button type="button"
+            class="btn btn--primary btn--lg btn--with-states detail-run__btn"
+            hx-post="/api/predictions/run"
+            hx-vals='{"ticker": "{{ detail.ticker }}", "horizon": "{{ detail.horizon }}", "context": "detail"}'
+            hx-target="#detail-body"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#detail-body">
+      <span class="btn__idle">▶ Run {{ detail.horizon }} prediction</span>
+      <span class="btn__busy">
+        <span class="spinner" aria-hidden="true"></span>
+        Computing… ~30-60s
+      </span>
+    </button>
+  </article>
+{% endif %}

@@ -45,21 +45,27 @@ async def history(request: Request) -> HTMLResponse:
 
 
 @router.get("/stock/{ticker}", response_class=HTMLResponse)
-async def stock_detail(request: Request, ticker: str) -> HTMLResponse:
-    """Stock detail page — reached by clicking a search suggestion.
+async def stock_detail(
+    request: Request,
+    ticker: str,
+    horizon: str = "weekly",
+) -> HTMLResponse:
+    """Stock detail page — reached by clicking a watchlist card or
+    dashboard row.
 
-    For Step 2A this is a placeholder: shows the matched stock's name
-    + sector and embeds the existing predict form pre-filled with the
-    ticker. The full detail page (price chart, recent predictions,
-    fundamentals card) lands in Step 2G.
+    Renders the chosen horizon's cached prediction in full when present
+    (rich card with rationale + signals + technical summary), or a
+    "Run prediction" CTA when not. Tabs let the user switch horizons
+    without reloading the page (HTMX swaps the body).
     """
-    stock = get_by_ticker(ticker)
+    from price_predictor.web.services.detail_service import get_stock_detail
+
+    detail = await get_stock_detail(ticker, horizon)
     return templates.TemplateResponse(
         request=request,
         name="pages/stock_detail.html",
         context={
             "app_version": APP_VERSION,
-            "ticker": ticker.upper(),
-            "stock": stock,  # may be None if ticker is unknown
+            "detail": detail,
         },
     )

@@ -1,83 +1,91 @@
 {#
-  stock_detail.html — placeholder detail page (Step 2A).
+  stock_detail.html — full stock detail page (Step 2G phase 1).
 
-  Shows the matched stock's name + sector and embeds a pre-filled
-  predict form. The full detail view (price chart, fundamentals,
-  recent predictions, news) lands in Step 2G.
+  Layout:
+    Header card:
+      - Ticker + ⭐ star button + N50 badge + sector
+      - Company name (h1)
+      - Current price + day change (live from dashboard cache)
+
+    Horizon tabs (Daily / Weekly / Biweekly / Monthly).
+      Default active tab matches the URL's ?horizon= param (Weekly by
+      default). Clicking a tab swaps the body via HTMX.
+
+    Detail body (#detail-body):
+      - If a prediction is cached for the chosen horizon → render the
+        full rich prediction_card.html + refresh button below.
+      - Otherwise → render a prominent "Run prediction" CTA.
+
+  No more "form to predict" UI — the tabs do the right thing
+  automatically.
 #}
 {% extends "layouts/base.html" %}
 
-{% block title %}{{ ticker }} · Price Predictor{% endblock %}
+{% block title %}{{ detail.display_ticker }} · Price Predictor{% endblock %}
 
 {% block content %}
-<div class="container container--narrow">
-  <header class="page-header">
-    {% if stock %}
-      <div class="page-header__eyebrow">
-        {{ stock.sector }}{% if stock.is_nifty50 %} · <span class="search__n50-tag">N50</span>{% endif %}
+<div class="container container--narrow stack stack--lg">
+
+  {# ── Header card ────────────────────────────────────────────── #}
+  <header class="card detail-header detail-header--{{ detail.price_direction }}">
+    <div class="detail-header__top">
+      <div class="detail-header__title-row">
+        <h1 class="detail-header__title">{{ detail.name }}</h1>
+        {% with ticker=detail.ticker, is_watched=detail.is_watched, toast=None %}
+          {% include "components/star_button.html" %}
+        {% endwith %}
       </div>
-      <h1 class="page-header__title">{{ stock.name }}</h1>
-      <p class="page-header__subtitle">
-        <span class="num">{{ stock.ticker }}</span> · Run a prediction below.
-      </p>
-    {% else %}
-      <div class="page-header__eyebrow">Unknown ticker</div>
-      <h1 class="page-header__title">{{ ticker }}</h1>
-      <p class="page-header__subtitle">
-        Not in our bundled Nifty 500 index. You can still try predicting —
-        the engine accepts any NSE ticker via yfinance.
-      </p>
+      <div class="detail-header__meta">
+        <span class="num detail-header__ticker">{{ detail.display_ticker }}</span>
+        {% if detail.is_nifty50 %}
+          <span class="search__n50-tag" title="Nifty 50">N50</span>
+        {% endif %}
+        <span class="detail-header__sector">· {{ detail.sector }}</span>
+      </div>
+    </div>
+
+    {% if detail.close is not none %}
+      <div class="detail-header__price-row">
+        <span class="detail-header__price num">
+          ₹{{ "%.2f"|format(detail.close) }}
+        </span>
+        {% if detail.change_pct is not none %}
+          <span class="detail-header__change detail-header__change--{{ detail.price_direction }} num">
+            {% if detail.change_pct > 0 %}▲{% elif detail.change_pct < 0 %}▼{% else %}—{% endif %}
+            {{ "%+.2f"|format(detail.change_pct) }}%
+          </span>
+        {% endif %}
+        <span class="detail-header__price-label">today's close</span>
+      </div>
     {% endif %}
   </header>
 
-  <section class="card card--lg">
-    <h2 class="card__title">Run a prediction</h2>
-    <p class="card__hint">Typical run: <span class="num">~30–60s</span>.</p>
-
-    <form class="stack stack--lg"
-          hx-post="/api/predict"
-          hx-target="#result"
-          hx-swap="innerHTML"
-          hx-disabled-elt="#submit-btn"
-          hx-on::before-request="document.getElementById('result').innerHTML = document.getElementById('loading-tpl').innerHTML">
-
-      <input type="hidden" name="ticker" value="{{ ticker }}" />
-
-      <div class="field" style="max-width: 200px;">
-        <label class="field__label" for="horizon">Horizon</label>
-        <select class="select" id="horizon" name="horizon">
-          <option value="daily">Daily</option>
-          <option value="weekly" selected>Weekly</option>
-          <option value="biweekly">Biweekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
-      </div>
-
-      <button id="submit-btn" type="submit" class="btn btn--primary btn--lg btn--with-states"
-              style="align-self: flex-start;">
-        <span class="btn__idle">🔮 Predict {{ ticker }}</span>
-        <span class="btn__busy">
-          <span class="spinner" aria-hidden="true"></span>
-          Predicting…
-        </span>
+  {# ── Horizon tabs ───────────────────────────────────────────── #}
+  <nav class="panel__tabs detail-tabs" role="tablist" aria-label="Prediction horizon">
+    {% for tab_value, tab_label in [
+        ("daily",    "Daily"),
+        ("weekly",   "Weekly"),
+        ("biweekly", "Biweekly"),
+        ("monthly",  "Monthly"),
+    ] %}
+      <button type="button"
+              class="panel__tab {% if tab_value == detail.horizon %}panel__tab--active{% endif %}"
+              role="tab"
+              aria-selected="{{ 'true' if tab_value == detail.horizon else 'false' }}"
+              hx-get="/api/predictions/detail?ticker={{ detail.ticker }}&horizon={{ tab_value }}"
+              hx-target="#detail-body"
+              hx-swap="innerHTML"
+              hx-push-url="/stock/{{ detail.ticker }}?horizon={{ tab_value }}"
+              hx-on::after-request="document.querySelectorAll('.detail-tabs .panel__tab').forEach(t => { t.classList.toggle('panel__tab--active', t === this); t.setAttribute('aria-selected', t === this ? 'true' : 'false'); })">
+        {{ tab_label }}
       </button>
-    </form>
+    {% endfor %}
+  </nav>
+
+  {# ── Body slot (swappable) ──────────────────────────────────── #}
+  <section id="detail-body">
+    {% include "components/detail_body.html" %}
   </section>
 
-  {# Loading template — same pattern as home.html #}
-  <template id="loading-tpl">
-    <div class="card card--lg loading-card">
-      <div class="loading-card__spinner" aria-hidden="true"></div>
-      <div>
-        <h3 class="loading-card__title">Running prediction…</h3>
-        <p class="loading-card__hint">
-          Synthesizing technicals, news, and filings. Typically
-          <strong>30–60 seconds</strong>.
-        </p>
-      </div>
-    </div>
-  </template>
-
-  <section id="result" class="mt-6"></section>
 </div>
 {% endblock %}
