@@ -26,9 +26,40 @@
     <p class="page-header__subtitle">
       {% if total == 1 %}1 prediction{% else %}{{ total }} predictions{% endif %}
       {% if filter_ticker or filter_horizon %}match your filters{% else %}across all tickers{% endif %}.
-      Grading lands in a future update.
+      {% if page_scorecard %}Outcomes scored for the {{ rows|length }} on this page.{% endif %}
     </p>
   </header>
+
+  {# ── Page-local scorecard banner ───────────────────────────────── #}
+  {% if page_scorecard %}
+    {% set sc = page_scorecard %}
+    <div class="scorecard-banner">
+      <div class="scorecard-banner__cell">
+        <div class="scorecard-banner__label">Hit rate</div>
+        <div class="scorecard-banner__value">
+          {% if sc.hit_rate is not none %}{{ "%.0f"|format(sc.hit_rate * 100) }}%{% else %}—{% endif %}
+        </div>
+        <div class="scorecard-banner__hint">{{ sc.hits }} hit · {{ sc.stops }} stop</div>
+      </div>
+      <div class="scorecard-banner__cell">
+        <div class="scorecard-banner__label">Avg R</div>
+        <div class="scorecard-banner__value">
+          {% if sc.avg_r is not none %}{{ "%+.2f"|format(sc.avg_r) }}{% else %}—{% endif %}
+        </div>
+        <div class="scorecard-banner__hint">across resolved</div>
+      </div>
+      <div class="scorecard-banner__cell">
+        <div class="scorecard-banner__label">Expired</div>
+        <div class="scorecard-banner__value">{{ sc.expired }}</div>
+        <div class="scorecard-banner__hint">window ran out</div>
+      </div>
+      <div class="scorecard-banner__cell">
+        <div class="scorecard-banner__label">Pending</div>
+        <div class="scorecard-banner__value">{{ sc.pending }}</div>
+        <div class="scorecard-banner__hint">awaiting bars</div>
+      </div>
+    </div>
+  {% endif %}
 
   {# ── Filters ───────────────────────────────────────────────── #}
   <form class="history-filters" method="get" action="/history">
@@ -58,8 +89,8 @@
     </div>
   </form>
 
-  {# ── Table ───────────────────────────────────────────────────── #}
-  {% with show_ticker=True, empty_message="No predictions match your filters yet. Star a stock and run a prediction to get started." %}
+  {# ── Table ──────────────────────────────────────────────────── #}
+  {% with show_ticker=True, empty_message="No predictions match your filters yet. Star a stock and run a prediction to get started.", grades_by_id=grades_by_id %}
     {% include "components/history_table.html" %}
   {% endwith %}
 

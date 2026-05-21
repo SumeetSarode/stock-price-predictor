@@ -23,6 +23,7 @@ Boundary
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
@@ -265,8 +266,12 @@ def _replay(row: HistoryRow, df: pd.DataFrame) -> GradedPrediction:
     )
 
 
-def _build_scorecard(graded: list[GradedPrediction]) -> Scorecard:
-    """Aggregate outcomes into the headline scorecard."""
+def build_scorecard(graded: list[GradedPrediction]) -> Scorecard:
+    """Aggregate outcomes into the headline scorecard.
+
+    Pure function — callers anywhere can build their own scorecard from
+    a list of GradedPrediction (per ticker, per page, global, anything).
+    """
     hits = sum(1 for g in graded if g.outcome == "hit")
     stops = sum(1 for g in graded if g.outcome == "stopped")
     expired = sum(1 for g in graded if g.outcome == "expired")
@@ -290,9 +295,92 @@ def _build_scorecard(graded: list[GradedPrediction]) -> Scorecard:
     )
 
 
-# ─────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
 # Public API
-# ─────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+
+
+# Bound concurrent OHLCV fetches when grading across many tickers —
+# friendly to NSE rate limits + keeps memory predictable.
+_MAX_CONCURRENT_FETCHES = 8
+
+# Per-ticker fetch timeout. NSE can be slow or unreachable (e.g. behind
+# a corporate VPN that blocks the domain) — we'd rather mark a row
+# PENDING and move on than freeze the page for 60+ seconds.
+_FETCH_TIMEOUT_SECS = 10.0
+
+
+async def _fetch_ohlcv_or_none(
+    ticker: str, start: date, end: date,
+) -> pd.DataFrame | None:
+    """Cache.get wrapper that swallows fetch errors AND timeouts.
+
+    Returns None on any failure. Callers fall back to PENDING with a
+    'couldn't fetch' note. Keeps grade_rows() / grade_ticker() sharing
+    the exact same error handling.
+    """
+    try:
+        return await asyncio.wait_for(
+            get_cache().get(ticker, start, end, "1d"),
+            timeout=_FETCH_TIMEOUT_SECS,
+        )
+    except (Exception, asyncio.TimeoutError):
+        return None
+
+
+def _grade_rows_with_df(
+    rows: list[HistoryRow], df: pd.DataFrame | None,
+) -> list[GradedPrediction]:
+    """Replay every row against `df`. Empty/missing df → all PENDING."""
+    if df is None or df.empty:
+        return [
+            GradedPrediction(
+                row=r, outcome="pending", r_multiple=None,
+                resolved_at=None, bars_used=0,
+                note="Couldn't fetch price history — try the refresh button.",
+            )
+            for r in rows
+        ]
+    return [_replay(r, df) for r in rows]
+
+
+async def grade_rows(rows: list[HistoryRow]) -> list[GradedPrediction]:
+    """Grade an arbitrary list of HistoryRow, possibly spanning many tickers.
+
+    Strategy:
+      1. Group rows by ticker.
+      2. For each ticker, do ONE OHLCV fetch covering its oldest row → today.
+      3. Replay each row of that ticker against the ticker's df.
+      4. Stitch results back into the original row order.
+
+    Bounded concurrency keeps NSE happy. Returns the same length as `rows`.
+    """
+    if not rows:
+        return []
+
+    today = date.today()
+    by_ticker: dict[str, list[HistoryRow]] = {}
+    for r in rows:
+        by_ticker.setdefault(r.ticker, []).append(r)
+
+    sem = asyncio.Semaphore(_MAX_CONCURRENT_FETCHES)
+
+    async def _grade_ticker_group(t: str, group: list[HistoryRow]):
+        oldest = min(r.created_at for r in group).date()
+        start = oldest - timedelta(days=2)
+        async with sem:
+            df = await _fetch_ohlcv_or_none(t, start, today)
+        return t, _grade_rows_with_df(group, df)
+
+    results = await asyncio.gather(*(
+        _grade_ticker_group(t, group) for t, group in by_ticker.items()
+    ))
+
+    # Stitch back into original `rows` order via a dict lookup on id.
+    graded_by_id: dict[int, GradedPrediction] = {
+        gp.row.id: gp for _, group in results for gp in group
+    }
+    return [graded_by_id[r.id] for r in rows]
 
 
 async def grade_ticker(
@@ -320,46 +408,13 @@ async def grade_ticker(
             computed_at=datetime.now(),
         )
 
-    # Single OHLCV fetch covering the oldest prediction → today.
-    # Cheaper than re-fetching per prediction; the cache layer dedupes
-    # too. End date is clamped to TODAY (not today+1) because some
-    # providers (e.g. bhavcopy) raise on future dates.
-    oldest = min(r.created_at for r in rows).date()
-    today = date.today()
-    start = oldest - timedelta(days=2)  # tiny pad for index lookups
-    end = today
-
-    cache = get_cache()
-    fetch_failed = False
-    df: pd.DataFrame | None = None
-    try:
-        df = await cache.get(t, start, end, "1d")
-    except Exception:
-        # Don't crash — grading degrades gracefully to PENDING with a hint.
-        fetch_failed = True
-
-    if fetch_failed or df is None or df.empty:
-        # We couldn't replay bars at all. Surface the actual reason so the
-        # user knows whether to retry (network) or just wait (no data yet).
-        graded_pending = [
-            GradedPrediction(
-                row=r, outcome="pending", r_multiple=None,
-                resolved_at=None, bars_used=0,
-                note="Couldn't fetch price history — try the refresh button.",
-            )
-            for r in rows
-        ]
-        return TickerGrading(
-            ticker=t,
-            scorecard=_build_scorecard(graded_pending),
-            graded=graded_pending,
-            computed_at=datetime.now(),
-        )
-
-    graded = [_replay(r, df) for r in rows]
+    # Delegate to the shared multi-ticker engine — same fetch logic,
+    # same error handling, same replay primitives. Single-ticker is just
+    # a degenerate case of the general one.
+    graded = await grade_rows(rows)
     return TickerGrading(
         ticker=t,
-        scorecard=_build_scorecard(graded),
+        scorecard=build_scorecard(graded),
         graded=graded,
         computed_at=datetime.now(),
     )

@@ -45,6 +45,9 @@ async def history(
     Supports ?ticker= and ?horizon= filters and ?page= pagination
     (50 per page).
     """
+    from price_predictor.web.services.grading_service import (
+        Scorecard, build_scorecard, grade_rows,
+    )
     from price_predictor.web.services.history_service import list_history
 
     page = max(1, page)
@@ -57,12 +60,26 @@ async def history(
     )
     total_pages = max(1, (total + per_page - 1) // per_page)
 
+    # Grade what's on this page so the table can show real outcomes.
+    # Keyed by row.id so the template can do {{ grades[r.id] }} lookups
+    # without us having to clone the frozen HistoryRow dataclasses.
+    graded = await grade_rows(rows) if rows else []
+    grades_by_id: dict[int, str] = {gp.row.id: gp.outcome for gp in graded}
+
+    # Page-local scorecard — just the rows visible right now. Honest:
+    # if you're on page 2, it scores page 2's slice, not the whole DB.
+    # A global scorecard across ALL predictions would force grading every
+    # row in the DB on every page load — too expensive without caching.
+    page_scorecard: Scorecard | None = build_scorecard(graded) if graded else None
+
     return templates.TemplateResponse(
         request=request,
         name="pages/history.html",
         context={
             "app_version": APP_VERSION,
             "rows": rows,
+            "grades_by_id": grades_by_id,
+            "page_scorecard": page_scorecard,
             "total": total,
             "page": page,
             "total_pages": total_pages,

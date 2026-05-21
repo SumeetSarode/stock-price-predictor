@@ -1,19 +1,17 @@
 {#
   history_table.html — reusable predictions history table.
 
-  Used in two contexts:
-    1. Full /history page (paginated, filtered)
-    2. Per-ticker section on /stock/<ticker> (last 10, no pagination)
-
   Caller provides:
     rows           — list of HistoryRow
     show_ticker    — bool, hide the Ticker column when listing one ticker
     empty_message  — str, what to show when rows is empty
+    grades_by_id   — OPTIONAL dict[int, str] mapping row.id → outcome
+                     ('hit'/'stopped'/'expired'/'pending'/'skipped').
+                     If not provided or row.id missing → cell shows '—'.
 
-  No sorting widgets here — the list is always newest-first. Grading
-  column is rendered but always shows '—' for now; substep 2H wires
-  up real outcomes.
+  No sorting widgets here — the list is always newest-first.
 #}
+{% set _grades = grades_by_id|default({}) %}
 {% if rows %}
   <div class="data-table-wrap">
     <table class="data-table data-table--compact">
@@ -65,8 +63,9 @@
               {% if r.risk_reward %}{{ "%.1f"|format(r.risk_reward) }}×{% else %}—{% endif %}
             </td>
             <td class="data-table__td">
-              {% if r.grade %}
-                <span class="grade-pill grade-pill--{{ r.grade }}">{{ r.grade }}</span>
+              {% set g = _grades.get(r.id) %}
+              {% if g %}
+                <span class="grade-pill grade-pill--{{ g }}">{{ g }}</span>
               {% else %}
                 <span class="muted">—</span>
               {% endif %}
