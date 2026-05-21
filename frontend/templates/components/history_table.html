@@ -1,0 +1,83 @@
+{#
+  history_table.html — reusable predictions history table.
+
+  Used in two contexts:
+    1. Full /history page (paginated, filtered)
+    2. Per-ticker section on /stock/<ticker> (last 10, no pagination)
+
+  Caller provides:
+    rows           — list of HistoryRow
+    show_ticker    — bool, hide the Ticker column when listing one ticker
+    empty_message  — str, what to show when rows is empty
+
+  No sorting widgets here — the list is always newest-first. Grading
+  column is rendered but always shows '—' for now; substep 2H wires
+  up real outcomes.
+#}
+{% if rows %}
+  <div class="data-table-wrap">
+    <table class="data-table data-table--compact">
+      <thead>
+        <tr>
+          <th class="data-table__th">When</th>
+          {% if show_ticker %}<th class="data-table__th">Ticker</th>{% endif %}
+          <th class="data-table__th">Horizon</th>
+          <th class="data-table__th">Direction</th>
+          <th class="data-table__th data-table__th--num">Confidence</th>
+          <th class="data-table__th data-table__th--num">Close</th>
+          <th class="data-table__th data-table__th--num">Entry</th>
+          <th class="data-table__th data-table__th--num">Target</th>
+          <th class="data-table__th data-table__th--num">Stop</th>
+          <th class="data-table__th data-table__th--num">R/R</th>
+          <th class="data-table__th">Grade</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr class="data-table__row history-row history-row--{{ r.direction }}"
+              data-ticker="{{ r.ticker }}"
+              onclick="window.location.href='/stock/{{ r.ticker }}?horizon={{ r.horizon }}'">
+            <td class="data-table__td history-cell-when">
+              <div class="num">{{ r.created_at.strftime('%d %b %H:%M') }}</div>
+              <div class="muted history-age">{{ r.age_label }}</div>
+            </td>
+            {% if show_ticker %}
+              <td class="data-table__td num data-table__ticker">{{ r.display_ticker }}</td>
+            {% endif %}
+            <td class="data-table__td">
+              <span class="horizon-pill">{{ r.horizon }}</span>
+            </td>
+            <td class="data-table__td">
+              <span class="direction-badge direction-badge--{{ r.direction }}">{{ r.direction }}</span>
+            </td>
+            <td class="data-table__td data-table__td--num num">{{ r.confidence_pct }}%</td>
+            <td class="data-table__td data-table__td--num num">₹{{ "%.0f"|format(r.close_price) }}</td>
+            <td class="data-table__td data-table__td--num num">
+              ₹{{ "%.0f"|format((r.entry_low + r.entry_high) / 2) }}
+            </td>
+            <td class="data-table__td data-table__td--num num history-cell--{{ r.direction }}">
+              ₹{{ "%.0f"|format(r.target_value) }}
+            </td>
+            <td class="data-table__td data-table__td--num num history-cell--{{ 'bearish' if r.direction == 'bullish' else 'bullish' if r.direction == 'bearish' else 'neutral' }}">
+              ₹{{ "%.0f"|format(r.stop_value) }}
+            </td>
+            <td class="data-table__td data-table__td--num num">
+              {% if r.risk_reward %}{{ "%.1f"|format(r.risk_reward) }}×{% else %}—{% endif %}
+            </td>
+            <td class="data-table__td">
+              {% if r.grade %}
+                <span class="grade-pill grade-pill--{{ r.grade }}">{{ r.grade }}</span>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="history-empty">
+    {{ empty_message }}
+  </div>
+{% endif %}

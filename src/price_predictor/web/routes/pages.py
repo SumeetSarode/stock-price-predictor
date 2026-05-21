@@ -33,14 +33,43 @@ async def home(request: Request) -> HTMLResponse:
 
 
 @router.get("/history", response_class=HTMLResponse)
-async def history(request: Request) -> HTMLResponse:
-    """Prediction history — placeholder for v1, real impl in Step 2F."""
-    # Step 1 placeholder so the nav link works. Step 2F will render the
-    # actual history table from SQLite.
+async def history(
+    request: Request,
+    ticker: str | None = None,
+    horizon: str | None = None,
+    page: int = 1,
+) -> HTMLResponse:
+    """Prediction history — reverse-chronological list of every cached
+    prediction across all tickers and horizons.
+
+    Supports ?ticker= and ?horizon= filters and ?page= pagination
+    (50 per page).
+    """
+    from price_predictor.web.services.history_service import list_history
+
+    page = max(1, page)
+    per_page = 50
+    rows, total = list_history(
+        ticker=ticker,
+        horizon=horizon,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
     return templates.TemplateResponse(
         request=request,
-        name="pages/home.html",  # reuses home for now; gets its own template in Step 2F
-        context={"app_version": APP_VERSION},
+        name="pages/history.html",
+        context={
+            "app_version": APP_VERSION,
+            "rows": rows,
+            "total": total,
+            "page": page,
+            "total_pages": total_pages,
+            "per_page": per_page,
+            "filter_ticker": ticker or "",
+            "filter_horizon": horizon or "",
+        },
     )
 
 
@@ -59,13 +88,19 @@ async def stock_detail(
     without reloading the page (HTMX swaps the body).
     """
     from price_predictor.web.services.detail_service import get_stock_detail
+    from price_predictor.web.services.history_service import list_history
 
     detail = await get_stock_detail(ticker, horizon)
+    # Last 10 predictions for this ticker (any horizon) — shown below
+    # the active prediction card. Cheap query.
+    ticker_history, _ = list_history(ticker=detail.ticker, limit=10)
+
     return templates.TemplateResponse(
         request=request,
         name="pages/stock_detail.html",
         context={
             "app_version": APP_VERSION,
             "detail": detail,
+            "ticker_history": ticker_history,
         },
     )

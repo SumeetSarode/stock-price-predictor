@@ -1,0 +1,93 @@
+{#
+  history.html — full predictions history page.
+
+  Layout:
+    - Page header with total count
+    - Filter row (ticker + horizon dropdowns, GET-form so URLs are shareable)
+    - Reusable history_table.html (show_ticker=true)
+    - Pagination controls (prev / next + page X of Y)
+
+  No HTMX on filters — plain form GET. Keeps shareable URLs trivial:
+  /history?ticker=RELIANCE.NS&horizon=weekly&page=2
+
+  Filter state echoes back in `filter_ticker` / `filter_horizon` so
+  the form remembers what the user typed.
+#}
+{% extends "layouts/base.html" %}
+
+{% block title %}Prediction history · Price Predictor{% endblock %}
+
+{% block content %}
+<div class="container container--wide stack stack--lg">
+
+  <header class="page-header">
+    <div class="page-header__eyebrow">All predictions, newest first</div>
+    <h1 class="page-header__title">Prediction history</h1>
+    <p class="page-header__subtitle">
+      {% if total == 1 %}1 prediction{% else %}{{ total }} predictions{% endif %}
+      {% if filter_ticker or filter_horizon %}match your filters{% else %}across all tickers{% endif %}.
+      Grading lands in a future update.
+    </p>
+  </header>
+
+  {# ── Filters ───────────────────────────────────────────────── #}
+  <form class="history-filters" method="get" action="/history">
+    <div class="field">
+      <label class="field__label" for="filter-ticker">Ticker</label>
+      <input type="text" id="filter-ticker" name="ticker" class="input"
+             value="{{ filter_ticker }}"
+             placeholder="e.g. RELIANCE"
+             autocomplete="off" />
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="filter-horizon">Horizon</label>
+      <select id="filter-horizon" name="horizon" class="select">
+        <option value="">All horizons</option>
+        {% for h in ["daily", "weekly", "biweekly", "monthly"] %}
+          <option value="{{ h }}" {% if h == filter_horizon %}selected{% endif %}>{{ h|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="history-filters__actions">
+      <button type="submit" class="btn btn--primary">Apply</button>
+      {% if filter_ticker or filter_horizon %}
+        <a href="/history" class="btn btn--secondary">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {# ── Table ───────────────────────────────────────────────────── #}
+  {% with show_ticker=True, empty_message="No predictions match your filters yet. Star a stock and run a prediction to get started." %}
+    {% include "components/history_table.html" %}
+  {% endwith %}
+
+  {# ── Pagination ─────────────────────────────────────────────── #}
+  {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Pagination">
+      {% set base_qs = [] %}
+      {% if filter_ticker %}{% set _ = base_qs.append('ticker=' ~ filter_ticker) %}{% endif %}
+      {% if filter_horizon %}{% set _ = base_qs.append('horizon=' ~ filter_horizon) %}{% endif %}
+      {% set qs_prefix = ('&' if base_qs else '') %}
+
+      {% if page > 1 %}
+        <a class="btn btn--secondary btn--sm" href="?{{ base_qs|join('&') }}{{ qs_prefix }}page={{ page - 1 }}">← Previous</a>
+      {% else %}
+        <span class="btn btn--secondary btn--sm" aria-disabled="true" style="opacity:0.5; cursor:not-allowed;">← Previous</span>
+      {% endif %}
+
+      <span class="pagination__status">
+        Page <span class="num">{{ page }}</span> of <span class="num">{{ total_pages }}</span>
+      </span>
+
+      {% if page < total_pages %}
+        <a class="btn btn--secondary btn--sm" href="?{{ base_qs|join('&') }}{{ qs_prefix }}page={{ page + 1 }}">Next →</a>
+      {% else %}
+        <span class="btn btn--secondary btn--sm" aria-disabled="true" style="opacity:0.5; cursor:not-allowed;">Next →</span>
+      {% endif %}
+    </nav>
+  {% endif %}
+
+</div>
+{% endblock %}

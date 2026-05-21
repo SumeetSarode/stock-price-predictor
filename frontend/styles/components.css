@@ -715,6 +715,162 @@
 }
 
 /* ──────────────────────────────────────────────────────────
+ * History table — reusable on /history page + stock detail page.
+ * Variants:
+ *   .data-table--compact — smaller padding/font for dense history rows
+ *   .history-row--bullish / --bearish — left-border tint per direction
+ *   .horizon-pill, .direction-badge, .grade-pill — inline label widgets
+ * ────────────────────────────────────────────────────────── */
+.history-section {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.history-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.history-section__title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.history-section__more {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.history-section__more:hover {
+  text-decoration: underline;
+}
+
+.data-table-wrap {
+  overflow-x: auto;
+}
+
+.data-table--compact .data-table__th {
+  padding: var(--space-2) var(--space-3);
+  font-size: 10px;
+}
+
+.data-table--compact .data-table__td {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-xs);
+}
+
+.history-row--bullish {
+  box-shadow: inset 3px 0 0 var(--color-bullish);
+}
+
+.history-row--bearish {
+  box-shadow: inset 3px 0 0 var(--color-bearish);
+}
+
+.history-row--neutral {
+  box-shadow: inset 3px 0 0 var(--color-border-strong);
+}
+
+.history-cell-when {
+  white-space: nowrap;
+}
+
+.history-cell--bullish { color: var(--color-bullish); }
+.history-cell--bearish { color: var(--color-bearish); }
+.history-cell--neutral { color: var(--color-fg); }
+
+.history-age {
+  font-size: 10px;
+}
+
+.horizon-pill {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg);
+  border-radius: var(--radius-full);
+  text-transform: capitalize;
+}
+
+.direction-badge {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  border-radius: var(--radius-full);
+  text-transform: capitalize;
+}
+
+.direction-badge--bullish { background-color: var(--color-bullish-soft); color: var(--color-bullish); }
+.direction-badge--bearish { background-color: var(--color-bearish-soft); color: var(--color-bearish); }
+.direction-badge--neutral { background-color: var(--color-bg-subtle);    color: var(--color-fg-muted); }
+
+/* Grade pill — populated by 2H (currently always '—') */
+.grade-pill {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  border-radius: var(--radius-full);
+  text-transform: capitalize;
+}
+
+.grade-pill--hit  { background-color: var(--color-bullish-soft); color: var(--color-bullish); }
+.grade-pill--miss { background-color: var(--color-bearish-soft); color: var(--color-bearish); }
+.grade-pill--pending { background-color: var(--color-bg-subtle); color: var(--color-fg-muted); font-style: italic; }
+
+.history-empty {
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+/* ── Filters (history page) ──────────────────────────────────────────────────── */
+.history-filters {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding: var(--space-4);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.history-filters__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── Pagination ─────────────────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-2);
+}
+
+.pagination__status {
+  font-size: var(--fs-sm);
+  color: var(--color-fg-muted);
+}
+
+/* ──────────────────────────────────────────────────────────
  * Watchlist predictions panel (left sidebar)
  * ────────────────────────────────────────────────────────── */
 .panel {

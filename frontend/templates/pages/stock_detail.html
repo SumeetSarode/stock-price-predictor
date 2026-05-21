@@ -108,6 +108,22 @@
     {% include "components/detail_body.html" %}
   </section>
 
+  {# Pass per-ticker history rows in via the route context. #}
+  {% set rows = ticker_history %}
+
+  {# ── Per-ticker history ─────────────────────────────────────────────────────────────────────────── #}
+  <section class="history-section">
+    <header class="history-section__header">
+      <h2 class="history-section__title">Recent predictions for {{ detail.display_ticker }}</h2>
+      <a class="history-section__more" href="/history?ticker={{ detail.ticker }}">
+        View all →
+      </a>
+    </header>
+    {% with show_ticker=False, empty_message="No predictions yet for this stock." %}
+      {% include "components/history_table.html" %}
+    {% endwith %}
+  </section>
+
 </div>
 {% endblock %}
 
