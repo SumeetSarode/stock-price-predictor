@@ -34,6 +34,16 @@
             {% with ticker=detail.ticker, is_watched=detail.is_watched, toast=None %}
               {% include "components/star_button.html" %}
             {% endwith %}
+            {# Drawer trigger — lazy-load: the drawer template + first
+               tab payload only render after the user clicks. Keeps the
+               initial page render cheap. #}
+            <button type="button"
+                    class="btn btn--secondary btn--sm detail-header__analysis-btn"
+                    onclick="openAnalysisDrawer()"
+                    aria-haspopup="dialog"
+                    aria-controls="analysis-drawer-root">
+              🔬 Analysis
+            </button>
           </div>
           <div class="detail-header__meta">
             <span class="num detail-header__ticker">{{ detail.display_ticker }}</span>
@@ -103,5 +113,48 @@
 
   </div>
 
+  {# ── Analysis drawer (initially hidden) ─────────────────────── #}
+  {% with ticker=detail.ticker, display_ticker=detail.display_ticker %}
+    {% include "components/analysis_drawer.html" %}
+  {% endwith %}
+
 </div>
+
+{# Tiny vanilla JS for drawer open/close. Co-located with the page that
+   needs it (small, single-purpose) rather than dumped into a shared file.
+   - openAnalysisDrawer() flips data-open="true" and dispatches a custom
+     event so HTMX kicks off the initial indicators fetch.
+   - closeAnalysisDrawer() flips it back; restores body scroll.
+   - Esc key listener registers once on first open. #}
+<script>
+  (function () {
+    let escBound = false;
+    function root() { return document.getElementById('analysis-drawer-root'); }
+
+    window.openAnalysisDrawer = function () {
+      const r = root();
+      if (!r) return;
+      r.dataset.open = 'true';
+      document.body.classList.add('no-scroll');
+      // Fire-and-forget: first-tab lazy load. Safe to dispatch every
+      // open — HTMX will swap fresh content if the user wants.
+      document.body.dispatchEvent(new CustomEvent('loadIndicators'));
+      if (!escBound) {
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && root().dataset.open === 'true') {
+            closeAnalysisDrawer();
+          }
+        });
+        escBound = true;
+      }
+    };
+
+    window.closeAnalysisDrawer = function () {
+      const r = root();
+      if (!r) return;
+      r.dataset.open = 'false';
+      document.body.classList.remove('no-scroll');
+    };
+  })();
+</script>
 {% endblock %}

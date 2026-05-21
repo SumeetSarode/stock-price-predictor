@@ -1,0 +1,82 @@
+{#
+  analysis_drawer.html — slide-out drawer with live analysis tabs.
+
+  Triggered by the "Analysis" button in the stock detail header. Three
+  tabs (Indicators / Patterns / News) each lazy-load via HTMX on first
+  click — keeps the initial page render fast and avoids hammering the
+  data feed for users who don't open the drawer.
+
+  State:
+    Open/close is driven by `data-open="true|false"` on the root element.
+    Tiny JS in stock_detail.html toggles that attribute and traps Esc.
+    No HTMX state — tab swaps replace #analysis-drawer-body only.
+
+  Accessibility:
+    - role="dialog" + aria-modal="true" + aria-labelledby
+    - Backdrop has aria-hidden (decorative)
+    - Esc key closes (handled in the trigger JS)
+    - Close button has aria-label
+#}
+<div id="analysis-drawer-root"
+     class="analysis-drawer-root"
+     data-open="false"
+     data-ticker="{{ ticker }}">
+
+  {# Backdrop — click to close. aria-hidden because the dialog handles focus. #}
+  <div class="analysis-drawer__backdrop"
+       aria-hidden="true"
+       onclick="closeAnalysisDrawer()"></div>
+
+  {# The panel itself. #}
+  <aside class="analysis-drawer"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="analysis-drawer-title">
+
+    <header class="analysis-drawer__header">
+      <div>
+        <div class="analysis-drawer__eyebrow">Live analysis</div>
+        <h2 id="analysis-drawer-title" class="analysis-drawer__title">
+          {{ display_ticker }}
+        </h2>
+      </div>
+      <button type="button"
+              class="analysis-drawer__close"
+              aria-label="Close analysis drawer"
+              onclick="closeAnalysisDrawer()">
+        ✕
+      </button>
+    </header>
+
+    {# Tab strip. Each button hx-gets the matching partial into the body. #}
+    <nav class="analysis-drawer__tabs" role="tablist" aria-label="Analysis sections">
+      {% for tab_key, tab_label, tab_url in [
+          ("indicators", "Indicators", "/api/analysis/indicators"),
+          ("patterns",   "Patterns",   "/api/analysis/patterns"),
+          ("news",       "News",       "/api/analysis/news"),
+      ] %}
+        <button type="button"
+                class="analysis-drawer__tab {% if loop.first %}analysis-drawer__tab--active{% endif %}"
+                role="tab"
+                data-tab="{{ tab_key }}"
+                hx-get="{{ tab_url }}?ticker={{ ticker }}"
+                hx-target="#analysis-drawer-body"
+                hx-swap="innerHTML"
+                hx-on::after-request="document.querySelectorAll('.analysis-drawer__tab').forEach(t => t.classList.toggle('analysis-drawer__tab--active', t === this))">
+          {{ tab_label }}
+        </button>
+      {% endfor %}
+    </nav>
+
+    {# Body — first tab (indicators) auto-loads via the load trigger below. #}
+    <div id="analysis-drawer-body"
+         class="analysis-drawer__body"
+         hx-get="/api/analysis/indicators?ticker={{ ticker }}"
+         hx-trigger="loadIndicators from:body"
+         hx-swap="innerHTML">
+      <div class="analysis-drawer__placeholder">
+        Pick a tab to load analysis.
+      </div>
+    </div>
+  </aside>
+</div>

@@ -2723,3 +2723,159 @@
   margin-top: var(--space-2) !important;
   opacity: 0.75;
 }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Analysis drawer — slide-out panel from the right edge with three tabs
+   (Indicators / Patterns / News). Closed by default; the root toggles via
+   data-open="true|false" so we don't fight HTMX-induced re-renders.
+
+   Layered structure:
+     .analysis-drawer-root      — fixed full-viewport stage; pointer-events
+                                  gated so it doesn't block clicks when shut
+     .analysis-drawer__backdrop — semi-opaque overlay, click to close
+     .analysis-drawer           — the sliding panel itself
+   ───────────────────────────────────────────────────────────────────────── */
+.analysis-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;  /* invisible when closed = clicks pass through */
+}
+
+.analysis-drawer-root[data-open="true"] {
+  pointer-events: auto;
+}
+
+.analysis-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.analysis-drawer-root[data-open="true"] .analysis-drawer__backdrop {
+  opacity: 1;
+}
+
+.analysis-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(520px, 92vw);
+  background-color: var(--color-bg);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -8px 0 32px rgba(15, 23, 42, 0.12);
+  transform: translateX(100%);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.analysis-drawer-root[data-open="true"] .analysis-drawer {
+  transform: translateX(0);
+}
+
+.analysis-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.analysis-drawer__eyebrow {
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.analysis-drawer__title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-drawer__close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: transparent;
+  color: var(--color-fg-muted);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms;
+}
+
+.analysis-drawer__close:hover {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg);
+}
+
+.analysis-drawer__tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.analysis-drawer__tab {
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-fg-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+  margin-bottom: -1px;  /* overlap parent border so active underline aligns */
+}
+
+.analysis-drawer__tab:hover {
+  color: var(--color-fg);
+}
+
+.analysis-drawer__tab--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.analysis-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.analysis-drawer__placeholder {
+  text-align: center;
+  color: var(--color-fg-muted);
+  font-style: italic;
+  padding: var(--space-8) 0;
+}
+
+/* Trigger button in detail header — matches secondary button look but
+   sized to sit comfortably next to the star button. */
+.detail-header__analysis-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Body-scroll lock while drawer is open — prevents background page from
+   scrolling and feeling like the modal isn't really modal. */
+body.no-scroll {
+  overflow: hidden;
+}
