@@ -308,6 +308,14 @@ async def run_prediction_endpoint(
         if error_message:
             # Inject a data-toast attribute into the first element of
             # the response so toast.js picks it up after the swap.
+            #
+            # WARNING: Starlette's Response sets Content-Length when .body
+            # is first assigned. Mutating .body afterwards leaves the header
+            # stale; uvicorn then raises
+            #   RuntimeError: Response content longer than Content-Length
+            # because our injected `data-toast="..."` makes the body bigger.
+            # Fix: recompute Content-Length after the mutation. The
+            # transfer-encoding header (if any) stays as-is.
             response.body = response.body.replace(
                 b'<li class="panel__card',
                 f'<li data-toast="{error_message}" class="panel__card'.encode(),
@@ -317,6 +325,7 @@ async def run_prediction_endpoint(
                 f'<article data-toast="{error_message}" class="card'.encode(),
                 1,
             )
+            response.headers["content-length"] = str(len(response.body))
         return response
 
     # JSON fallback — same payload regardless of context.

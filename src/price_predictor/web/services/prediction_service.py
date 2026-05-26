@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from price_predictor.llm.resilient import AllModelsExhaustedError
 from price_predictor.prediction import (
     Prediction,
     PredictionDirection,
@@ -129,6 +130,20 @@ async def run_prediction(ticker: str, horizon: str) -> dict[str, Any]:
     # Call into the core orchestrator. It's async, may take ~30s.
     try:
         results = await predict(ticker.strip(), horizons=[horizon_enum])
+    except AllModelsExhaustedError as exc:
+        # Every model in the resilient chain hit a transient failure
+        # (rate limits, model-incompatibility, etc.). This is the
+        # single most user-facing failure mode — calling it out with
+        # a specific message saves the user a trip to the logs.
+        raise PredictionServiceError(
+            "All LLM providers are currently unavailable (rate-limited or "
+            "errored). Try again later.",
+            hint=(
+                "Free-tier daily quotas reset at midnight UTC; per-minute "
+                "rate limits clear within ~1 hour. Check server logs for "
+                "per-model cooldown timestamps."
+            ),
+        ) from exc
     except PredictionError as exc:
         raise PredictionServiceError(
             str(exc),
