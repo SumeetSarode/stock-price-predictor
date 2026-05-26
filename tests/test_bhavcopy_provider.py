@@ -237,3 +237,96 @@ class TestRegistryIntegration:
         instance = build_provider("nse_bhavcopy")
         assert isinstance(instance, Cls)
         assert instance.name == "nse-bhavcopy"
+
+
+# ─────────────────────────────────────────────────────────────
+# Parallel fetching — added when we moved the per-day loop to
+# a ThreadPoolExecutor to fix the ~4-minute warm-from-cold pain
+# on 2-year windows.
+# ─────────────────────────────────────────────────────────────
+class TestParallelFanout:
+    def test_max_workers_defaults_to_env_or_fallback(self, monkeypatch):
+        # No env set → fallback (8 at time of writing).
+        monkeypatch.delenv(
+            "PRICE_PREDICTOR_BHAVCOPY_MAX_WORKERS", raising=False,
+        )
+        from price_predictor.data.providers.bhavcopy_provider import (
+            _DEFAULT_MAX_WORKERS_FALLBACK,
+        )
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher())
+        assert prov._max_workers == _DEFAULT_MAX_WORKERS_FALLBACK
+
+    def test_env_var_overrides_default(self, monkeypatch):
+        monkeypatch.setenv("PRICE_PREDICTOR_BHAVCOPY_MAX_WORKERS", "4")
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher())
+        assert prov._max_workers == 4
+
+    def test_constructor_arg_wins_over_env(self, monkeypatch):
+        monkeypatch.setenv("PRICE_PREDICTOR_BHAVCOPY_MAX_WORKERS", "4")
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher(), max_workers=2)
+        assert prov._max_workers == 2
+
+    def test_invalid_env_falls_back_with_warning(self, monkeypatch):
+        monkeypatch.setenv("PRICE_PREDICTOR_BHAVCOPY_MAX_WORKERS", "not-an-int")
+        from price_predictor.data.providers.bhavcopy_provider import (
+            _DEFAULT_MAX_WORKERS_FALLBACK,
+        )
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher())
+        assert prov._max_workers == _DEFAULT_MAX_WORKERS_FALLBACK
+
+    def test_clamps_to_one_minimum(self):
+        # Pool of 0 or negative is meaningless — must clamp up.
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher(), max_workers=0)
+        assert prov._max_workers == 1
+        prov2 = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher(), max_workers=-5)
+        assert prov2._max_workers == 1
+
+    def test_clamps_to_thirty_two_maximum(self):
+        # Protect NSE from a misconfigured huge pool.
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher(), max_workers=999)
+        assert prov._max_workers == 32
+
+    def test_parallel_fetch_returns_all_days(self):
+        # Wide window with 10 trading days, pool of 4 — every day's data
+        # must show up in the result.
+        fetcher = _make_fetcher()
+        prov = NseBhavcopyProvider(bhavcopy_fn=fetcher, max_workers=4)
+        df = prov.fetch_ohlcv(
+            "RELIANCE",
+            date(2024, 4, 22),
+            date(2024, 5, 6),  # ~10 trading days
+        )
+        # One row per trading day in the range.
+        expected_days = len([d for d in fetcher.captured  # type: ignore[attr-defined]
+                              if d.weekday() < 5])
+        assert len(df) == expected_days
+        # Index must still be sorted ascending despite arbitrary
+        # future-completion order from the thread pool.
+        assert df.index.is_monotonic_increasing
+
+    def test_parallel_per_day_errors_dont_abort_batch(self):
+        # 5 trading days, 2 of which error — the 3 good ones must
+        # still come back in order.
+        d1 = date(2024, 4, 22)  # Mon
+        d2 = date(2024, 4, 23)  # Tue — errors
+        d3 = date(2024, 4, 24)  # Wed
+        d4 = date(2024, 4, 25)  # Thu — errors
+        d5 = date(2024, 4, 26)  # Fri
+        prov = NseBhavcopyProvider(
+            bhavcopy_fn=_make_fetcher(
+                raises={
+                    d2: BhavcopyError("transient"),
+                    d4: BhavcopyError("transient"),
+                },
+            ),
+            max_workers=4,
+        )
+        df = prov.fetch_ohlcv("RELIANCE", d1, d5)
+        assert len(df) == 3  # Mon, Wed, Fri only
+        assert df.index.is_monotonic_increasing
+
+    def test_single_day_window_still_works(self):
+        # Edge case: 1 trading day — workers gets clamped to 1.
+        prov = NseBhavcopyProvider(bhavcopy_fn=_make_fetcher(), max_workers=8)
+        df = prov.fetch_ohlcv("RELIANCE", date(2024, 4, 23), date(2024, 4, 23))
+        assert len(df) == 1
