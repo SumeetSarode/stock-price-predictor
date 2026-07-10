@@ -10,6 +10,7 @@ PACKAGE LAYOUT
     ├── levels.py               -- swing high/low, 52w high/low, pivots, VWAP
     ├── vwap.py                 -- anchored + rolling VWAP (used by levels)
     ├── ichimoku.py             -- Ichimoku Kinko Hyo cloud (fed into trend)
+    ├── vix.py                  -- India VIX regime gate (pure; fetcher in data/vix.py)
     ├── candlestick_patterns.py -- TA-Lib full 61-pattern dispatcher
     └── chart_patterns.py       -- LMW chart patterns (HS, double top/bot,
                                    triangles, broadening, rectangles)
