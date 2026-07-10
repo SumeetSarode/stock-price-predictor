@@ -1,15 +1,64 @@
 # Solutions Reference for `pred_logic.md` Issues
 
-**Companion to:** `pred_logic_review.md`
-**Author:** Code Puppy 🐶
-**Date:** 2026-04-30
-**Purpose:** For every issue identified in the review, give a concrete, citable, copy-pastable solution. All claims here are backed by primary sources (vendor docs, NBER PDFs, exchange-of-record pages, peer-reviewed papers, and the actual code of cited libraries).
+**Author:** Code Puppy
+**Original date:** 2026-04-30 · **Status refresh:** 2026-07-10
+**Purpose:** For every issue identified in the (now-retired) critical
+review, give a concrete, citable, copy-pastable solution. All claims
+here are backed by primary sources (vendor docs, NBER PDFs,
+exchange-of-record pages, peer-reviewed papers, and the actual code of
+cited libraries).
+
+> The companion `pred_logic_review.md` was retired in the 2026-07 docs
+> cleanup once every finding below was implemented. This file is now the
+> standalone record of what was flagged and how it was solved.
+
+---
+
+## IMPLEMENTATION STATUS (2026-07-10) — ALL ITEMS CLOSED
+
+Every Critical (C) and High (H) priority item is shipped. The only
+open items are two **agreed declines** (deferred to v2 by explicit
+decision, not oversight).
+
+| Item | Fix | Where it landed |
+|------|-----|-----------------|
+| C1 | NSE data: jugaad-data + bhavcopy + yfinance chain | `data/providers/` |
+| C2 | GDELT 2.0 proper client | `data/news.py` |
+| C3 | NSE session-priming for filings | `data/filings.py` |
+| C4 | Broadening tops/bottoms + rectangles + Nadaraya-Watson smoother | `analysis/chart_patterns.py` |
+| C6 | NSE trading calendar (pandas-market-calendars, not 252) | `analysis/trading_calendar.py` |
+| C7 | TA-Lib candlestick catalog | `analysis/candlestick_patterns.py` |
+| H2 | Bollinger + TTM Squeeze | `analysis/volatility.py` |
+| H5 | R3/S3 pivots | `analysis/levels.py` |
+| H9a | VWAP (anchored + rolling) | `analysis/vwap.py` |
+| **H9b** | **Ichimoku Kinko Hyo cloud** | `analysis/ichimoku.py` (commit `8905047`) |
+| **H9d** | **India VIX regime gate** | `analysis/vix.py` + `data/vix.py` (commit `c9ede38`) |
+| M11 | Brier Skill Score | `prediction/calibration.py` |
+| Survivorship | NIFTY50 point-in-time membership | `kb/membership.py` |
+| **PIT articles** | **Wayback Machine article fetcher** | `data/wayback.py` (commit `4be8497`) |
+
+### Deliberate deviations from this doc (all to avoid dependency bloat)
+1. **India VIX** — doc suggested `nsepython` (GPL, flagged in its own dep
+   table). Shipped via the existing `yfinance` dep (`^INDIAVIX`, fetched
+   through a suffix-free provider). Zero copyleft added.
+2. **Wayback PIT** — doc sketched `waybackpy` + `requests`. Shipped via
+   `httpx` (already a dep) against the Wayback CDX Server API + `trafilatura`
+   (already a dep). Zero new dependencies.
+3. **Ichimoku** — computed and surfaced to the LLM via the `get_trend`
+   tool's `derived[]`, but deliberately NOT wired into the deterministic
+   `classify_trend()` scoring (that would destabilize existing signal
+   tests). Classifier integration is a tracked follow-up.
+
+### Agreed declines (deferred to v2, not bugs)
+- **H9c Volume Profile / Value Area** — beyond OBV is v2 territory.
+- **H5 (optional) Camarilla pivots** — was tagged optional; classic
+  R1-R3/S1-S3 pivots shipped instead.
 
 ---
 
 ## How to use this document
 
-For each issue in `pred_logic_review.md`, this file gives:
+For each issue in the original review, this file gives:
 
 1. **Issue recap** — one-line restatement.
 2. **Root cause** — why the doc has it.
@@ -17,7 +66,7 @@ For each issue in `pred_logic_review.md`, this file gives:
 4. **Code / library example** — copy-paste starting point.
 5. **Citations** — direct URLs to primary sources.
 
-The numbering (`C1`, `H1`, `M1`, …) matches the review file exactly.
+The numbering (`C1`, `H1`, `M1`, …) matches the original review exactly.
 
 A **prioritized roadmap** is at §99 at the bottom.
 

@@ -5,9 +5,13 @@
 > land. Anyone landing here cold should be able to read top-to-bottom and
 > understand the design intent without trawling chat history.
 
-**Last updated:** 2026-05-18
-**Status:** ✅ **Step 1 of build roadmap complete** — web scaffold landed.
-FastAPI app + design system + working predict-form end-to-end. Tag: `web-v0`.
+**Last updated:** 2026-07-10
+**Status:**  **Web app v1.1 in progress.** Beyond the Step-1 scaffold:
+NIFTY 50 dashboard, watchlist row, side panel, search autocomplete,
+prediction history, sparklines, live grade pills, and a nightly grading
+scheduler have all shipped. Web service layer now has test coverage
+(off 0%). Remaining before honest web-v1: one real end-to-end data-loop
+run (predict -> grade -> sparkline with live bars) + deploy.
 
 ---
 
@@ -602,6 +606,10 @@ screenshot to match.
 | 2026-05-18 | Q3 decided: Nifty 50 home + Nifty 500 searchable. Bundled CSV (`frontend/data/nifty500.csv`) committed to repo, no runtime fetch. Search matches company name (primary) + ticker (fallback), case-insensitive, prefix-first. Autocomplete displays name big, ticker + sector as metadata. Nifty 50 stocks ranked above non-Nifty-50 in results. | User confirmed primary input should be company name, not ticker. Both match for power-user convenience. Bundled CSV chosen for predictability + offline-capable + zero runtime deps. |
 | 2026-05-18 | Q5 fully closed: keep all three remaining items for v1 (top gainers/losers strip, watchlist row above table, recent predictions panel below table). All deferred-to-v0.2 items remain deferred (sector heatmap, news, calendar). Wireframe updated to reflect final home layout. **ALL OPEN QUESTIONS NOW CLOSED.** Design phase complete; ready to build. | All three items are small effort with high ROI. Watchlist row and recent predictions panel both have well-defined empty states (hidden / friendly prompt). |
 | 2026-05-18 | Step 1 (web scaffold) shipped. Directory layout per the strict frontend/backend split: `frontend/{templates,styles,scripts,vendor,assets}` + `src/price_predictor/web/{app,cli,settings,routes,services}`. Design system implemented with hand-crafted CSS (tokens.css + base.css + components.css) — no Tailwind for v1 (no build step, no Node, no vendor blob). HTMX 1.9.12 vendored. End-to-end working: `uv run price-predictor-web` boots, browser auto-opens, predict form POSTs to `/api/predict`, friendly errors render. Both discipline scripts in place: `check_no_html_in_python.sh` (passing) and `check_no_walmart_traces.sh` (gated for pre-ship). | Step 1 deliberately shipped ONE polished end-to-end flow before scaling out to the full Nifty 50 dashboard. Proves the plumbing AND the visual quality bar in one step. Nifty 50 dashboard, watchlist, side panel, search autocomplete all come in Step 2. |
+| 2026-06 | Step 2+ shipped: NIFTY 50 dashboard table, watchlist row, market-summary strip, side panel (`panel_service`), search autocomplete (`search_service`, bundled `nifty500.csv`), prediction history (`history_service`), sparklines (`sparkline_service`), and live grade pills (`grading_service`, read-only replay). | Full home surface + detail flows landed per the Step-2 plan. |
+| 2026-06-14 | Two prediction-error UX bugs fixed (`0e9c7b0`): Content-Length mismatch on toast injection; `AllModelsExhaustedError` now renders a friendly rate-limit message instead of a generic 500. Regression tests added (`5b1d0b5`). | Surfaced during v1 verification; locked with tests. |
+| 2026-07-10 | Web service layer taken off 0% coverage (`0a0f25c`): smoke tests for sparkline / watchlist / market_summary / prediction_cache / search. Nightly grading scheduler shipped (`2c4ea9d`, `web/services/scheduler.py`) — opt-in via `enable_scheduler`, wired into the app lifespan; warms the price cache + auto-resolves PENDING predictions so the loop closes on its own. | Closes the "grading is manual" gap. Off-by-default keeps `create_app()` and the test suite side-effect-free. |
+| 2026-07-10 | Docs cleanup: retired stale planning/journal docs; refreshed README + this doc + `project description.md` + `pred_logic.md` + `pred_logic_solutions.md` to current status. | Doc sprawl trim; git history is the build journal now. |
 
 ---
 

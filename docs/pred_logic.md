@@ -382,7 +382,7 @@ otherwise noted.
   L3 always has something true to say: either "fresh cross today",
   "in-regime since N bars ago", "no cross in available history", or
   "insufficient data". Cost is ~3 extra lines of code; the gain is
-  agent honesty. See pred_logic_review §H? (TBD).
+  agent honesty. See `pred_logic_solutions.md` §H8.
 - **Naming convention — code vs. prose.**
   - **Inside the data field**, `last_event` is `"bullish"` /
     `"bearish"` — generic, matches the vocabulary `momentum.py`
@@ -453,7 +453,7 @@ otherwise noted.
     against a 25-floor variant before being treated as final.
   Earlier prose in this doc said "Wilder's threshold for trending
   market is 20–25" — that conflated Wilder's 25 with the modern 20
-  and is now retracted (see pred_logic_review §H1).
+  and is now retracted (see `pred_logic_solutions.md` §H1).
 - **Convergence guard.** ADX is published only when at least
   `10 × length = 140` bars are available; otherwise null. The reason
   is mathematical: ADX is **doubly** Wilder-smoothed (first the True
@@ -2171,10 +2171,13 @@ A reviewer who wants to spot-check a single prediction should:
    for daily/weekly.
 6. **Check `contributing_signals`** — do the strings *look like*
    they could have come from one of the cluster classifiers in §4?
-   (No "Fibonacci", "Elliott wave", "Ichimoku cloud" — we don't
-   ship those. "Golden Cross" / "Death Cross" / "bullish EMA-9/21
-   cross" ARE valid as of §3.2 MA Crossover, but only if the
-   `ma_crosses` field in the trend tool output reports them.)
+   (No "Elliott wave", no "Fibonacci" — we don't ship those.
+   "Golden Cross" / "Death Cross" / "bullish EMA-9/21 cross" ARE
+   valid as of §3.2 MA Crossover, but only if the `ma_crosses` field
+   in the trend tool output reports them. **Ichimoku** cloud signals
+   ARE now valid — see the Addendum below — but only if the
+   `ichimoku` block in the trend tool's `derived` output reports
+   them.)
 7. **Check `catalysts`** — every URL should be visit-able and the
    article should plausibly say what `why_it_matters` claims it
    says.
@@ -2185,4 +2188,51 @@ A reviewer who wants to spot-check a single prediction should:
 If any of those by-hand checks disagrees with the stored values, file
 a bug — that's exactly the kind of grounding error this whole
 architecture is designed to prevent.
+
+---
+
+## Addendum — indicators added after the original review (2026-07)
+
+The following were speced in `pred_logic_solutions.md` and shipped after
+this walkthrough was first written. Full literature, formulas and
+citations live in that companion doc; this is the short vetting summary.
+
+### A1. Ichimoku Kinko Hyo cloud (solutions §H9b)
+
+- **Module:** `analysis/ichimoku.py`. **Params:** Hosoda canonical
+  (tenkan 9, kijun 26, senkou-B 52, displacement 26).
+- **What the snapshot reports:** the five lines plus three regime
+  signals — `price_vs_cloud` (above / below / inside), `tk_signal`
+  (tenkan vs kijun), and `kumo_twist_ahead` (future Senkou A/B sign
+  change).
+- **Wiring:** surfaced additively under the `get_trend` tool's
+  `derived.ichimoku`. It is exposed to the LLM as *data*; the
+  deterministic `classify_trend()` scoring is intentionally NOT changed
+  (that stays a tracked follow-up), so an Ichimoku signal only appears
+  in `contributing_signals` if the LLM chose to cite the reported block.
+- **Vet:** any "above the cloud" / "tenkan-kijun cross" claim must match
+  the `derived.ichimoku` values in the tool output for that run.
+
+### A2. India VIX regime gate (solutions §H9d)
+
+- **Modules:** `analysis/vix.py` (pure regime math) + `data/vix.py`
+  (fetches `^INDIAVIX` via yfinance — NOT the GPL `nsepython` the
+  solutions doc originally suggested).
+- **What it reports:** `low_vol` / `normal` / `high_vol` / `unknown`,
+  self-calibrated against the 60-day rolling median (±15% bands) rather
+  than magic absolute levels.
+- **Role:** a **regime gate**, not a directional signal — VIX describes
+  the weather (position-sizing / stop-width context), never the
+  direction. Treat any "VIX says go long" claim as a bug.
+
+### A3. Point-in-time article fetcher (solutions § PIT / look-ahead)
+
+- **Module:** `data/wayback.py` (Wayback CDX Server API via `httpx` +
+  `trafilatura` — NOT `waybackpy`).
+- **Hard guarantee:** `article_body_pit(url, asof)` never returns a
+  snapshot captured after `asof`, and never silently falls back to the
+  live URL (that would reintroduce look-ahead bias). No PIT snapshot =>
+  `None`, and the caller drops the observation.
+- **Vet:** in a backtest, every catalyst body used for an `as_of` date
+  must trace to a Wayback capture timestamp ≤ that date.
 

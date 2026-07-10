@@ -1,37 +1,44 @@
-# 📈 Predictor — Project Description
+# Predictor — Project Description
 
-> **Status:** ✅ **v1 DONE** — full predict → backtest loop shipped
-> end-to-end (1576 unit tests passing). Survivorship-bias-aware
-> historical backtest via `--index NIFTY50` and point-in-time honest
-> data replay via `as_of` contextvar both shipped.
+> **Status:**  **Core engine v1 DONE** · **web app v1.1 in progress**
+> — full predict → grade → backtest loop shipped end-to-end (1744 unit
+> tests passing). Survivorship-bias-aware historical backtest via
+> `--index NIFTY50` and point-in-time honest data replay via `as_of`
+> contextvar both shipped. FastAPI + HTMX web app shipped with panels,
+> history, sparklines, grading and a nightly scheduler.
 > **Owner:** Sumeet
 > **Codename:** *Predictor* (placeholder — final name TBD)
-> **Last updated:** 2026-05-12
+> **Last updated:** 2026-07-10
 
 > This is the **canonical full spec** — problem, design, output schema,
 > decisions, risks. For practical "how do I run it" content see
-> [`../README.md`](../README.md). For per-step build status see
-> `../implementation_plan.md` and `../implementation_flow.md`.
+> [`../README.md`](../README.md). Per-step build status now lives in git
+> history (the planning/journal docs were retired in the 2026-07 cleanup).
 
 ---
 
-## 0. 🟢 Current state (refreshed 2026-05-12; v1 DONE)
+## 0. Current state (refreshed 2026-07-10)
 
 | Layer | Status |
 |---|---|
-| Data layer (prices / news / estimates / filings) | ✅ shipped |
-| KB (Nifty50 registry + historical NIFTY 50 membership) | ✅ shipped |
-| Analysis primitives (trend / momentum / volatility / levels / patterns) | ✅ shipped |
-| ADK agents (price / news / technical / synthesizer) | ✅ shipped |
-| Prediction pipeline (predict / predict-many / store) | ✅ shipped |
-| **Multi-horizon predictions** (daily / weekly / biweekly / monthly per ticker) | ✅ shipped |
-| Per-horizon rules (ATR bands, entry zones, confidence caps) — single source of truth in `prediction/horizon_constants.py` consulted by both guardrails and the LLM prompt | ✅ shipped |
-| Grading + Calibration (3 hit-rate variants · Brier · sqrt-t NEUTRAL band) | ✅ shipped |
-| Point-in-time honest replay (news + filings filtered by `as_of` contextvar) | ✅ shipped |
-| **Backtest replay / runner / evaluator + HTML report** | ✅ **shipped (v1 acceptance)** |
-| **Survivorship-bias defense** (`--index NIFTY50` walks Wikipedia event log backwards) | ✅ **shipped (v1 acceptance)** |
-| Concurrency / scale (rate-limit-aware router) | ⏸️ post-v1 (Option B) |
-| LightRAG knowledge layer (Phase 2) | ⏸️ Option C |
+| Data layer (prices / news / estimates / filings) |  shipped |
+| Point-in-time article fetcher (Wayback CDX + trafilatura) |  shipped |
+| KB (NIFTY registry + historical NIFTY 50 membership) |  shipped |
+| Analysis primitives (trend / momentum / volatility / levels / patterns) |  shipped |
+| Indicators: Ichimoku cloud (H9b), India VIX regime gate (H9d), VWAP |  shipped |
+| ADK agents (price / news / technical / synthesizer) |  shipped |
+| Prediction pipeline (predict / predict-many / store) |  shipped |
+| **Multi-horizon predictions** (daily / weekly / biweekly / monthly per ticker) |  shipped |
+| Per-horizon rules (single source of truth in `prediction/horizon_constants.py`) |  shipped |
+| Grading + Calibration (3 hit-rate variants · Brier + Brier skill score · sqrt-t NEUTRAL band) |  shipped |
+| Point-in-time honest replay (news + filings + articles filtered by `as_of`) |  shipped |
+| **Backtest replay / runner / evaluator + HTML report** |  **shipped (v1 acceptance)** |
+| **Survivorship-bias defense** (`--index NIFTY50`) |  **shipped (v1 acceptance)** |
+| **Web app (FastAPI + HTMX)** — dashboard, panels, history, sparklines, grade pills |  **v1.1 in progress** |
+| **Nightly grading scheduler** (opt-in via `enable_scheduler`) |  shipped |
+
+> **Remaining before honest web-v1:** run the real predict → grade →
+> sparkline data loop once end-to-end (needs LLM quota), then deploy.
 
 > **Note on §10 schema below**: the canonical spec shows
 > `predictions: { daily, weekly }` as one bundle. The shipped
@@ -161,8 +168,8 @@ This system addresses all three by being **systematic, explainable, and self-tra
 > phase-2 / not-yet-built modules marked `(planned)`. The original spec
 > proposed `tracking/` as a separate package and SQLite-backed storage —
 > we shipped both calibration and predictions inside `prediction/` as
-> JSON-on-disk for inspectability and zero-migration cost. See
-> `../implementation_flow.md` for the rationale.
+> JSON-on-disk for inspectability and zero-migration cost. See git
+> history for the rationale.
 
 ```
 price_predictor/
@@ -188,25 +195,35 @@ price_predictor/
 │   │   ├── prices.py              #    Thin shim over providers
 │   │   ├── cache.py               #    Range-aware in-memory cache
 │   │   ├── _shared_cache.py       #    Singleton cache instance
-│   │   ├── providers/             #    yfinance → Stooq → Alpha Vantage chain
+│   │   ├── providers/             #    jugaad-data / bhavcopy / yfinance / Stooq / AV chain
 │   │   │   ├── base.py / resilient.py
 │   │   │   ├── yfinance_provider.py
+│   │   │   ├── jugaad_provider.py
+│   │   │   ├── bhavcopy_provider.py
 │   │   │   ├── stooq_provider.py
 │   │   │   └── alpha_vantage_provider.py
-│   │   ├── news.py                #    GDELT discovery + trafilatura body extraction
-│   │   ├── filings.py             #    NSE corporate-events fan-out (30d)
+│   │   ├── news.py                #    GDELT 2.0 discovery + trafilatura body extraction
+│   │   ├── news_snapshot.py       #    point-in-time news cache (backtest)
+│   │   ├── wayback.py             #    point-in-time article fetcher (Wayback CDX + trafilatura)
+│   │   ├── filings.py             #    NSE corporate-events fan-out
+│   │   ├── filings_bse.py         #    BSE filings
+│   │   ├── vix.py                 #    India VIX fetcher (^INDIAVIX via yfinance)
 │   │   ├── estimates.py           #    yfinance analyst data wrapper
 │   │   └── schema.py              #    OHLCVBar, NewsArticle, Filing, Estimates
 │   │
 │   ├── kb/                        # ── Knowledge base ──
-│   │   └── stocks.py              #    Nifty50 ticker registry (Wikipedia-sourced)
-│   │   # (planned) interface.py / lightrag_layer.py / builder.py for Phase 2
+│   │   ├── stocks.py              #    NIFTY ticker registry (Wikipedia-sourced)
+│   │   └── membership.py          #    historical NIFTY 50 constituents (survivorship defense)
 │   │
-│   ├── analysis/                  # ── Pure-function analyzers ──
-│   │   ├── trend.py               #    SMA/EMA/MACD/ADX/Ichimoku
-│   │   ├── momentum.py            #    RSI/Stoch/CCI/Williams%R/ROC
-│   │   ├── volatility.py          #    Bollinger/ATR/Keltner
-│   │   ├── levels.py              #    pivots, swings, S/R clusters
+│   ├── analysis/                  # ── Pure-function analyzers (I/O-free) ──
+│   │   ├── trend.py               #    SMA/EMA/ADX/MA-crosses (+ Ichimoku via snapshot)
+│   │   ├── momentum.py            #    RSI/Stoch/MACD/OBV
+│   │   ├── volatility.py          #    Bollinger/ATR + bollinger_squeeze + ttm_squeeze
+│   │   ├── levels.py              #    pivots (R1-R3/S1-S3), swings, 52w, S/R
+│   │   ├── vwap.py                #    anchored + rolling VWAP
+│   │   ├── ichimoku.py            #    Ichimoku Kinko Hyo cloud (H9b)
+│   │   ├── vix.py                 #    India VIX regime gate (H9d, pure)
+│   │   ├── trading_calendar.py    #    NSE trading calendar (not 252)
 │   │   ├── candlestick_patterns.py
 │   │   └── chart_patterns.py
 │   │
@@ -226,16 +243,25 @@ price_predictor/
 │       ├── batch.py               #    predict_many() with bounded concurrency
 │       ├── store.py               #    PredictionStore (JSON-on-disk)
 │       ├── grading.py             #    grade_one + grade_many + 6-outcome enum
-│       └── calibration.py         #    CalibrationReport + Brier + 3 hit-rate variants
+│       └── calibration.py         #    CalibrationReport + Brier + Brier skill score + 3 hit-rate variants
 │
-├── # (planned) src/price_predictor/backtest/
-│ #            ├── replay.py        #    as-of-date data shim
-│ #            ├── runner.py        #    historical loop
-│ #            └── evaluator.py     #    composes calibration across runs
+├── src/price_predictor/backtest/  # ── SHIPPED (v1 acceptance) ──
+│   ├── replay.py                  #    as-of-date data shim (contextvar)
+│   ├── runner.py                  #    historical loop (cartesian + sparse grid)
+│   ├── evaluator.py               #    composes calibration across runs
+│   └── html_report.py             #    self-contained HTML + rule-based insights
 │
-├── # (planned) src/price_predictor/concurrency/
-│ #            └── runner.py        #    asyncio semaphores + rate-limit-aware router
+├── src/price_predictor/web/       # ── SHIPPED (FastAPI + HTMX, v1.1) ──
+│   ├── app.py                     #    app factory + lifespan (scheduler wiring)
+│   ├── cli.py                     #    `price-predictor-web` entry (uvicorn + browser)
+│   ├── settings.py                #    web-specific settings (db_path, scheduler flags)
+│   ├── routes/                    #    dashboard / predict / panel / history / search
+│   └── services/                  #    prediction / panel / history / grading / search /
+│                                   #    watchlist / market_summary / sparkline / scheduler
+│   # NOTE: HTML/CSS/JS live in frontend/, NOT here (gate-enforced)
 │
+├── frontend/                      # ── Web templates/styles/scripts (no build step) ──
+│   ├── templates/ styles/ scripts/ vendor/ assets/  # HTMX vendored; hand-crafted CSS
 ├── data/                          # ── Runtime data (gitignored) ──
 │   ├── kb/                        #    stocks.json + indices.json (committed)
 │   └── predictions/               #    per-prediction JSON files (gitignored)
