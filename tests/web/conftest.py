@@ -10,6 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from price_predictor.web.app import create_app
+from price_predictor.web.services import db as db_module
+from price_predictor.web.settings import settings
 
 
 @pytest.fixture
@@ -30,3 +32,19 @@ def client(app):
     transport to blow up. See test_prediction_endpoint_regressions.py.
     """
     return TestClient(app)
+
+
+@pytest.fixture
+def tmp_db(tmp_path, monkeypatch):
+    """Point the web SQLite DB at an isolated temp file per test.
+
+    Patches settings.db_path (read at call-time by db._resolve_db_path)
+    and resets the module's one-shot init flag so the schema is created
+    fresh in the temp location. Restores the flag after the test so we
+    don't leak a stale 'initialized' state into the next test.
+    """
+    test_db = tmp_path / "test_app.db"
+    monkeypatch.setattr(settings, "db_path", test_db)
+    db_module.reset_for_tests()
+    yield test_db
+    db_module.reset_for_tests()
