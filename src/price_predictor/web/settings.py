@@ -65,6 +65,31 @@ class WebSettings(BaseSettings):
         description="Uvicorn auto-reload (developer-only — don't enable for normal use).",
     )
 
+    # ── Background grading scheduler ──────────────────────────────
+    # Off by default: spinning up a background task is a deliberate
+    # opt-in (keeps tests + `create_app()` side-effect-free). Turn on
+    # for a long-running local install so predictions auto-grade and
+    # the price cache stays warm without anyone clicking around.
+    enable_scheduler: bool = Field(
+        default=False,
+        description="Run the periodic grading pass in the background.",
+    )
+    grading_interval_hours: float = Field(
+        default=24.0,
+        gt=0,
+        description="Hours between grading passes (default: nightly-ish).",
+    )
+    grading_startup_delay_seconds: float = Field(
+        default=30.0,
+        ge=0,
+        description="Grace period after boot before the first grading pass.",
+    )
+    grading_pass_limit: int = Field(
+        default=500,
+        gt=0,
+        description="Max history rows to grade per pass (newest-first).",
+    )
+
     # ── Asset paths (resolved relative to repo root, not CWD) ──────
     frontend_dir: Path = Field(
         default=_REPO_ROOT / "frontend",
