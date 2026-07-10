@@ -9,6 +9,7 @@ PACKAGE LAYOUT
     ├── volatility.py           -- ATR, Bollinger Bands, bollinger_squeeze + ttm_squeeze
     ├── levels.py               -- swing high/low, 52w high/low, pivots, VWAP
     ├── vwap.py                 -- anchored + rolling VWAP (used by levels)
+    ├── ichimoku.py             -- Ichimoku Kinko Hyo cloud (fed into trend)
     ├── candlestick_patterns.py -- TA-Lib full 61-pattern dispatcher
     └── chart_patterns.py       -- LMW chart patterns (HS, double top/bot,
                                    triangles, broadening, rectangles)

@@ -270,6 +270,10 @@ def trend_snapshot(
 
     ma_crosses = detect_ma_crosses(df, pairs=ma_cross_pairs)
 
+    # Ichimoku cloud regime (H9b). Lazy import avoids a circular
+    # dependency: ichimoku.py imports `_safe_float` from this module.
+    from price_predictor.analysis.ichimoku import ichimoku_snapshot
+
     return {
         "close": close,
         "sma": sma_values,
@@ -278,4 +282,5 @@ def trend_snapshot(
         "above_sma": above_sma,
         "pct_above_sma": pct_above_sma,
         "ma_crosses": ma_crosses,
+        "ichimoku": ichimoku_snapshot(df),
     }

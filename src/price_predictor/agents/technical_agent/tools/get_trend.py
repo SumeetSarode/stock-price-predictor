@@ -184,6 +184,10 @@ async def get_trend(
     # quotes the L3 struct verbatim instead of inferring a cross from
     # static SMA position. See pred_logic.md §3.2 MA Crossover.
     derived["ma_crosses"] = snapshot.get("ma_crosses", {})
+    # Ichimoku cloud regime (H9b): surfaced so the LLM can weigh
+    # price-vs-cloud + tenkan/kijun + kumo-twist. Exposed as data;
+    # the deterministic classify_trend() is intentionally unchanged.
+    derived["ichimoku"] = snapshot.get("ichimoku", {})
 
     # ── Warnings ───────────────────────────────────────────────
     warnings: list[str] = []
