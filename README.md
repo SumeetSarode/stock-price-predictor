@@ -36,7 +36,7 @@
 | **Nightly grading scheduler** |  shipped | `web/services/scheduler.py` — warms price cache + auto-resolves PENDING predictions; opt-in via `enable_scheduler` |
 
 **Test count**: **1744 unit tests passing** (+ 8 integration tests
-deselected by default; run off-corp via `pytest -m integration`).
+deselected by default; run via `pytest -m integration` on an open network).
 
 ---
 
@@ -102,10 +102,10 @@ WEB_ENABLE_SCHEDULER=true uv run price-predictor-web
 
 ```bash
 uv run pytest                 # all unit tests (1744 today)
-uv run pytest -m integration  # integration tests (need network + off-corp)
+uv run pytest -m integration  # integration tests (hit real APIs — need open network)
 
-# Convenience wrapper for the off-corp integration run:
-bash scripts/run_integration_offcorp.sh
+# Convenience wrapper for the integration run:
+bash scripts/run_integration.sh
 ```
 
 ---

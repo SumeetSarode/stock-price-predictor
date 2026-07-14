@@ -28,8 +28,9 @@ KNOWN LIMITS / RISKS
 ====================
 - NSE has NO official API. Endpoints are scraped from their UI's network calls.
   They can change without notice. Integration test verifies real behavior.
-- Walmart corp DNS blocks www.nseindia.com (verified). Run integration test
-  off-VPN. Unit tests fully mock httpx via respx.
+- Some networks (corporate DNS, certain ISPs) block www.nseindia.com.
+  If integration tests fail to resolve it, try a different network.
+  Unit tests fully mock httpx via respx.
 - Endpoint JSON shapes inferred from community libraries (nsepython etc.) +
   NSE web UI. Real responses may differ; integration test will surface this.
 - Some endpoints (e.g. board_meeting) may not accept date filters server-side;
@@ -446,7 +447,7 @@ DEFAULT_KINDS: list[FilingKind] = [
     "board_meeting",
     "corporate_action",
     # 'financial_result' INTENTIONALLY EXCLUDED from defaults.
-    # Off-VPN spike (filings_coverage_20260502T142439Z) confirmed:
+    # Coverage spike (filings_coverage_20260502T142439Z) confirmed:
     #   * URL responds HTTP 200 (path is valid)
     #   * But response body is empty (2 bytes = `[]`) for all tested stocks
     #   * Likely a param issue (period=Quarterly may be wrong) -- NSE undocumented

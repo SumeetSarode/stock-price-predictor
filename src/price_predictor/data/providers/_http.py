@@ -2,9 +2,9 @@
 
 WHY THIS EXISTS
 ===============
-httpx defaults to certifi for TLS verification. On corporate networks
-that MITM HTTPS (Walmart proxy, Zscaler, etc.) we need to point httpx
-at a combined CA bundle that includes the corp roots.
+httpx defaults to certifi for TLS verification. On networks that inspect
+HTTPS via a TLS-intercepting proxy we need to point httpx at a combined
+CA bundle that includes the proxy's roots.
 
 The standard env vars for this -- SSL_CERT_FILE and REQUESTS_CA_BUNDLE
 -- are NOT auto-honored by httpx the way they are by `requests`. We have
@@ -20,7 +20,7 @@ cloned the repo with a stale .env pointing at a path that doesn't exist
 on their machine), we LOG and fall back to certifi rather than crashing.
 WHY: a missing custom-CA bundle isn't a security risk — falling back to
 certifi just means we trust the same public CAs every browser does. The
-only case it'd break is on a corp network where the proxy MITMs HTTPS;
+only case it'd break is on a network where a proxy inspects HTTPS;
 there the user gets a clear TLS error and knows to fix their .env.
 """
 from __future__ import annotations
@@ -63,8 +63,8 @@ def get_verify_setting() -> ssl.SSLContext | bool:
         logger.warning(
             f"[providers._http] Configured CA bundle does not exist: "
             f"{ca_bundle!r}. Falling back to certifi (system default). "
-            "This is fine off-corporate-network; on a TLS-MITM corp "
-            "network you'll need to point SSL_CERT_FILE at a real bundle."
+            "This is fine on normal networks; behind a TLS-inspecting proxy "
+            "you'll need to point SSL_CERT_FILE at a real bundle."
         )
         return True
 

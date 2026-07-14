@@ -241,10 +241,9 @@ both directly (`from litellm import completion`) and via ADK's `LiteLlm` adapter
   support across providers. On corporate networks behind a proxy, set
   `DISABLE_AIOHTTP_TRANSPORT=True` to force httpx (which respects `HTTPS_PROXY`).
   We do this automatically in `setup_network()` when a proxy is configured.
-- ⚠️ **Walmart network**: api.groq.com / generativelanguage.googleapis.com don't
-  resolve directly. Set `HTTPS_PROXY=http://proxy-intlho.wal-mart.com:8080`
-  (NOT `sysproxy.wal-mart.com` — that one needs NTLM/Negotiate auth).
-  See `.env.example` for full proxy block.
+- **Behind a proxy?** If api.groq.com / generativelanguage.googleapis.com
+  don't resolve directly, set `HTTPS_PROXY`/`HTTP_PROXY` to your proxy.
+  See `.env.example` for the full proxy block.
 - ⚠️ Bash gotcha: `VAR=value cmd1 | cmd2` applies VAR to **cmd1** only, not
   the whole pipeline. Use `cmd1 | env VAR=value cmd2` if you need the env
   var on the receiving side of a pipe.
@@ -510,10 +509,9 @@ both directly (`from litellm import completion`) and via ADK's `LiteLlm` adapter
 - ✅ **`uv add --dev <pkg>`** for dev-only deps (pytest, ruff, etc.)
 - ✅ **`uv sync`** to install from lockfile (CI / fresh clones)
 - ✅ **`uv run <cmd>`** to execute in the project's venv (auto-syncs)
-- ✅ **`uv venv`** to create a fresh venv for a new project
-- ✅ **Walmart index URL** for all installs:
-  `--index-url https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple --allow-insecure-host pypi.ci.artifacts.walmart.com`
-- ✅ **Commit `uv.lock`** to git (reproducible builds)
+- **`uv venv`** to create a fresh venv for a new project
+- **Public PyPI** for all installs (the `uv` default — no index config needed)
+- **Commit `uv.lock`** to git (reproducible builds)
 
 ### Anti-patterns (DON'T)
 - ❌ `pip install` directly into the venv (bypasses lockfile)
@@ -641,7 +639,7 @@ price_predictor/
 ### Git
 - 🎯 Commit per passing iteration
 - 🎯 Conventional commit prefix: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
-- 🎯 Never force-push (Walmart rule)
+- Never force-push a shared branch (rewriting shared history is rude)
 
 ---
 
@@ -694,8 +692,6 @@ price_predictor/
     to `os.environ` on import via `setup_network()`.
   - `DISABLE_AIOHTTP_TRANSPORT=True` is set automatically when a proxy is
     configured (forces LiteLLM to use httpx, which honors proxies consistently).
-  - On Walmart network, use `proxy-intlho.wal-mart.com:8080` (no auth), NOT
-    `sysproxy.wal-mart.com` (needs NTLM/Negotiate).
 - **2026-04-29** — Switched `PRIMARY_MODEL` default to `gemini/gemini-2.5-flash`.
   Llama 3.3 on Groq has flaky function calling (returns Llama XML instead of
   OpenAI JSON tool calls). Gemini handles tools more reliably.

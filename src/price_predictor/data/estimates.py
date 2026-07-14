@@ -26,7 +26,7 @@ DESIGN
 KNOWN LIMIT
 ===========
 Indian-stock coverage on yfinance is empirical and patchy. Run the spike at
-`scripts/coverage_spike_estimates.py` from off-corp network to verify what
+`scripts/coverage_spike_estimates.py` to verify what
 fraction of NSE stocks have data.
 """
 from __future__ import annotations
@@ -252,7 +252,7 @@ async def fetch_estimates_batch(
 def coverage_summary(est: Estimates) -> dict[str, Any]:
     """Quick stats about how much data yfinance returned for one ticker.
 
-    Useful for the off-corp coverage spike and for runtime "is this stock
+    Useful for the coverage spike and for runtime "is this stock
     worth running fundamentals analysis on?" checks.
     """
     return {

@@ -18,8 +18,7 @@ DESIGN
   BacktestEvaluation, output is a (level, headline, detail) triple
   used by the HTML layer to color/format the card.
 - An `Insight` dataclass with severity LEVEL (positive/neutral/warning/
-  critical) so the HTML can color-code (green/blue/yellow/red, per
-  Walmart palette).
+  critical) so the HTML can color-code (green/blue/yellow/red).
 - `generate_insights(eval)` orchestrator returns a list ordered by
   severity (criticals first), so the most actionable items render at
   the top of the insight section.
@@ -46,7 +45,7 @@ if TYPE_CHECKING:
 class InsightLevel(str, Enum):
     """Severity / sentiment of an insight, drives HTML color.
 
-    Mapped in the HTML layer to Walmart palette:
+    Mapped in the HTML layer to the report palette:
         POSITIVE -> green.100  (#2a8703)  "things are working"
         NEUTRAL  -> blue.100   (#0053e2)  "informational"
         WARNING  -> spark.140  (#995213)  "watch this"

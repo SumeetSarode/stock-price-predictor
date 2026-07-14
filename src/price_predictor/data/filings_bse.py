@@ -44,9 +44,9 @@ KNOWN LIMITS
 - BSE doesn't ship a structured `event_at` (split / ex-div date). Some
   of that lives in the announcement TEXT body. We extract `BroadCastDate`
   as our best `event_at` proxy and acknowledge the gap in the docstring.
-- Walmart corp DNS may or may not block `api.bseindia.com`. Unit tests
-  fully mock httpx via respx so they pass on-VPN; integration tests will
-  surface real connectivity status when run.
+- Some networks may block `api.bseindia.com`. Unit tests fully mock httpx
+  via respx so they pass on any network; integration tests will surface
+  real connectivity status when run.
 """
 from __future__ import annotations
 

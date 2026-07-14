@@ -1,20 +1,17 @@
-"""Off-VPN coverage spike for yfinance Indian-stock analyst data.
+"""Coverage spike for yfinance Indian-stock analyst data.
 
 PURPOSE
 =======
-yfinance analyst-data endpoints (query1.finance.yahoo.com) are DNS-blocked
-on Walmart corp network. This script must be run from a non-corp network
-(home wifi, mobile hotspot) to verify how many NSE stocks actually have
-analyst coverage in yfinance.
+yfinance analyst-data endpoints (query1.finance.yahoo.com) may be blocked
+on some networks. Run this from a network that can reach Yahoo Finance to
+verify how many NSE stocks actually have analyst coverage in yfinance.
 
 USAGE
 =====
-1. Disconnect from Walmart VPN
-2. cd practice_project/price_predictor
-3. uv run python scripts/coverage_spike_estimates.py
-4. Report written to: reports/estimates_coverage_<UTC_TIMESTAMP>.md
-5. Reconnect to VPN
-6. Ask the puppy to review the report
+1. cd practice_project/price_predictor
+2. uv run python scripts/coverage_spike_estimates.py
+3. Report written to: reports/estimates_coverage_<UTC_TIMESTAMP>.md
+4. Ask the puppy to review the report
 
 WHAT IT TESTS
 =============

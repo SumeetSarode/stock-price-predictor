@@ -13,10 +13,6 @@ wheels/
 # Secrets / env
 .env
 
-# Generated CA bundle (regenerable via scripts/build_ca_bundle.sh).
-# Path is machine-specific (Code Puppy install location), no point committing.
-certs/ca-bundle.pem
-
 # Data — never commit (PII, large files, regenerable)
 data/cache/
 data/kb/*

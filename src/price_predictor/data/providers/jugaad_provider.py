@@ -45,7 +45,7 @@ KNOWN LIMITS
 - jugaad-data is synchronous + does I/O. We DO NOT add async here because
   the rest of the price stack is synchronous and the resilient layer runs
   providers serially anyway.
-- Walmart corp DNS may block nseindia.com. Unit tests fully mock
+- Some networks may block nseindia.com. Unit tests fully mock
   `stock_df` via monkeypatch; integration tests degrade gracefully when
   NSE is unreachable (same pattern as the filings module).
 """

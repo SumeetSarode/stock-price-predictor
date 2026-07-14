@@ -7,7 +7,7 @@ We need a self-contained, opens-in-any-browser report with:
   - Daily/monthly time-series breakdowns
   - Per-axis charts (horizon, ticker, direction, month)
   - Per-prediction drill-down table for forensic review
-  - Walmart palette + WCAG AA contrast
+  - Palette + WCAG AA contrast
 
 This module produces ONE HTML string from a BacktestEvaluation.
 Save it anywhere, double-click, done. No server, no build step --
@@ -61,8 +61,7 @@ def _page_head(title: str) -> str:
     """HTML head: Tailwind CDN, Chart.js CDN, base styles.
 
     No HTMX -- this is a static report; HTMX would be ceremony for
-    nothing. (Walmart default stack mentions HTMX but explicitly for
-    interactive apps; static reports may skip it.)
+    nothing. (HTMX shines for interactive apps; static reports may skip it.)
     """
     return f"""<!DOCTYPE html>
 <html lang="en">

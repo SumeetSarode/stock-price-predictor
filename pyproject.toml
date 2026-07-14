@@ -42,19 +42,12 @@ price-predictor-web = "price_predictor.web.cli:main"
 requires = ["uv_build>=0.8.22,<0.9.0"]
 build-backend = "uv_build"
 
-# ─────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────
 # Package index configuration
-# ─────────────────────────────────────────────────────────────
-# Default: public PyPI (works everywhere, no VPN required).
-#
-# If you're on Walmart VPN and want the faster internal mirror,
-# set this environment variable BEFORE running uv:
-#
-#   export UV_INDEX_URL="https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple"
-#   export UV_INSECURE_HOST="pypi.ci.artifacts.walmart.com"
-#
-# Or add them to your shell rc file (.zshrc / .bashrc) for permanent use.
-# ─────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────
+# Uses public PyPI (the uv default). No mirror config needed.
+# To point at a different index, set UV_INDEX_URL in your shell.
+# ───────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────
 # Pytest configuration
@@ -111,16 +104,3 @@ dev = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["config", "price_predictor"]
-
-# ─────────────────────────────────────────────────────────────
-# Walmart internal mirror (kept here as a reminder — see top of file
-# for env-var-based opt-in instructions). DO NOT uncomment, or the
-# project will only build on WMT VPN.
-# ─────────────────────────────────────────────────────────────
-# [[tool.uv.index]]
-# name = "walmart"
-# url = "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple"
-# default = true
-#
-# [tool.uv]
-# allow-insecure-host = ["pypi.ci.artifacts.walmart.com"]

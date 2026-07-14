@@ -1,4 +1,4 @@
-"""Off-VPN coverage spike for NSE filings endpoints + parser verification.
+"""Coverage spike for NSE filings endpoints + parser verification.
 
 PURPOSE
 =======
@@ -6,16 +6,14 @@ Iteration 3.1.3 built parsers for 4 NSE endpoints based on inferred JSON
 shapes (community libs + NSE web UI). Real shapes may differ. This script
 verifies our parsers against real NSE responses for a small set of stocks.
 
-Walmart corp DNS blocks www.nseindia.com, so this MUST be run off-VPN.
+Some networks block www.nseindia.com; run this from one that can reach it.
 
 USAGE
 =====
-1. Disconnect from Walmart VPN
-2. cd practice_project/price_predictor
-3. uv run python scripts/coverage_spike_filings.py
-4. Report written to: reports/filings_coverage_<UTC_TIMESTAMP>.{md,json}
-5. Reconnect to VPN
-6. Ask the puppy to review the report
+1. cd practice_project/price_predictor
+2. uv run python scripts/coverage_spike_filings.py
+3. Report written to: reports/filings_coverage_<UTC_TIMESTAMP>.{md,json}
+4. Ask the puppy to review the report
 
 WHAT IT TESTS
 =============

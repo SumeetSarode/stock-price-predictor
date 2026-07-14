@@ -299,17 +299,17 @@ class Settings(BaseSettings):
         """Resolve to absolute path. Directory creation happens in setup_directories()."""
         return value.resolve()
 
-    # ── Network / proxy (optional — only set when behind a corporate proxy) ────
-    # When running on Walmart network: api.groq.com etc. don't resolve directly.
+    # ── Network / proxy (optional — only set when behind a proxy) ────
+    # Some networks require an HTTP proxy to reach api.groq.com etc.
     # Setting these makes HTTP libraries (httpx, aiohttp via LiteLLM) tunnel
     # through the proxy. Empty defaults = no-op on home/personal networks.
     https_proxy: str = Field(default="", validation_alias="HTTPS_PROXY")
     http_proxy: str = Field(default="", validation_alias="HTTP_PROXY")
     no_proxy: str = Field(default="", validation_alias="NO_PROXY")
 
-    # ── SSL trust store (optional — only when behind a TLS-MITM corp proxy) ──
-    # Walmart's sysproxy (and Zscaler etc.) re-sign HTTPS traffic with a corp
-    # root CA. Without these pointing at a combined certifi+corp bundle, EVERY
+    # ── SSL trust store (optional — only behind a TLS-inspecting proxy) ──
+    # A TLS-inspecting proxy re-signs HTTPS traffic with a custom root CA.
+    # Without these pointing at a combined certifi+custom bundle, EVERY
     # https request from Python fails with CERTIFICATE_VERIFY_FAILED.
     # Both names exist for compatibility:
     #   SSL_CERT_FILE      — Python stdlib + httpx (via our _http helper)
@@ -359,7 +359,7 @@ def setup_network() -> None:
 
     Also force LiteLLM to use httpx transport (which respects proxies
     consistently across all provider code paths). Without this, some
-    LiteLLM providers bypass the proxy and DNS-fail on corporate networks.
+    LiteLLM providers bypass the proxy and DNS-fail on proxied networks.
 
     Idempotent. Called automatically at module import.
     """
@@ -371,7 +371,7 @@ def setup_network() -> None:
         os.environ.setdefault("NO_PROXY", settings.no_proxy)
 
     # CA bundle: needed for httpx-based providers (Stooq, AlphaVantage) on
-    # any TLS-MITM corp network. yfinance uses requests, which reads
+    # any TLS-inspecting proxy network. yfinance uses requests, which reads
     # REQUESTS_CA_BUNDLE; httpx reads SSL_CERT_FILE (via our _http helper).
     # Set BOTH from whichever the user provided, so both code paths work.
     bundle = settings.ssl_cert_file or settings.requests_ca_bundle

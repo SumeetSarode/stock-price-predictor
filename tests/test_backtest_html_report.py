@@ -8,7 +8,7 @@ WHAT WE TEST
 - write_html_report creates the file at the right path with content.
 - HTML escaping defends against malicious ticker names.
 - Empty/edge cases don't crash (no insights, no months, etc.).
-- Walmart palette colors appear in the output.
+- Palette colors appear in the output.
 
 WHAT WE DON'T TEST (intentionally)
 ==================================
@@ -243,36 +243,36 @@ class TestDataPresence:
         assert "chart-by-month" in canvas_ids
 
     def test_chart_has_fixed_height_wrapper(self):
-        """Walmart rule: chart.js needs a fixed-height parent div."""
+        """Chart.js needs a fixed-height parent div (responsive:true ignores canvas height)."""
         html = render_html_report(_make_eval())
         # Search for the inline-style div pattern wrapping any canvas.
         assert "height:320px" in html or 'height: 320px' in html
 
 
-# ─────────────────────────────────────────────────────────────
-# Walmart palette presence
-# ─────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────
+# Palette presence
+# ───────────────────────────────────────────────────
 class TestPalette:
-    def test_uses_walmart_blue(self):
+    def test_uses_accent_blue(self):
         html = render_html_report(_make_eval())
-        assert "#0053e2" in html  # blue.100
+        assert "#0053e2" in html  # accent blue
 
-    def test_uses_walmart_yellow(self):
+    def test_uses_accent_yellow(self):
         html = render_html_report(_make_eval())
-        assert "#ffc220" in html  # spark.100
+        assert "#ffc220" in html  # accent yellow
 
-    def test_uses_walmart_red(self):
+    def test_uses_loss_red(self):
         """Even on a happy run, the red is referenced via CSS class
         for stop-hit badges + critical insights' palette.
         """
         html = render_html_report(_make_eval(graded=[
             _graded(outcome=GradeOutcome.STOP_HIT, direction_correct=False),
         ]))
-        assert "#ea1100" in html  # red.100
+        assert "#ea1100" in html  # loss red
 
-    def test_uses_walmart_green(self):
+    def test_uses_gain_green(self):
         html = render_html_report(_make_eval())
-        assert "#2a8703" in html  # green.100
+        assert "#2a8703" in html  # gain green
 
 
 # ─────────────────────────────────────────────────────────────

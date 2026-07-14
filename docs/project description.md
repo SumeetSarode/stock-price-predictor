@@ -106,7 +106,7 @@ This system addresses all three by being **systematic, explainable, and self-tra
 | **Free everything**                | No paid APIs, no paid LLMs, no paid news sources             |
 | **Runs on any laptop**             | No GPU, no heavyweight local LLM, minimal install            |
 | **Python 3.13 + uv**               | Modern Python, fast dependency management                    |
-| **Walmart artifactory PyPI index** | All `uv pip install` calls use Walmart's mirror              |
+| **Public PyPI index**              | Standard `uv` install from public PyPI — no mirror required   |
 | **No system-level dependencies**   | Pure-Python libs preferred (e.g., `pandas-ta` over `TA-Lib`) |
 
 ---

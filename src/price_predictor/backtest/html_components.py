@@ -7,11 +7,11 @@ section function carried its own slice of presentation primitives
 (escaping, percent-formatting, card markup, chart-canvas wrappers,
 table layout). Pulling the GENERIC helpers here keeps html_report.py
 focused on backtest-specific composition + makes the helpers
-trivially reusable for any future Walmart-palette HTML reports.
+trivially reusable for any future palette-driven HTML reports.
 
 WHAT'S IN HERE
 ==============
-- Walmart-aware palette constants + level-style maps.
+- Palette constants + level-style maps.
 - Escape / format helpers (_esc, _pct, _num).
 - Generic UI atoms (_metric_card, _chart_block, _table).
 - Domain-aware badges that need report-specific palette knowledge
@@ -36,7 +36,6 @@ from price_predictor.prediction.schema import PredictionDirection
 
 # ─────────────────────────────────────────────────────────────
 # Palette + level styling. Centralized so any tweak propagates.
-# Values follow Walmart spec (blue.100, spark.100, red.100 etc.)
 # All combinations have been picked to clear WCAG AA (4.5:1 text,
 # 3:1 UI). The dark "text" colors are darker tints chosen so heading
 # text on white/light bg stays >= 4.5:1 even when the level color
@@ -128,8 +127,8 @@ def num(v: float | None, *, decimals: int = 3) -> str:
 def metric_card(label: str, value: str, *, accent: str = "#0053e2") -> str:
     """A small card with a label + big number. Used in metric grids.
 
-    `accent` is a hex color for the value; defaults to Walmart primary
-    blue. Callers pick contextual colors (green for good, red for bad).
+    `accent` is a hex color for the value; defaults to the primary
+    accent blue. Callers pick contextual colors (green for good, red for bad).
     """
     return f"""
     <div class="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
@@ -143,7 +142,7 @@ def chart_block(canvas_id: str, *, height_px: int = 320) -> str:
     """Wrap a Chart.js canvas in a fixed-height div.
 
     WHY: Chart.js with responsive:true IGNORES the canvas height
-    attribute (Walmart rule). Fixed-height parent is the workaround.
+    attribute. Fixed-height parent is the workaround.
     """
     return (
         f'<div style="position:relative;height:{height_px}px;width:100%">'

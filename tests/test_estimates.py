@@ -1,7 +1,7 @@
 """Unit tests for data/estimates.py — yfinance fully mocked.
 
-Network calls are NEVER made. The integration test (off-VPN, marked) lives
-in the spike script at scripts/coverage_spike_estimates.py instead, since
+Network calls are NEVER made. Real-network verification lives in the spike
+script at scripts/coverage_spike_estimates.py instead, since
 the value of the spike is empirical coverage data, not pass/fail.
 """
 from __future__ import annotations

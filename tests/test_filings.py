@@ -1,6 +1,6 @@
 """Unit tests for data/filings.py — NSE fully mocked via respx.
 
-Network calls NEVER made. Integration test (off-VPN, marked) lives at the
+Network calls NEVER made. The integration test (marked) lives at the
 bottom and skips gracefully when NSE is unreachable.
 """
 from __future__ import annotations
@@ -631,8 +631,8 @@ class TestIntegrationNse:
     async def test_real_nse_announcements(self):
         """Real NSE call for RELIANCE last 30 days. Skips on network failure.
 
-        Walmart corp DNS blocks www.nseindia.com — run from non-corp network
-        to verify. Like the GDELT test, this is environmental, not a code bug.
+        Some networks block www.nseindia.com — run from a network that can
+        reach it to verify. Like the GDELT test, this is environmental, not a code bug.
         """
         from datetime import datetime, timedelta
 
