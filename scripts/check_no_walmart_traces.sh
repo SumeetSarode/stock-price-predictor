@@ -37,7 +37,7 @@ EXCLUDES=(
 if rg -i -n "${EXCLUDES[@]}" "$PATTERN" . 2>/dev/null; then
     echo ""
     echo "🚨 Walmart traces found. Cannot ship until clean."
-    echo "   See docs/user_ui_design.md §2 (Walmart-purge as final pre-ship gate)."
+    echo "   Walmart-purge is the final pre-ship gate: no internal traces may ship."
     exit 1
 fi
 

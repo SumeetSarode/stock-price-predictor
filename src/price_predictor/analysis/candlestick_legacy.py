@@ -140,7 +140,7 @@ def is_shooting_star(row: pd.Series) -> bool:
 # CDLENGULFING is shape-permissive: a (near-)doji prev with a sufficiently
 # large current body can still emit a signal, because TA-Lib's body-size
 # averaging gives marginal-doji bars a non-zero notional body. That's the
-# M5 ambiguity called out in pred_logic_review §H/M.
+# M5 ambiguity called out in the original TA review (§H/M).
 #
 # Our wrapper enforces an explicit Nison-aligned floor on the prior bar's
 # body before consulting TA-Lib: prev body must be ≥ 10% of prev range.

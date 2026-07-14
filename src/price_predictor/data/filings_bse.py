@@ -2,7 +2,7 @@
 
 WHY THIS MODULE EXISTS
 ======================
-Solves C3 from `pred_logic_solutions.md`: NSE has no public/stable API
+Solves C3: NSE has no public/stable API
 and is Cloudflare-protected. BSE's `api.bseindia.com` is an INDEPENDENT
 source for the same disclosures (since most NSE-listed companies
 dual-list on BSE). We can fetch from both, dedupe, and cross-validate

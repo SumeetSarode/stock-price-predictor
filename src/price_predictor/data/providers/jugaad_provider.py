@@ -2,7 +2,7 @@
 
 WHY THIS EXISTS
 ===============
-Solves C1 (primary tier) from `pred_logic_solutions.md`. Stooq ships zero
+Solves the C1 primary tier (NSE-native prices). Stooq ships zero
 NSE coverage and was only ever in the chain because of a copy-pasted
 US tutorial. `jugaad-data` is an actively-maintained NSE-native library
 that pulls bars from NSE's own historical-trade endpoints, with built-in
@@ -192,7 +192,7 @@ class JugaadDataProvider(PriceProvider):
         # adj_close = close keeps the contract intact AND is honest:
         # callers wanting true adjusted prices should chain through to
         # yfinance which gets adjusted feeds from Yahoo's data side.
-        # See `pred_logic_solutions.md` C1 production-readiness scorecard.
+        # See git history for the C1 production-readiness scorecard.
         df["adj_close"] = df["close"]
 
         # Reorder to the canonical contract column order.

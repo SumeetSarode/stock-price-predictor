@@ -182,7 +182,7 @@ async def get_trend(
         derived[f"pct_above_sma_{n}"] = v
     # MA crossovers: surface as a top-level dict in `derived` so the LLM
     # quotes the L3 struct verbatim instead of inferring a cross from
-    # static SMA position. See pred_logic.md §3.2 MA Crossover.
+    # static SMA position. See the MA Crossover L3 struct in trend.py.
     derived["ma_crosses"] = snapshot.get("ma_crosses", {})
     # Ichimoku cloud regime (H9b): surfaced so the LLM can weigh
     # price-vs-cloud + tenkan/kijun + kumo-twist. Exposed as data;

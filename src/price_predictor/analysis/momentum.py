@@ -45,7 +45,7 @@ def latest_macd(
     = EMA(MACD, signal). Each EMA is an EWMA; the signal line is
     EMA-of-EMA which compounds seed bias. We require ≥ 5*slow bars
     (= 130 for the default 12/26/9) per the conservative warmup band
-    in pred_logic_solutions §H8 / pred_logic_review §H8. Earlier code
+    (see git history). Earlier code
     used `slow + signal = 35` which left ~30% seed bias in the signal
     line — cross detection was effectively noise on small histories.
     """

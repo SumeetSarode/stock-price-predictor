@@ -2,7 +2,7 @@
 
 WHY THIS MODULE EXISTS
 ======================
-Solves C3 from `pred_logic_solutions.md`. NSE has no public/stable API
+Solves C3: NSE has no public/stable API
 and is Cloudflare-protected; BSE's `api.bseindia.com` is an INDEPENDENT
 source for the same disclosures (since most NSE-listed companies
 dual-list on BSE). Fetching both and deduping gives us:
@@ -247,9 +247,7 @@ async def fetch_filings_cross_validated(
                 for ALL records — including BSE-only ones — so downstream
                 ticker-keyed joins work uniformly.
         bse_scrip_code: BSE numeric scrip code as string (e.g. '500325').
-                        Caller's responsibility to map; see
-                        `pred_logic_solutions.md` C3 for the BSE master
-                        list URL.
+                        Caller's responsibility to map from symbol.
         start: ISO 'YYYY-MM-DD' (inclusive).
         end:   ISO 'YYYY-MM-DD' (inclusive).
         kinds: NSE endpoints to query (passed through to fetch_filings).

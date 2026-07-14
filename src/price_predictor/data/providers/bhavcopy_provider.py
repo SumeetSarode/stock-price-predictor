@@ -2,7 +2,7 @@
 
 WHY THIS EXISTS
 ===============
-Solves C1 secondary tier from `pred_logic_solutions.md`. This is a thin
+Solves the C1 secondary tier (NSE bhavcopy). This is a thin
 adapter: the bulk fetch logic + format-routing lives in `data/bhavcopy.py`
 (single-responsibility); this class just stitches per-day responses
 together and filters to a single ticker.

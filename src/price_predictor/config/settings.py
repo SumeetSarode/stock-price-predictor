@@ -224,14 +224,14 @@ class Settings(BaseSettings):
     # Adding a new provider = register it in PROVIDER_REGISTRY and add its
     # short name here. No changes to settings.py needed.
     #
-    # DEFAULT CHAIN: jugaad -> nse_bhavcopy -> yfinance (per pred_logic_solutions C1).
+    # DEFAULT CHAIN: jugaad -> nse_bhavcopy -> yfinance (C1 decision).
     #   - jugaad        : NSE-native via the jugaad-data library (primary)
     #   - nse_bhavcopy  : NSE archives bhavcopy CSV (exchange-of-record EOD)
     #   - yfinance      : Yahoo's NSE mirror (community, breaks ~2x/yr)
     # Stooq is INTENTIONALLY OMITTED — verified empirically (2026-04-28) to
     # have ZERO NSE coverage. Class stays registered for non-Indian use cases.
     # Alpha Vantage is also OMITTED — its NSE feed is unreliable and free tier
-    # is 25 req/day (per pred_logic_solutions.md C1 production scorecard).
+    # is 25 req/day (C1 production scorecard).
     # Both remain in PROVIDER_REGISTRY for users who want to wire them in
     # explicitly, but they're not in the default fallback path.
     price_chain: str = Field(

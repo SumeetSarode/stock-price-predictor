@@ -23,7 +23,7 @@ observation or mark it post-hoc.
 
 WHY httpx + the CDX API (not waybackpy)
 =======================================
-pred_logic_solutions.md sketched this with ``waybackpy``. We already
+The H9d/PIT spec sketched this with ``waybackpy``. We already
 depend on ``httpx`` and ``trafilatura``; the Wayback CDX Server API is a
 plain HTTP endpoint, so we avoid adding another dependency. The
 ``&to=<asof>&limit=-1`` query returns the most-recent snapshot at/before

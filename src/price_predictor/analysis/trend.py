@@ -13,8 +13,8 @@ history to produce a meaningful value.
 
 MA CROSSOVERS
 =============
-`detect_ma_cross()` returns the L3 "regime + last event" struct discussed
-in pred_logic.md §3.2 MA Crossover. Always answers truthfully even when
+`detect_ma_cross()` returns the L3 "regime + last event" struct.
+Always answers truthfully even when
 no fresh cross fired -- the consumer (technical_agent) gets a regime
 state plus a `bars_since_event` field, never a misleading None.
 """
@@ -25,7 +25,7 @@ import pandas_ta as ta
 
 # Default pairs computed by trend_snapshot. SMA-50/200 is the textbook
 # Golden Cross (Murphy 1999); EMA-9/21 is the swing-trader's faster pair
-# (Pring 2002). See pred_logic.md §3.2 for sourcing and the
+# (Pring 2002). See git history for sourcing and the
 # data-snooping caveat (Sullivan-Timmermann-White 1999).
 DEFAULT_MA_CROSS_PAIRS: list[tuple[str, int, int]] = [
     ("sma", 50, 200),
@@ -78,7 +78,7 @@ def latest_adx(df: pd.DataFrame, length: int = 14) -> dict[str, float | None]:
     DX is RMA-smoothed AGAIN (length=N) to give ADX. The first valid bar
     is at 2N (Wilder 1978), but seed-bias only falls below 1% by ~10N
     bars. We require ≥ 10*length bars (= 140 for ADX-14) per the
-    convergence-guard derivation in pred_logic_solutions §H7. The previous
+    convergence-guard derivation (see git history). The previous
     `2 * length = 28` minimum left massive seed bias on the second
     smoothing pass and was the largest accuracy gap in the trend cluster.
     """
@@ -104,7 +104,7 @@ def detect_ma_cross(
 ) -> dict[str, object]:
     """Detect moving-average crossover state for a given (short, long) pair.
 
-    Returns the L3 struct from pred_logic.md §3.2:
+    Returns the L3 "regime + last event" struct:
       {
         "current":           "above" | "below" | None,
         "last_event":        "bullish" | "bearish" | None,

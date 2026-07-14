@@ -7,8 +7,8 @@ The 4 thematic technical tools (`get_trend`, `get_momentum`, `get_volatility`,
 Without a cache, that's 4 yfinance hits for the same data. With this cache,
 it's 1 hit per ticker per session.
 
-DESIGN (locked in next_steps.md)
-================================
+DESIGN
+======
 - Range-aware: cache stores the widest date range fetched per ticker. A
   later request for a sub-range slices from cache without re-fetching. A
   later request for a wider range fetches the missing chunk and merges.
@@ -40,7 +40,7 @@ from loguru import logger
 # warmup discard (10 × ADX-length = 140 bars + 200 SMA cushion) we still
 # have a healthy ~180+ usable bars for downstream indicators. Subsequent
 # calls for narrower windows are slices (no extra network). Bumped from
-# 365 in pred_logic_solutions §H7 ("Convergence guard").
+# 365 for the ADX convergence guard ("Convergence guard", see git history).
 DEFAULT_PROACTIVE_DAYS = 750
 
 

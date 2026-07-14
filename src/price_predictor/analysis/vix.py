@@ -40,7 +40,7 @@ import pandas as pd
 from price_predictor.analysis.trend import _safe_float
 
 # Regime bands, expressed as multiples of the rolling median. Chosen to
-# match the ±15% band in pred_logic_solutions.md §H9d.
+# match the ±15% band from the H9d spec.
 LOW_VOL_MULT = 0.85
 HIGH_VOL_MULT = 1.15
 DEFAULT_LOOKBACK = 60  # ~ one quarter of trading days

@@ -5,11 +5,10 @@ analysis package stays I/O-free.
 
 WHY yfinance, NOT nsepython
 ===========================
-pred_logic_solutions.md §H9d suggested nsepython's ``index_history``.
-But nsepython is GPL-licensed (flagged in the doc's own dependency
-table), and we already depend on yfinance, which serves India VIX under
-the symbol ``^INDIAVIX``. Reusing our existing provider avoids adding a
-copyleft dependency for one number.
+The H9d spec suggested nsepython's ``index_history``. But nsepython
+is GPL-licensed, and we already depend on yfinance, which serves India
+VIX under the symbol ``^INDIAVIX``. Reusing our existing provider avoids
+adding a copyleft dependency for one number.
 
 WHY A DEDICATED PROVIDER INSTANCE
 =================================

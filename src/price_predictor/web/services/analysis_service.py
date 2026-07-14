@@ -12,7 +12,7 @@ Boundary
 ========
 - READ-ONLY consumer of `analysis/*` and `data/_shared_cache`.
 - Never mutates the prediction pipeline, schema, cache, or store.
-- Never imports from agents/, prediction/, or pred_logic_solution/.
+- Never imports from agents/ or prediction/ (no write-side coupling).
 
 Performance
 ===========

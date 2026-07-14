@@ -168,7 +168,7 @@ class TestPriceChain:
     def test_default_chain_is_nse_native_tier(self, monkeypatch):
         """No-config baseline: jugaad → nse_bhavcopy → yfinance.
 
-        Per pred_logic_solutions.md C1: NSE-native primary, exchange-of-record
+        Per the C1 decision: NSE-native primary, exchange-of-record
         secondary, Yahoo-mirror tertiary. Stooq + Alpha Vantage stay registered
         for non-NSE / explicit-opt-in callers but are NOT in the default chain.
 

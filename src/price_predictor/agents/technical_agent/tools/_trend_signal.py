@@ -7,8 +7,8 @@ Output: (signal, strength, rationale_bullets).
 Kept separate from get_trend.py so we can unit-test the classification
 rules without mocking fetch/cache.
 
-VOTE INTEGRATION (pred_logic.md §4.1)
-=====================================
+VOTE INTEGRATION
+================
 The classifier folds three discrete signals:
   1. SMA stack alignment (existing)
   2. ADX-gated DI direction  (existing)
@@ -24,7 +24,7 @@ alpha on liquid large-caps is marginal post-1990:
   - SMA-50/200 fresh cross: ±0.5
   - EMA-9/21 fresh cross:   ±0.3   (faster pair = more whipsaws)
 
-🔬 NEEDS BACKTEST against NSE-specific data; tracked in pred_logic.md §4.1.
+🔬 NEEDS BACKTEST against NSE-specific data.
 """
 from __future__ import annotations
 

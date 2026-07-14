@@ -2,7 +2,7 @@
 
 WHY THIS EXISTS
 ===============
-Solves C1 secondary tier from `pred_logic_solutions.md`. The bhavcopy is
+Solves the C1 secondary tier (NSE bhavcopy). The bhavcopy is
 the exchange-of-record for a given trading day's EOD prices: every NSE
 EQ symbol with OHLC + volume in one CSV. For backtests + bulk universe
 fetches it's faster than per-symbol APIs (one HTTP call per day instead

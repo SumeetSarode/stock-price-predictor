@@ -4,8 +4,8 @@
 # Discipline gate: NO HTML in Python files inside src/price_predictor/web/.
 # All HTML must live in frontend/templates/. The backend emits ONLY data.
 #
-# This protects the strict frontend/backend separation declared in
-# docs/user_ui_design.md §2 ("Strict separation rule"). A future-us
+# This protects the strict frontend/backend separation: HTML/CSS/JS
+# live in frontend/, never inside src/price_predictor/web/. A future-us
 # tempted to f-string a <div> for "just this one place" will trip this
 # script and be forced to add a template instead.
 #
@@ -33,8 +33,7 @@ TARGET='src/price_predictor/web/'
 if rg -n "$PATTERN" "$TARGET" 2>/dev/null; then
     echo ""
     echo "🚨 HTML found in Python files inside $TARGET."
-    echo "   All HTML belongs in frontend/templates/."
-    echo "   See docs/user_ui_design.md §2 for the rationale."
+    echo "   All HTML belongs in frontend/templates/ (strict frontend/backend split)."
     exit 1
 fi
 

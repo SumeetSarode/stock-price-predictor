@@ -30,7 +30,6 @@ from price_predictor.agents.technical_agent.tools._types import Signal, Strength
 # dead zone around %B = 0.5 to avoid flipping direction on every bar
 # that grazes the median. Bollinger (2001) only labels 0.0 / 1.0
 # (band touches); the 0.55 / 0.45 inner pair is editorial.
-# See pred_logic.md §4.3 for the full attribution.
 PCT_B_BULLISH = 0.55
 PCT_B_BEARISH = 0.45
 
@@ -40,7 +39,6 @@ PCT_B_BEARISH = 0.45
 # 1–3% ATR-% range. No published source for the specific cutoffs;
 # Phase 2 backtest should test 0.8/3.5/5.0 (tighter), 1.5/5.0/7.0
 # (looser), and per-stock percentile-rank variants.
-# See pred_logic.md §4.3 for the full attribution.
 ATR_PCT_DEAD_QUIET = 1.0   # below = dead quiet (untradeable)
 ATR_PCT_NORMAL_LOW = 1.0
 ATR_PCT_NORMAL_HIGH = 4.0

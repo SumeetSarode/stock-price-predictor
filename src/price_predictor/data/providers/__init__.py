@@ -14,7 +14,7 @@ same pattern as `ResilientModel` for LLMs -- different domain, same shape.
 CURRENT REGISTRY
 ================
     yfinance       -- free, no key, but Yahoo throttles aggressively
-    jugaad         -- free, NSE-native, primary tier per pred_logic_solutions C1
+    jugaad         -- free, NSE-native, primary tier (C1)
     nse_bhavcopy   -- free, exchange-of-record EOD, secondary tier per C1
     stooq          -- free, no key, daily-only, NO India coverage (legacy)
     alpha_vantage  -- free tier (25/day) or paid (~$50/mo), unreliable for NSE

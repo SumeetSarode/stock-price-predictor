@@ -16,7 +16,7 @@ DESIGN INVARIANTS (locked with user before building)
    (the bottom — worst short fill). This is the conservative "risk
    filter" semantic that pro traders prefer. (Renamed from "worst-case
    RR" — it's worst-fill within the band, not worst-case over all
-   adverse paths. See pred_logic.md §1.1.)
+   adverse paths. See the worst-fill risk_reward definition below.)
 3. **Embedded analysis_basis** — every prediction is self-contained. A
    week from now you can answer "why did the agent think this?" from
    ONE JSON file, no DB lookup required. Backtesting / calibration
