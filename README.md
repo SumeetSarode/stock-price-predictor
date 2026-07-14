@@ -166,9 +166,6 @@ bash scripts/run_integration_offcorp.sh
 |---|---|
 | **`README.md`** (this file) | Quick start, current state, architecture overview |
 | **`docs/project description.md`** | Canonical full spec — problem, goals, output schema, decisions, risks |
-| **`docs/pred_logic.md`** | Self-contained algorithm spec — every classifier, threshold, formula in plain English |
-| **`docs/pred_logic_solutions.md`** | Every review finding + its shipped solution, with citations (all CLOSED) |
-| **`docs/user_ui_design.md`** | Web-app UI design — decisions, layout, component intent |
 | **`docs/best_practices.md`** | Living gotchas + patterns discovered while building |
 | **`docs/research/constants_dossier.md`** | Every numeric constant traced to a cited source |
 | **`docs/report/`** | Generated static indicator reference gallery (HTML) |
@@ -176,12 +173,12 @@ bash scripts/run_integration_offcorp.sh
 **Where to look first:**
 - *I want to use it* → README quick start (above)
 - *I want to understand the design* → `docs/project description.md`
-- *I want to vet the math* → `docs/pred_logic.md` + `docs/research/constants_dossier.md`
-- *I want the web-app design intent* → `docs/user_ui_design.md`
+- *I want to vet a numeric constant* → `docs/research/constants_dossier.md`
 
-> Historical planning/build-journal docs (`implementation_plan.md`,
-> `implementation_flow.md`, `next_steps.md`, `pred_logic_review.md`) were
-> retired in the 2026-07 docs cleanup — git history is the journal now.
+> Historical planning/journal/spec docs (`implementation_plan.md`,
+> `implementation_flow.md`, `next_steps.md`, `pred_logic_review.md`,
+> `pred_logic.md`, `pred_logic_solutions.md`, `user_ui_design.md`) were
+> retired in the 2026-07 docs cleanup — git history is the record now.
 
 ---
 
