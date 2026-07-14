@@ -49,12 +49,32 @@ deselected by default; run via `pytest -m integration` on an open network).
 
 ### Setup
 
+**Windows (one command):**
+
+```powershell
+git clone <repo-url>
+cd price_predictor
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+`setup.ps1` installs `uv` if missing, provisions Python 3.13, runs
+`uv sync`, scaffolds `.env` from `.env.example`, checks your API keys,
+and offers to launch. Re-runnable any time. (If `uv sync` trips on
+TA-Lib, install the Microsoft C++ Build Tools and re-run - the script
+tells you this too.)
+
+**macOS / Linux (manual):**
+
 ```bash
 cd price_predictor
 uv venv
 uv sync
-cp .env.example .env  # then edit GROQ_API_KEY + GOOGLE_API_KEY
+cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
 ```
+
+> **API keys:** a fresh clone has no `.env` (it's gitignored). You need
+> your own free-tier keys: Groq (https://console.groq.com/keys) and
+> Gemini (https://aistudio.google.com/app/apikey). Paste them into `.env`.
 
 ### Run — CLI
 
