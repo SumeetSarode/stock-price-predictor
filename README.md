@@ -50,9 +50,9 @@ deselected by default; run via `pytest -m integration` on an open network).
 ### Setup
 
 **Deploying to a non-technical user's Windows laptop?** See
-[`windows_setup/README.md`](windows_setup/README.md) — a free,
-self-updating, click-to-open deployment (clone once, they double-click a
-desktop icon that pulls the latest `release` and opens the app).
+[`windows_setup/SETUP.md`](windows_setup/SETUP.md) for the full step-by-step
+guide — a free, self-updating, click-to-open deployment (clone once, they
+double-click a desktop icon that pulls the latest `release` and opens the app).
 
 **Developer setup (macOS / Linux / Windows):**
 

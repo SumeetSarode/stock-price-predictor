@@ -22,40 +22,17 @@ desktop icon. You (the developer) do a one-time setup.
 
 ## One-time setup (you, on their laptop)
 
-1. **Install Git for Windows** (if not already):
-   https://git-scm.com/download/win
+**Full step-by-step walkthrough: [`SETUP.md`](SETUP.md).** The short version:
 
-2. **Clone the repo** somewhere permanent, e.g. their Documents:
-   ```powershell
-   cd $HOME\Documents
-   git clone <public-repo-url> price_predictor
-   cd price_predictor
-   ```
+1. Install **Git for Windows** (https://git-scm.com/download/win).
+2. `git clone <public-repo-url> price_predictor` into their Documents.
+3. Create the `release` branch: `git checkout -b release; git push -u origin release; git checkout main`.
+4. Add `.env` with your API keys (`copy .env.example .env`, then paste GROQ + GEMINI keys).
+5. Run the installer: `powershell -ExecutionPolicy Bypass -File .\windows_setup\install.ps1`.
+6. Hand it back — they double-click the **"Stock Price Predictor"** desktop icon.
 
-3. **Create the release branch** (once, from your machine or theirs) so the
-   laptop has a vetted branch to follow:
-   ```powershell
-   git checkout -b release
-   git push -u origin release
-   git checkout main
-   ```
-
-4. **Add the `.env`** with your API keys (you do this by hand):
-   ```powershell
-   copy .env.example .env
-   notepad .env    # paste GROQ_API_KEY and GEMINI_API_KEY, save
-   ```
-   Free keys: Groq https://console.groq.com/keys  ·
-   Gemini https://aistudio.google.com/app/apikey
-
-5. **Run the installer** (installs uv + Python 3.13, builds the env,
-   creates the desktop shortcut):
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\windows_setup\install.ps1
-   ```
-
-6. **Hand it back.** They double-click **"Stock Price Predictor"** on the Desktop.
-   Done — they never see a terminal again.
+See [`SETUP.md`](SETUP.md) for the detailed version with screenshots-level
+detail, how to get the free API keys, testing, and troubleshooting.
 
 ---
 
@@ -101,6 +78,7 @@ Next time they open the app, they get it.
 
 | File | Who runs it | When |
 |------|-------------|------|
+| `SETUP.md`    | You (developer) | Read first — detailed step-by-step guide |
 | `install.ps1` | You (developer) | Once, during setup |
 | `launch.bat`  | The user (via desktop icon) | Every time they open the app |
-| `README.md`   | You | Reference |
+| `README.md`   | You | Quick overview |
