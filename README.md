@@ -49,21 +49,12 @@ deselected by default; run via `pytest -m integration` on an open network).
 
 ### Setup
 
-**Windows (one command):**
+**Deploying to a non-technical user's Windows laptop?** See
+[`windows_setup/README.md`](windows_setup/README.md) — a free,
+self-updating, click-to-open deployment (clone once, they double-click a
+desktop icon that pulls the latest `release` and opens the app).
 
-```powershell
-git clone <repo-url>
-cd price_predictor
-powershell -ExecutionPolicy Bypass -File .\setup.ps1
-```
-
-`setup.ps1` installs `uv` if missing, provisions Python 3.13, runs
-`uv sync`, scaffolds `.env` from `.env.example`, checks your API keys,
-and offers to launch. Re-runnable any time. (If `uv sync` trips on
-TA-Lib, install the Microsoft C++ Build Tools and re-run - the script
-tells you this too.)
-
-**macOS / Linux (manual):**
+**Developer setup (macOS / Linux / Windows):**
 
 ```bash
 cd price_predictor
