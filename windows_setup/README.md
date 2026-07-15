@@ -1,4 +1,4 @@
-# Windows setup — deploy to a non-technical user's laptop
+# Windows setup — deploy Stock Price Predictor to a non-technical user's laptop
 
 This folder makes the app run on someone else's Windows laptop as a
 **free, self-updating, click-to-open** tool. They only ever double-click a
@@ -54,7 +54,7 @@ desktop icon. You (the developer) do a one-time setup.
    powershell -ExecutionPolicy Bypass -File .\windows_setup\install.ps1
    ```
 
-6. **Hand it back.** They double-click **"Price Predictor"** on the Desktop.
+6. **Hand it back.** They double-click **"Stock Price Predictor"** on the Desktop.
    Done — they never see a terminal again.
 
 ---

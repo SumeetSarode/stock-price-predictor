@@ -3012,7 +3012,7 @@ html, body {
     gap: var(--space-3);
   }
 
-  /* Hide the "Price Predictor" label, keep the icon as the home link. */
+  /* Hide the "Stock Price Predictor" label, keep the icon as the home link. */
   .nav__brand > span:not(.nav__brand-mark) {
     display: none;
   }

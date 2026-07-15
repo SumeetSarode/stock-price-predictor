@@ -1,4 +1,4 @@
-# Best Practices — Price Predictor Project
+# Best Practices — Stock Price Predictor Project
 
 > Living document. Add to it whenever we discover a new gotcha or pattern.
 >

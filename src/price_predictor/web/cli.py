@@ -50,7 +50,7 @@ def main() -> None:
     url = f"http://{settings.host}:{settings.port}"
 
     print()
-    print("  📈  Price Predictor")
+    print("  📈  Stock Price Predictor")
     print(f"      Local-first · v0.1.0-dev · {url}")
     print("      Press Ctrl+C to stop")
     print()

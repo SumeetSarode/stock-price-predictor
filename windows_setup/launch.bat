@@ -2,9 +2,9 @@
 setlocal
 
 REM ====================================================================
-REM  Price Predictor - LAUNCHER  (the everyday clickable file)
+REM  Stock Price Predictor - LAUNCHER  (the everyday clickable file)
 REM ====================================================================
-REM  Double-click this (or the "Price Predictor" desktop shortcut) to:
+REM  Double-click this (or the "Stock Price Predictor" desktop shortcut) to:
 REM    1. Pull the latest vetted code from the RELEASE branch.
 REM    2. Sync dependencies (instant when nothing changed).
 REM    3. Start the app - your browser opens automatically.
@@ -13,7 +13,7 @@ REM  Keep the black window open while you use the app.
 REM  Close it (or press Ctrl+C) to stop.
 REM ====================================================================
 
-title Price Predictor
+title Stock Price Predictor
 
 REM -- Which branch to follow. 'release' = only versions the developer
 REM    has vetted reach this laptop. Change to "main" for raw latest
@@ -27,8 +27,8 @@ REM -- Jump to the repo root (this file lives in windows_setup\).
 cd /d "%~dp0.."
 
 echo.
-echo   Price Predictor
-echo   ===============
+echo   Stock Price Predictor
+echo   =====================
 echo.
 
 REM -- 1. Update code. Graceful: if offline, just run what we already have.

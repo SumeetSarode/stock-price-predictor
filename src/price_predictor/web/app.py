@@ -55,7 +55,7 @@ async def _lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Build a configured FastAPI instance."""
     app = FastAPI(
-        title="Price Predictor",
+        title="Stock Price Predictor",
         description="Local-first AI-driven price predictions for NSE stocks.",
         version="0.1.0-dev",
         docs_url="/api/docs",   # Swagger UI lives under /api/docs so / stays clean.

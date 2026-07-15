@@ -12,7 +12,7 @@
 #    2. Installs uv if missing, provisions Python 3.13.
 #    3. Runs `uv sync` (builds the environment; installs TA-Lib etc.).
 #    4. Checks a .env exists  (YOU add it by hand with your API keys).
-#    5. Creates a "Price Predictor" desktop shortcut -> windows_setup\launch.bat
+#    5. Creates a "Stock Price Predictor" desktop shortcut -> windows_setup\launch.bat
 #
 #  After this, hand the laptop back. The user just clicks the icon.
 # ============================================================================
@@ -94,22 +94,22 @@ if (Test-Path (Join-Path $RepoRoot ".env")) {
 Step "Creating desktop shortcut..."
 $launcher = Join-Path $PSScriptRoot "launch.bat"
 $desktop  = [Environment]::GetFolderPath("Desktop")
-$lnkPath  = Join-Path $desktop "Price Predictor.lnk"
+$lnkPath  = Join-Path $desktop "Stock Price Predictor.lnk"
 
 $wsh = New-Object -ComObject WScript.Shell
 $sc  = $wsh.CreateShortcut($lnkPath)
 $sc.TargetPath       = $launcher
 $sc.WorkingDirectory = $RepoRoot
 $sc.WindowStyle      = 1
-$sc.Description       = "Launch Price Predictor (updates + opens in browser)"
+$sc.Description       = "Launch Stock Price Predictor (updates + opens in browser)"
 $sc.Save()
-Ok "Desktop shortcut created: 'Price Predictor'."
+Ok "Desktop shortcut created: 'Stock Price Predictor'."
 
 # ----------------------------------------------------------------------------
 # Done
 # ----------------------------------------------------------------------------
 Write-Host "`n== Setup complete." -ForegroundColor Green
-Write-Host "   The user can now double-click the 'Price Predictor' icon on the Desktop."
+Write-Host "   The user can now double-click the 'Stock Price Predictor' icon on the Desktop."
 Write-Host "   It pulls the latest release, syncs, and opens the app in the browser."
 Write-Host ""
 Write-Host "   Reminder: this laptop follows the 'release' branch. Promote vetted"

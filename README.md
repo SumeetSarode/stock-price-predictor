@@ -1,4 +1,4 @@
-# price-predictor
+# Stock Price Predictor
 
 > A free, locally-runnable system that analyzes NSE stocks and produces
 > daily/weekly/biweekly/monthly trading predictions with **explainable
