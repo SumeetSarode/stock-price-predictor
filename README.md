@@ -186,11 +186,6 @@ bash scripts/run_integration.sh
 - *I want to understand the design* → `docs/project description.md`
 - *I want to vet a numeric constant* → `docs/research/constants_dossier.md`
 
-> Historical planning/journal/spec docs (`implementation_plan.md`,
-> `implementation_flow.md`, `next_steps.md`, `pred_logic_review.md`,
-> `pred_logic.md`, `pred_logic_solutions.md`, `user_ui_design.md`) were
-> retired in the 2026-07 docs cleanup — git history is the record now.
-
 ---
 
 ## Tech stack

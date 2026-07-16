@@ -12,8 +12,7 @@
 
 > This is the **canonical full spec** — problem, design, output schema,
 > decisions, risks. For practical "how do I run it" content see
-> [`../README.md`](../README.md). Per-step build status now lives in git
-> history (the planning/journal docs were retired in the 2026-07 cleanup).
+> [`../README.md`](../README.md).
 
 ---
 
