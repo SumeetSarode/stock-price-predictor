@@ -113,14 +113,12 @@
       <h2 class="text-2xl font-bold mb-3">Phase 2 — Synthesize</h2>
 
       <h3 class="text-xl font-semibold mt-4 mb-2">Step 1 — direction</h3>
-      <p>WEEKLY weighting: 50% technical / 50% news.</p>
-      <div class="formula">
-        Avg technical-cluster confidence weighted by verdict:<br>
-        (0.74 × +1 + 0.66 × +1 + 0.58 × +1 + 0.55 × +1) / 4 = +0.633   (all four bullish)<br>
-        News contribution:  +1 × 0.68 = +0.68<br>
-        signed_score = 0.5 × 0.633 + 0.5 × 0.68 = <strong>+0.657</strong>
-      </div>
-      <p>Strongly positive → direction = <span class="tag tag-bull">BULLISH</span>.</p>
+      <p>All four technical clusters read bullish (confidences 0.74, 0.66, 0.58, 0.55) and the news
+      assessment is bullish too (0.68). Because technicals and news <em>agree</em>, no horizon
+      tie-break is needed — there is no fixed weighted-sum formula; the synthesizer (an LLM) weighs
+      the verdicts and calls the direction directly.</p>
+      <p>Weight of evidence is clearly positive → direction = <span class="tag tag-bull">BULLISH</span>,
+      with all four clusters plus the catalyst named as contributing signals.</p>
 
       <h3 class="text-xl font-semibold mt-4 mb-2">Step 2 — entry zone</h3>
       <p>WEEKLY entry zone is ±1.0% around close ₹2,884.</p>

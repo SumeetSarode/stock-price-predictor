@@ -49,6 +49,11 @@
       <dd class="text-sm text-gray-700">A calibration metric for probabilistic forecasts.
       Mean squared error of (confidence − outcome). Lower is better; 0.25 is the random baseline.</dd></div>
 
+      <div><dt class="font-semibold">Brier skill score</dt>
+      <dd class="text-sm text-gray-700">The Brier score re-expressed against a naive baseline:
+      1 − (model Brier / baseline Brier). Positive = the model beats the baseline; 0 = no skill;
+      negative = worse than guessing. Answers "did we add value?", not just "were we right?".</dd></div>
+
       <div><dt class="font-semibold">Catalyst</dt>
       <dd class="text-sm text-gray-700">A material news item or filing that supports the predicted
       direction. Each catalyst carries title, URL, importance, and why_it_matters.</dd></div>
@@ -90,6 +95,15 @@
       <dd class="text-sm text-gray-700">The forecast window. We support DAILY (1 bar), WEEKLY (5),
       BIWEEKLY (10), MONTHLY (21).</dd></div>
 
+      <div><dt class="font-semibold">Ichimoku Cloud</dt>
+      <dd class="text-sm text-gray-700">Hosoda 1969. Five lines (Tenkan 9, Kijun 26, Senkou A/B,
+      Chikou) forming a "cloud" (kumo). Price above cloud = bullish regime, below = bearish. Surfaced
+      as data for the LLM, not a deterministic vote.</dd></div>
+
+      <div><dt class="font-semibold">India VIX</dt>
+      <dd class="text-sm text-gray-700">NSE's implied-volatility "fear gauge" (expected 30-day vol).
+      Used as a self-calibrating regime gate (vs rolling median), never a direction signal.</dd></div>
+
       <div><dt class="font-semibold">ImpactAssessment</dt>
       <dd class="text-sm text-gray-700">The structured output of the news LLM. Fields: direction,
       magnitude, confidence, summary, catalysts, risks.</dd></div>
@@ -127,9 +141,9 @@
       <div><dt class="font-semibold">OHLCV</dt>
       <dd class="text-sm text-gray-700">Open, High, Low, Close, Volume — the five numbers per daily bar.</dd></div>
 
-      <div><dt class="font-semibold">Pivot points (PP, R1, R2, S1, S2)</dt>
+      <div><dt class="font-semibold">Pivot points (PP, R1–R3, S1–S3)</dt>
       <dd class="text-sm text-gray-700">Classic floor-trader levels computed from yesterday's bar.
-      PP = (high + low + close)/3.</dd></div>
+      PP = (high + low + close)/3; R3 = high + 2×(PP − low), S3 = low − 2×(high − PP).</dd></div>
 
       <div><dt class="font-semibold">Rationale</dt>
       <dd class="text-sm text-gray-700">The plain-English explanation field on every prediction.
@@ -177,6 +191,11 @@
       <dd class="text-sm text-gray-700">Volume-Weighted Average Price. Σ(typical price × volume) /
       Σ(volume). We compute rolling (20-bar) and anchored (from a chosen date) variants. Acts as
       dynamic support/resistance.</dd></div>
+
+      <div><dt class="font-semibold">Wayback Machine (PIT)</dt>
+      <dd class="text-sm text-gray-700">Point-in-time news fetcher used in honest backtests. Returns
+      the article as archived on/before the as-of date via the Internet Archive CDX API; never returns
+      a later snapshot and never falls back to the live page (that would leak the future).</dd></div>
 
       <div><dt class="font-semibold">%B</dt>
       <dd class="text-sm text-gray-700">Where the close sits inside the Bollinger Band on a 0–1 scale.

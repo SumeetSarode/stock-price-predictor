@@ -48,58 +48,67 @@
 
     <!-- ── Weighting table ── -->
     <section class="mb-10">
-      <h2 class="text-2xl font-bold mb-3">How much weight technicals vs. news get, per horizon</h2>
+      <h2 class="text-2xl font-bold mb-3">How technicals vs. news are weighed, per horizon</h2>
 
+      <p>The synthesizer is an <strong>LLM agent</strong>, not a formula. It does <em>not</em> apply
+      fixed numeric weights to technicals and news. It reads both evidence streams and reasons over
+      them; the horizon only decides the <strong>tie-break</strong> when the two point in opposite
+      directions.</p>
+
+      <h3 class="text-lg font-semibold mt-5 mb-2">Disagreement tie-break</h3>
       <table class="t">
-        <thead><tr><th>Horizon</th><th>Technical weight</th><th>News weight</th></tr></thead>
+        <thead><tr><th>Horizon</th><th>When technicals and news disagree…</th></tr></thead>
         <tbody>
-          <tr><td>DAILY (1 bar)</td><td>35%</td><td><strong>65%</strong></td></tr>
-          <tr><td>WEEKLY (5 bars)</td><td>50%</td><td>50%</td></tr>
-          <tr><td>BIWEEKLY (10 bars)</td><td><strong>60%</strong></td><td>40%</td></tr>
-          <tr><td>MONTHLY (21 bars)</td><td><strong>70%</strong></td><td>30%</td></tr>
+          <tr><td>DAILY / WEEKLY</td><td><strong>Lean technical</strong> — price action wins near-term.</td></tr>
+          <tr><td>BIWEEKLY / MONTHLY</td><td><strong>Lean news</strong> — catalysts dominate over multi-week windows.</td></tr>
+          <tr><td>Sharp disagreement<br>(e.g. trend bullish, news strongly bearish)</td>
+              <td>Prefer <span class="tag tag-neut">NEUTRAL</span> rather than picking a side.</td></tr>
         </tbody>
       </table>
 
       <div class="meaning">
-        <strong>Why this slope?</strong> Short-horizon (intraday/daily) moves are overwhelmingly
-        news-driven — a single earnings miss can move a stock 8% in a day, no chart pattern needed.
-        Longer-horizon moves are dominated by trend regimes that show up in technicals. The exact
-        weights are 🔬 <em>NEEDS BACKTEST</em>; they are explicit in the prompt so the LLM cannot
-        silently pick its own.
+        <strong>Why this slope?</strong> Over a single day or week, the chart's own momentum and
+        levels usually carry price. A multi-week window gives a catalyst — earnings, guidance, a
+        policy change — time to actually reprice the stock. So near-term ties break to technicals,
+        longer-term ties break to news.
       </div>
 
-      <h3 class="text-lg font-semibold mt-5 mb-2">Disagreement protocol</h3>
+      <h3 class="text-lg font-semibold mt-5 mb-2">Confidence is hard-capped per horizon</h3>
+      <p>Longer horizons are inherently more uncertain (more events can intervene between the call
+      and the target date), so the confidence the synthesizer may output is capped:</p>
       <table class="t">
-        <thead><tr><th>Horizon</th><th>If technicals and news disagree…</th></tr></thead>
+        <thead><tr><th>Horizon</th><th>Confidence cap</th></tr></thead>
         <tbody>
-          <tr><td>DAILY / WEEKLY</td><td>News wins, but confidence is capped at 0.55.</td></tr>
-          <tr><td>BIWEEKLY / MONTHLY</td><td>Technicals win, but confidence is capped at 0.60.</td></tr>
-          <tr><td>Sharp disagreement<br>(trend bullish, news strongly bearish)</td>
-              <td>Prefer NEUTRAL with confidence ≤ 0.50 rather than picking a side.</td></tr>
+          <tr><td>DAILY</td><td>0.90</td></tr>
+          <tr><td>WEEKLY</td><td>0.85</td></tr>
+          <tr><td>BIWEEKLY</td><td>0.80</td></tr>
+          <tr><td>MONTHLY</td><td>0.75</td></tr>
         </tbody>
       </table>
+      <p class="text-sm text-gray-600 mt-2">These caps will be recalibrated from realized hit-rate
+      once enough graded predictions accumulate (Phase 2).</p>
     </section>
 
     <!-- ── Direction call ── -->
     <section class="mb-10">
       <h2 class="text-2xl font-bold mb-3">Picking the direction</h2>
 
-      <p>The synthesizer computes a weighted vote of the four cluster verdicts plus the news
-      direction. Each "vote" is the verdict (+1 bullish, −1 bearish, 0 neutral) multiplied by the
-      classifier's confidence. The news contribution is similarly the news direction × news
-      confidence.</p>
+      <p>The synthesizer weighs the <strong>four cluster verdicts</strong> (trend, momentum,
+      volatility, levels — each already carrying its own confidence) together with the
+      <strong>news direction and confidence</strong>, and calls one of
+      <span class="tag tag-bull">BULLISH</span>, <span class="tag tag-bear">BEARISH</span>, or
+      <span class="tag tag-neut">NEUTRAL</span>.</p>
 
-      <div class="formula">
-        signed_score = w_tech × Σ(verdict_i × confidence_i, i in clusters) / 4<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + w_news × (news_direction × news_confidence)<br><br>
-        Where w_tech + w_news = 1, picked from the table above.
-      </div>
-
-      <p>If <code>signed_score &gt; +threshold</code> → <span class="tag tag-bull">BULLISH</span>.
-      If <code>signed_score &lt; −threshold</code> → <span class="tag tag-bear">BEARISH</span>.
-      Otherwise <span class="tag tag-neut">NEUTRAL</span>. The synthesizer is given guidance on
-      thresholds but the LLM has some discretion — and is required to <em>state which clusters
-      contributed</em> in the rationale.</p>
+      <p>There is <strong>no fixed weighted-sum formula</strong> — the LLM reasons over the evidence
+      under strict rules baked into its prompt:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>It must <strong>state which clusters contributed</strong> to the call in its rationale.</li>
+        <li>It must surface any cluster that <em>disagrees</em> with the chosen direction as a
+            conflicting signal (no quietly ignoring dissent).</li>
+        <li>It may not go BULLISH when 3 of 4 clusters are bearish and news is neutral — it must
+            trust the weight of evidence.</li>
+        <li>On genuine conflict, <strong>NEUTRAL is the honest answer</strong>, not a coin-flip.</li>
+      </ul>
     </section>
 
     <!-- ── Entry zone ── -->
@@ -192,23 +201,25 @@
     <section class="mb-10">
       <h2 class="text-2xl font-bold mb-3">Computing the final confidence number</h2>
 
-      <ol class="list-decimal pl-6 space-y-2">
-        <li><strong>Base.</strong> Weighted average of the four cluster classifier confidences and
-            the news assessment confidence, using the per-horizon weights above.</li>
-        <li><strong>Disagreement cap.</strong> If technicals and news disagree, apply the
-            0.55/0.60/0.50 caps.</li>
-        <li><strong>Horizon ceiling.</strong> Final cap at the horizon's ceiling: 0.90 daily,
-            0.85 weekly, 0.80 biweekly, 0.75 monthly.</li>
-        <li><strong>Fallback penalty.</strong> If the target was set via the pure-ATR fallback
-            (no level anchor), multiply by 0.85. Less anchored = less confident.</li>
-        <li>Round to two decimal places.</li>
-      </ol>
+      <p>The synthesizer picks the confidence number itself — but honestly, and inside hard limits.
+      It anchors the value to a plain-English band, then the per-horizon ceiling clamps it:</p>
 
-      <div class="example">
-        WEEKLY call. Cluster confidences 0.65, 0.70, 0.55, 0.60. News confidence 0.78, direction
-        agrees. Base = 0.5 × ((0.65+0.70+0.55+0.60)/4) + 0.5 × 0.78 = 0.5 × 0.625 + 0.5 × 0.78 = 0.70.
-        No disagreement cap. WEEKLY ceiling 0.85 (no clamp needed). Level-anchored target (no
-        fallback). Final confidence = <strong>0.70</strong>.
+      <table class="t">
+        <thead><tr><th>Band</th><th>When</th><th>Range</th></tr></thead>
+        <tbody>
+          <tr><td>STRONG</td><td>Technicals AND news strongly agree; clear catalyst.</td><td>near the cap</td></tr>
+          <tr><td>CLEAR</td><td>Technicals lean clearly; news consistent / neutral-low-risk.</td><td>upper-middle</td></tr>
+          <tr><td>LEAN</td><td>Mixed; one strong signal partly offset by a counter-signal.</td><td>~0.55–0.65</td></tr>
+          <tr><td>CONFLICT</td><td>Conflicting signals dominate → prefer NEUTRAL.</td><td>0.30–0.50</td></tr>
+          <tr><td>GUESS</td><td>Genuinely guessing → output NEUTRAL and say so.</td><td>0.15–0.30</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        Whatever band applies, the number is then <strong>hard-capped by the horizon ceiling</strong>
+        (0.90 daily · 0.85 weekly · 0.80 biweekly · 0.75 monthly). A "STRONG" monthly call therefore
+        tops out at 0.75, not 0.85. The model is graded on <em>calibration</em> — confidence matching
+        realized outcome — not on sounding confident.
       </div>
     </section>
 

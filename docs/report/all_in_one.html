@@ -152,29 +152,29 @@
           <g font-size="11" font-weight="600">
             <rect x="20"  y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
             <text x="105" y="92"  text-anchor="middle" fill="#0053e2">DAILY • 1 bar</text>
-            <text x="105" y="112" text-anchor="middle" fill="#475569" font-weight="400">News weight 65%</text>
-            <text x="105" y="128" text-anchor="middle" fill="#475569" font-weight="400">Tech weight 35%</text>
+            <text x="105" y="112" text-anchor="middle" fill="#475569" font-weight="400">Tie-break: technical</text>
+            <text x="105" y="128" text-anchor="middle" fill="#475569" font-weight="400">(price action)</text>
             <text x="105" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.5–1.0×ATR</text>
             <text x="105" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 0.75–1.5×ATR</text>
             <text x="105" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.90</text>
 
             <rect x="200" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
             <text x="285" y="92"  text-anchor="middle" fill="#0053e2">WEEKLY • 5 bars</text>
-            <text x="285" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 50% / Tech 50%</text>
+            <text x="285" y="112" text-anchor="middle" fill="#475569" font-weight="400">Tie-break: technical</text>
             <text x="285" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 0.7–1.5×ATR</text>
             <text x="285" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.0–2.0×ATR</text>
             <text x="285" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.85</text>
 
             <rect x="380" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
             <text x="465" y="92"  text-anchor="middle" fill="#0053e2">BIWEEKLY • 10 bars</text>
-            <text x="465" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 40% / Tech 60%</text>
+            <text x="465" y="112" text-anchor="middle" fill="#475569" font-weight="400">Tie-break: news</text>
             <text x="465" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.0–2.0×ATR</text>
             <text x="465" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 1.5–3.0×ATR</text>
             <text x="465" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.80</text>
 
             <rect x="560" y="70" width="170" height="240" rx="6" fill="#ffffff" stroke="#0053e2"/>
             <text x="645" y="92"  text-anchor="middle" fill="#0053e2">MONTHLY • 21 bars</text>
-            <text x="645" y="112" text-anchor="middle" fill="#475569" font-weight="400">News 30% / Tech 70%</text>
+            <text x="645" y="112" text-anchor="middle" fill="#475569" font-weight="400">Tie-break: news</text>
             <text x="645" y="148" text-anchor="middle" fill="#475569" font-weight="400">Stop: 1.5–2.5×ATR</text>
             <text x="645" y="164" text-anchor="middle" fill="#475569" font-weight="400">Target: 2.0–4.0×ATR</text>
             <text x="645" y="184" text-anchor="middle" fill="#475569" font-weight="400">Conf. cap 0.75</text>
@@ -1078,34 +1078,23 @@
         <li>The other horizons' outputs (they may disagree — that's information).</li>
       </ul>
 
-      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Technical vs news weighting per horizon</h3>
-      <table class="t">
-        <thead><tr><th>Horizon</th><th>Technical weight</th><th>News weight</th></tr></thead>
-        <tbody>
-          <tr><td>DAILY</td><td>35%</td><td><strong>65%</strong></td></tr>
-          <tr><td>WEEKLY</td><td>50%</td><td>50%</td></tr>
-          <tr><td>BIWEEKLY</td><td><strong>60%</strong></td><td>40%</td></tr>
-          <tr><td>MONTHLY</td><td><strong>70%</strong></td><td>30%</td></tr>
-        </tbody>
-      </table>
-      <div class="meaning">Short-horizon moves are overwhelmingly news-driven; longer-horizon moves
-      are dominated by trend regimes that show up in technicals.</div>
-
-      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Disagreement protocol</h3>
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Technicals vs news: qualitative, not weighted</h3>
+      <p>The synthesizer is an LLM agent, not a formula. It applies <strong>no fixed numeric
+      weights</strong>; the horizon only decides the tie-break when technicals and news disagree.</p>
       <table class="t">
         <thead><tr><th>Horizon</th><th>When tech and news disagree</th></tr></thead>
         <tbody>
-          <tr><td>DAILY / WEEKLY</td><td>News wins, confidence capped at 0.55.</td></tr>
-          <tr><td>BIWEEKLY / MONTHLY</td><td>Technicals win, capped at 0.60.</td></tr>
-          <tr><td>Sharp disagreement</td><td>Prefer NEUTRAL with confidence ≤ 0.50.</td></tr>
+          <tr><td>DAILY / WEEKLY</td><td><strong>Lean technical</strong> — price action wins near-term.</td></tr>
+          <tr><td>BIWEEKLY / MONTHLY</td><td><strong>Lean news</strong> — catalysts dominate over multi-week windows.</td></tr>
+          <tr><td>Sharp disagreement</td><td>Prefer NEUTRAL rather than picking a side.</td></tr>
         </tbody>
       </table>
 
-      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Direction call (the math)</h3>
-      <div class="formula">
-        signed_score = w_tech × Σ(verdict_i × confidence_i, i in 4 clusters) / 4<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + w_news × (news_direction × news_confidence)
-      </div>
+      <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Direction call (no fixed formula)</h3>
+      <p>The LLM weighs the four cluster verdicts (each with its own confidence) plus the news
+      direction and calls BULLISH / BEARISH / NEUTRAL. It must name the contributing clusters,
+      surface any dissenting cluster as a conflicting signal, may not go bullish when 3 of 4
+      clusters are bearish and news is neutral, and treats NEUTRAL as a valid honest answer.</p>
 
       <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Entry zone placement</h3>
       <table class="t">
@@ -1141,15 +1130,15 @@
       </div>
 
       <h3 class="text-xl font-semibold sub-h mt-5 mb-2">Final confidence math</h3>
+      <p>The LLM picks the confidence itself, anchored to an honesty band — STRONG (near the cap),
+      CLEAR (upper-middle), LEAN (~0.55–0.65), CONFLICT (0.30–0.50 → prefer NEUTRAL), GUESS
+      (0.15–0.30 → NEUTRAL) — then the per-horizon ceiling hard-caps it:</p>
       <ol class="list-decimal pl-6 space-y-2">
-        <li>Base = weighted avg of (4 cluster confidences, news confidence) using horizon weights.</li>
-        <li>Apply disagreement caps if tech and news disagree.</li>
-        <li>Apply horizon ceiling: 0.90 / 0.85 / 0.80 / 0.75.</li>
-        <li>If ATR-fallback target used, multiply by 0.85.</li>
-        <li>Round to 2 decimals.</li>
+        <li>Anchor to the band that matches the evidence (agreement strength, catalyst clarity).</li>
+        <li>Hard-cap at the horizon ceiling: 0.90 daily / 0.85 weekly / 0.80 biweekly / 0.75 monthly.</li>
       </ol>
-      <div class="example">WEEKLY. Cluster confidences 0.65, 0.70, 0.55, 0.60. News 0.78 (agrees).
-      Base = 0.5 × 0.625 + 0.5 × 0.78 = 0.70. No caps triggered. Final = <strong>0.70</strong>.</div>
+      <div class="example">A "STRONG" monthly call still tops out at 0.75, not 0.85. Grading is on
+      calibration — confidence matching the realized outcome — not on sounding confident.</div>
 
       <h3 class="text-xl font-semibold sub-h mt-5 mb-2">When the synthesizer emits NEUTRAL</h3>
       <p>NEUTRAL is the honest escape hatch. Required when any of:</p>
@@ -1418,12 +1407,10 @@
       </div>
 
       <h3 class="text-xl font-semibold sub-h mt-6 mb-2">Phase 2 — Synthesize</h3>
-      <p><strong>Direction.</strong> WEEKLY = 50/50.</p>
-      <div class="formula">
-        Tech avg = (0.74 + 0.66 + 0.58 + 0.55) / 4 = +0.633 (all four bullish)<br>
-        News contribution = +1 × 0.68 = +0.68<br>
-        signed_score = 0.5 × 0.633 + 0.5 × 0.68 = <strong>+0.657</strong> → BULLISH
-      </div>
+      <p><strong>Direction.</strong> All four clusters are bullish (confidences 0.74, 0.66, 0.58,
+      0.55) and the news read is bullish too (0.68). Technicals and news <em>agree</em>, so no
+      horizon tie-break is needed — the synthesizer calls <strong>BULLISH</strong> and names all
+      four clusters plus the catalyst as contributing signals.</p>
       <p><strong>Entry zone.</strong> ±1.0% around ₹2,884.</p>
       <div class="formula">entry_zone = [₹2,855.16, ₹2,912.84]<br>worst-fill anchor (bullish) = ₹2,912.84</div>
       <p><strong>Target.</strong> Swing-high ₹2,948 sits ₹35 above zone_high — inside 4×ATR window.</p>
@@ -1498,6 +1485,7 @@
         <div><dt class="font-semibold">Bars</dt><dd class="text-gray-700">Daily OHLCV candles. The smallest time unit we use.</dd></div>
         <div><dt class="font-semibold">Bollinger Bands</dt><dd class="text-gray-700">Middle = SMA-20. Upper/lower = middle ± 2 × stdev. John Bollinger, early 1980s.</dd></div>
         <div><dt class="font-semibold">Brier score</dt><dd class="text-gray-700">Calibration metric. Mean squared error of (confidence − outcome). Lower better; 0.25 baseline.</dd></div>
+        <div><dt class="font-semibold">Brier skill score</dt><dd class="text-gray-700">1 − (model Brier / baseline Brier). Positive = beats the naive baseline; 0 = no skill; negative = worse than guessing.</dd></div>
         <div><dt class="font-semibold">Catalyst</dt><dd class="text-gray-700">Material news/filing supporting the predicted direction. Carries title, URL, importance, why_it_matters.</dd></div>
         <div><dt class="font-semibold">Death Cross</dt><dd class="text-gray-700">SMA-50 crossing below SMA-200. Bearish regime marker.</dd></div>
         <div><dt class="font-semibold">+DI / −DI</dt><dd class="text-gray-700">Positive/Negative Directional Indicators. +DI &gt; −DI = buyers in control.</dd></div>
@@ -1508,6 +1496,8 @@
         <div><dt class="font-semibold">Hammer</dt><dd class="text-gray-700">Single-bar bullish reversal: small body at top, long lower shadow, tiny upper.</dd></div>
         <div><dt class="font-semibold">Head and Shoulders</dt><dd class="text-gray-700">Three-peak chart pattern, middle taller. Bearish reversal. LMW Def. 1.</dd></div>
         <div><dt class="font-semibold">Horizon</dt><dd class="text-gray-700">Forecast window: DAILY (1 bar), WEEKLY (5), BIWEEKLY (10), MONTHLY (21).</dd></div>
+        <div><dt class="font-semibold">Ichimoku Cloud</dt><dd class="text-gray-700">Hosoda 1969. Five lines (Tenkan 9, Kijun 26, Senkou A/B, Chikou) forming a cloud (kumo). Above cloud = bullish regime. Surfaced as LLM data, not a vote.</dd></div>
+        <div><dt class="font-semibold">India VIX</dt><dd class="text-gray-700">NSE implied-vol "fear gauge" (expected 30-day vol). Self-calibrating regime gate vs rolling median; never a direction signal.</dd></div>
         <div><dt class="font-semibold">ImpactAssessment</dt><dd class="text-gray-700">Structured news-LLM output: direction, magnitude, confidence, summary, catalysts, risks.</dd></div>
         <div><dt class="font-semibold">Keltner Channel</dt><dd class="text-gray-700">EMA-based volatility envelope on ATR. Outer fence in TTM Squeeze.</dd></div>
         <div><dt class="font-semibold">LMW (Lo, Mamaysky, Wang 2000)</dt><dd class="text-gray-700">Academic paper giving geometric tolerances for our 5 chart patterns.</dd></div>
@@ -1517,7 +1507,7 @@
         <div><dt class="font-semibold">NEUTRAL</dt><dd class="text-gray-700">"No setup" verdict. Required on disagreement / RR floor unmet / mid-range price.</dd></div>
         <div><dt class="font-semibold">OBV</dt><dd class="text-gray-700">On-Balance Volume. Granville 1963. Running signed-volume cumulative sum. We use 20-bar slope.</dd></div>
         <div><dt class="font-semibold">OHLCV</dt><dd class="text-gray-700">Open, High, Low, Close, Volume — the five numbers per daily bar.</dd></div>
-        <div><dt class="font-semibold">Pivot points</dt><dd class="text-gray-700">PP, R1/R2, S1/S2 — classic floor-trader levels from yesterday's bar.</dd></div>
+        <div><dt class="font-semibold">Pivot points</dt><dd class="text-gray-700">PP, R1–R3, S1–S3 — classic floor-trader levels from yesterday's bar. R3 = high + 2×(PP − low).</dd></div>
         <div><dt class="font-semibold">Rationale</dt><dd class="text-gray-700">Plain-English explanation on every prediction. ≥ 80% of tokens must trace to vocabulary.</dd></div>
         <div><dt class="font-semibold">risk_reward (worst-fill)</dt><dd class="text-gray-700">RR assuming worst possible fill inside entry zone. Sizing metric. Floor: 1.5.</dd></div>
         <div><dt class="font-semibold">RSI</dt><dd class="text-gray-700">Relative Strength Index. Wilder 1978. Avg gain / avg loss over 14 bars, 0–100. 70/30 overbought/oversold; 60/40 trend-RSI (Cardwell/Brown).</dd></div>
@@ -1530,6 +1520,7 @@
         <div><dt class="font-semibold">TechnicalView</dt><dd class="text-gray-700">Bundle of 4 cluster verdicts + raw indicator values + candlestick + chart patterns. Horizon-agnostic.</dd></div>
         <div><dt class="font-semibold">TTM Squeeze</dt><dd class="text-gray-700">See Squeeze (TTM).</dd></div>
         <div><dt class="font-semibold">VWAP</dt><dd class="text-gray-700">Volume-Weighted Average Price. Σ(TP × vol) / Σ(vol). Rolling + anchored variants. Dynamic S/R.</dd></div>
+        <div><dt class="font-semibold">Wayback Machine (PIT)</dt><dd class="text-gray-700">Point-in-time news fetcher for honest backtests. Returns the article as archived on/before the as-of date; never a later snapshot, never the live page.</dd></div>
         <div><dt class="font-semibold">%B</dt><dd class="text-gray-700">Where close sits inside Bollinger Band on 0–1 scale. 0 = lower, 1 = upper.</dd></div>
         <div><dt class="font-semibold">52-week high / low</dt><dd class="text-gray-700">Highest/lowest over 252 trading days. Psychological levels every retail trader watches.</dd></div>
       </dl>
