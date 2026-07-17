@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from price_predictor._version import __version__
 from price_predictor.web.services.search_service import get_by_ticker
 from price_predictor.web.settings import settings
 
@@ -16,10 +17,9 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
-# Single source of truth for the version string we render in the footer.
-# Pulled from pyproject.toml at runtime would be nicer, but importlib.metadata
-# in a uv-build pre-installed env is fine — keep it stub for v1.
-APP_VERSION = "0.1.0-dev"
+# Single source of truth for the version string we render in the footer:
+# read from the installed package metadata (declared once in pyproject.toml).
+APP_VERSION = __version__
 
 
 @router.get("/", response_class=HTMLResponse)

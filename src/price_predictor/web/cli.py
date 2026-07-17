@@ -18,6 +18,7 @@ import webbrowser
 import uvicorn
 from loguru import logger
 
+from price_predictor._version import __version__
 from price_predictor.web.settings import settings
 
 
@@ -51,7 +52,7 @@ def main() -> None:
 
     print()
     print("  📈  Stock Price Predictor")
-    print(f"      Local-first · v0.1.0-dev · {url}")
+    print(f"      Local-first · v{__version__} · {url}")
     print("      Press Ctrl+C to stop")
     print()
 

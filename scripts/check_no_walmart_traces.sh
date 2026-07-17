@@ -2,13 +2,13 @@
 # check_no_walmart_traces.sh
 #
 # Pre-ship gate: scrub for any Walmart-internal references that would
-# leak into a public OSS release. This MUST exit 0 before tagging v0.1.0.
+# leak into a public OSS release. This MUST exit 0 before tagging v1.0.0.
 #
 # Pattern catches:
 #   - 'walmart' / 'wal-mart' (any case)
 #   - 'wmlink' / 'gecgithub' / 'sysproxy'
 #   - 'artifacts.walmart' (artifactory URLs)
-#   - 'code-puppy' / 'code_puppy' (this assistant's name)
+#   - 'code-puppy' / 'code_puppy' (AI coding-tool names -- must not leak into this project)
 #
 # Exclusions:
 #   - .git/, .venv/, node_modules/ (vendored or VCS internals)

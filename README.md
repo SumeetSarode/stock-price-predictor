@@ -5,16 +5,14 @@
 > reasoning** — combining technical analysis, news impact, and
 > self-tracking calibration. Ships with a CLI **and** a local web app.
 
-> **Status**: **Core engine v1 DONE** · full predict → grade →
-> backtest loop shipped end-to-end · multi-horizon predictions hardened
-> with research-grounded per-horizon rules · survivorship-bias-aware
-> backtest via `--index NIFTY50` · point-in-time honest historical
-> replay (news + filings + articles filtered by as-of date).
-> **Web app v1.1 in progress** — FastAPI + HTMX app shipped with
-> panels, history, sparklines, grading and a nightly scheduler; remaining
-> before honest web-v1: one real end-to-end data-loop run + deploy.
+> **Status**: **v1 - shipped.** Full predict -> grade -> backtest loop
+> end-to-end - multi-horizon predictions hardened with research-grounded
+> per-horizon rules - survivorship-bias-aware backtest via `--index NIFTY50`
+> - point-in-time honest historical replay (news + filings + articles
+> filtered by as-of date) - FastAPI + HTMX web app with panels, history,
+> sparklines, live grading and a nightly scheduler.
 >
-> **Owner**: Sumeet · **Last updated**: 2026-07-10
+> **Owner**: Sumeet Sarode  ·  **Version**: 1.0.0  ·  **Last updated**: 2026-07-10
 
 ---
 
@@ -32,7 +30,7 @@
 | Multi-horizon rules (per-horizon ATR bands, entry zones, confidence caps) |  shipped | Single source of truth in `prediction/horizon_constants.py` |
 | Grading + Calibration |  shipped | 6-outcome enum; 3 hit-rate variants; Brier score + **Brier skill score**; sqrt-t scaled NEUTRAL band |
 | Backtest (replay / runner / evaluator + HTML report) |  shipped (v1) | Cartesian via `--tickers` OR sparse via `--index NIFTY50` (survivorship-bias-aware); end-to-end integration test gates wall-clock <5min |
-| **Web app (FastAPI + HTMX)** |  **v1.1 in progress** | `uv run price-predictor-web` — dashboard, predict form, watchlist panels, history, sparklines, live grade pills |
+| **Web app (FastAPI + HTMX)** |  shipped (v1) | `uv run price-predictor-web` — dashboard, predict form, watchlist panels, history, sparklines, live grade pills |
 | **Nightly grading scheduler** |  shipped | `web/services/scheduler.py` — warms price cache + auto-resolves PENDING predictions; opt-in via `enable_scheduler` |
 
 **Test count**: **1744 unit tests passing** (+ 8 integration tests

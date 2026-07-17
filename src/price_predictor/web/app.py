@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+from price_predictor._version import __version__
 from price_predictor.web.routes import api, pages
 from price_predictor.web.services.scheduler import grading_loop
 from price_predictor.web.settings import settings
@@ -57,7 +58,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Stock Price Predictor",
         description="Local-first AI-driven price predictions for NSE stocks.",
-        version="0.1.0-dev",
+        version=__version__,
         docs_url="/api/docs",   # Swagger UI lives under /api/docs so / stays clean.
         redoc_url=None,         # ReDoc is fine but redundant.
         lifespan=_lifespan,

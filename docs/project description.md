@@ -1,13 +1,13 @@
-# Predictor — Project Description
+# Stock Price Predictor — Project Description
 
-> **Status:**  **Core engine v1 DONE** · **web app v1.1 in progress**
-> — full predict → grade → backtest loop shipped end-to-end (1744 unit
-> tests passing). Survivorship-bias-aware historical backtest via
-> `--index NIFTY50` and point-in-time honest data replay via `as_of`
-> contextvar both shipped. FastAPI + HTMX web app shipped with panels,
-> history, sparklines, grading and a nightly scheduler.
-> **Owner:** Sumeet
-> **Codename:** *Predictor* (placeholder — final name TBD)
+> **Status:**  **v1 - shipped.** Full predict -> grade -> backtest loop
+> end-to-end (1744 unit tests passing). Survivorship-bias-aware historical
+> backtest via `--index NIFTY50` and point-in-time honest data replay via
+> `as_of` contextvar. FastAPI + HTMX web app with panels, history,
+> sparklines, grading and a nightly scheduler.
+> **Owner:** Sumeet Sarode
+> **Name:** Stock Price Predictor
+> **Version:** 1.0.0
 > **Last updated:** 2026-07-10
 
 > This is the **canonical full spec** — problem, design, output schema,
@@ -33,11 +33,11 @@
 | Point-in-time honest replay (news + filings + articles filtered by `as_of`) |  shipped |
 | **Backtest replay / runner / evaluator + HTML report** |  **shipped (v1 acceptance)** |
 | **Survivorship-bias defense** (`--index NIFTY50`) |  **shipped (v1 acceptance)** |
-| **Web app (FastAPI + HTMX)** — dashboard, panels, history, sparklines, grade pills |  **v1.1 in progress** |
+| **Web app (FastAPI + HTMX)** — dashboard, panels, history, sparklines, grade pills |  shipped (v1) |
 | **Nightly grading scheduler** (opt-in via `enable_scheduler`) |  shipped |
 
-> **Remaining before honest web-v1:** run the real predict → grade →
-> sparkline data loop once end-to-end (needs LLM quota), then deploy.
+> **Post-v1 ideas:** deploy beyond localhost; accumulate graded
+> predictions to recalibrate the per-horizon confidence caps.
 
 > **Note on §10 schema below**: the canonical spec shows
 > `predictions: { daily, weekly }` as one bundle. The shipped
@@ -250,7 +250,7 @@ price_predictor/
 │   ├── evaluator.py               #    composes calibration across runs
 │   └── html_report.py             #    self-contained HTML + rule-based insights
 │
-├── src/price_predictor/web/       # ── SHIPPED (FastAPI + HTMX, v1.1) ──
+├── src/price_predictor/web/       # ── SHIPPED (FastAPI + HTMX, v1) ──
 │   ├── app.py                     #    app factory + lifespan (scheduler wiring)
 │   ├── cli.py                     #    `price-predictor-web` entry (uvicorn + browser)
 │   ├── settings.py                #    web-specific settings (db_path, scheduler flags)

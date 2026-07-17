@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """Override default source priority: prefer .env over OS env.
 
-        WHY: Tooling in the developer's shell (Code Puppy, gcloud, etc.)
+        WHY: Tooling in the developer's shell (gcloud, other CLIs, etc.)
         sometimes sets vars like GEMINI_API_KEY to its own internal JWT.
         That pollutes os.environ and would shadow our project's .env values.
         For *this* project, .env is the canonical source -- shell pollution

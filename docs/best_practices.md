@@ -522,7 +522,7 @@ both directly (`from litellm import completion`) and via ADK's `LiteLlm` adapter
 ### Conventions for THIS project
 - 🎯 All deps managed via `uv add` (no manual edits)
 - 🎯 Dev deps separated (`pytest`, `ruff`, `pytest-cov`, `pytest-asyncio`)
-- 🎯 Project venv at `./.venv/` (not `~/.code-puppy-venv` — that's CodePuppy's own)
+- Project venv at `./.venv/` (project-local convention)
 
 ### References
 - Docs: https://docs.astral.sh/uv/
