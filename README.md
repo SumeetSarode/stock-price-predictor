@@ -176,7 +176,7 @@ bash scripts/run_integration.sh
 | **`README.md`** (this file) | Quick start, current state, architecture overview |
 | **`docs/project description.md`** | Canonical full spec — problem, goals, output schema, decisions, risks |
 | **`docs/best_practices.md`** | Living gotchas + patterns discovered while building |
-| **`docs/research/constants_dossier.md`** | Every numeric constant traced to a cited source |
+| **`docs/constants_dossier.md`** | Every numeric constant traced to a cited source |
 | **`docs/how_it_works.html`** | Visual plain-English walkthrough of the whole system (open in a browser) |
 | **`docs/report/`** | Chapter pages behind the walkthrough + a single-file `all_in_one.html` edition |
 
@@ -184,7 +184,7 @@ bash scripts/run_integration.sh
 - *I want to use it* → README quick start (above)
 - *I want the big picture, visually* → open `docs/how_it_works.html`
 - *I want to understand the design* → `docs/project description.md`
-- *I want to vet a numeric constant* → `docs/research/constants_dossier.md`
+- *I want to vet a numeric constant* → `docs/constants_dossier.md`
 
 ---
 

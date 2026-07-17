@@ -29,7 +29,7 @@ function bodies change but the call sites don't.
 
 Status of the numbers
 =====================
-All values are 🔬 NEEDS BACKTEST per `docs/research/constants_dossier.md`
+All values are 🔬 NEEDS BACKTEST per `docs/constants_dossier.md`
 §12. They are *literature-bracketed* — the citations below show that
 each value falls inside the published-author range — but the EXACT
 per-horizon picks are pending empirical calibration on NIFTY 50

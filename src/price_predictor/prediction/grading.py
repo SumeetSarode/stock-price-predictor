@@ -119,7 +119,7 @@ _HORIZON_TRADING_DAYS: dict[PredictionHorizon, int] = {
 #
 # These are v1 heuristics; final values should be derived empirically from
 # actual NIFTY 50 daily-return distributions per horizon. See
-# docs/research/constants_dossier.md §10.1 (NEEDS BACKTEST in Phase 2).
+# docs/constants_dossier.md §10.1 (NEEDS BACKTEST in Phase 2).
 NEUTRAL_TOLERANCE_BY_HORIZON: dict[PredictionHorizon, float] = {
     PredictionHorizon.DAILY:    0.02,
     PredictionHorizon.WEEKLY:   0.04,

@@ -46,7 +46,7 @@ The 22-trading-day double-top separation is LMW's own operational
 discretization ("...the two tops occur at least a month, or 22 trading
 days, apart") of Edwards & Magee's qualitative "~one month / several
 weeks" guidance — NOT a number that appears directly in E&M. See
-docs/research/constants_dossier.md.
+docs/constants_dossier.md.
 """
 from __future__ import annotations
 

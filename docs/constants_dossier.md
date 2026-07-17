@@ -3,7 +3,7 @@
 > **Purpose**: Every numerical constant in the production code should trace back
 > to a source documented here. If you can't find a constant in this file, it's a
 > bug — open an issue, do the research, add the entry, then update the code with
-> a reference like `# see docs/research/constants_dossier.md §X.Y`.
+> a reference like `# see docs/constants_dossier.md §X.Y`.
 >
 > **Methodology**: Web-research pass on 2026-04-28. Sources are cited inline
 > with retrieval URLs. Where literature is silent or this is a novel use case
@@ -686,7 +686,7 @@ current multi-horizon refactor lands. Approach:
 2. Adding a new constant? **Add a section here first**, with research and
    citations. Then add the code with a comment like:
    ```python
-   RSI_OVERBOUGHT = 70  # Wilder (1978); see docs/research/constants_dossier.md §2.1
+   RSI_OVERBOUGHT = 70  # Wilder (1978); see docs/constants_dossier.md §2.1
    ```
 3. Changing a literature-canonical value? **You shouldn't.** If you must, add
    a section here explaining the deviation.
