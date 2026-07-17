@@ -30,9 +30,9 @@ function injectNav(currentHref) {
   }).join("");
   host.innerHTML = `
     <div class="mb-4 pb-3 border-b border-gray-200">
-      <a href="index.html" class="block">
+      <a href="../how_it_works.html" class="block">
         <div class="text-xs uppercase tracking-wider text-gray-500">Walkthrough</div>
-        <div class="text-base font-bold text-[#0053e2]">How we predict</div>
+        <div class="text-base font-bold text-[#0053e2]">Stock Price Predictor</div>
       </a>
     </div>
     <nav aria-label="Primary">${items}</nav>

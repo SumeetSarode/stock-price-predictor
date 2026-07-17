@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>How We Predict — Walkthrough</title>
+<title>Stock Price Predictor — Walkthrough</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="report/assets/styles.css">
 <style>
   /* Hero gradient + spark dot pattern overlay */
   .hero {
@@ -50,13 +50,14 @@
   <div class="max-w-6xl mx-auto flex items-center justify-between px-6 lg:px-10 py-5">
     <div class="flex items-center gap-2 text-white">
       <svg class="icon" viewBox="0 0 24 24"><path d="M3 12h3l3-9 4 18 3-9h5"/></svg>
-      <span class="font-bold tracking-tight">How we predict</span>
+      <span class="font-bold tracking-tight">Stock Price Predictor</span>
     </div>
     <div class="hidden md:flex items-center gap-6 text-sm">
       <a href="#sections" class="text-white/80 hover:text-white">Sections</a>
       <a href="#how" class="text-white/80 hover:text-white">How it works</a>
       <a href="#sample" class="text-white/80 hover:text-white">Sample output</a>
-      <a href="all_in_one.html" class="bg-[#ffc220] text-[#1a1a1a] px-3 py-1.5 rounded font-semibold hover:bg-[#ffd14d]">One-page version</a>
+      <a href="#app" class="text-white/80 hover:text-white">The app</a>
+      <a href="report/all_in_one.html" class="bg-[#ffc220] text-[#1a1a1a] px-3 py-1.5 rounded font-semibold hover:bg-[#ffd14d]">One-page version</a>
     </div>
   </div>
 </nav>
@@ -84,7 +85,7 @@
         Start reading
         <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
       </a>
-      <a href="all_in_one.html" class="inline-flex items-center gap-2 border-2 border-white/30 text-white px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition">
+      <a href="report/all_in_one.html" class="inline-flex items-center gap-2 border-2 border-white/30 text-white px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition">
         <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         Read on one page
       </a>
@@ -178,7 +179,7 @@
 
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
 
-      <a href="data_sources.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/data_sources.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>
         </div>
@@ -187,7 +188,7 @@
         <p class="text-sm text-gray-600 mt-2">Price fallback chain, GDELT news, NSE filings, analyst estimates.</p>
       </a>
 
-      <a href="indicators.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/indicators.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
         </div>
@@ -196,7 +197,7 @@
         <p class="text-sm text-gray-600 mt-2">All four clusters: trend, momentum, volatility, levels. With every formula.</p>
       </a>
 
-      <a href="crossovers.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/crossovers.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M3 7l8 8M3 15l8-8"/><path d="M13 7h8M13 17h8"/></svg>
         </div>
@@ -205,17 +206,17 @@
         <p class="text-sm text-gray-600 mt-2">Golden &amp; Death Cross, EMA-9/21, MACD — with the honest empirical caveat.</p>
       </a>
 
-      <a href="candlesticks.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/candlesticks.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="21"/><rect x="4" y="8" width="4" height="9"/><line x1="14" y1="3" x2="14" y2="21"/><rect x="12" y="6" width="4" height="11"/></svg>
         </div>
         <div class="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Math (deterministic)</div>
         <h3 class="text-lg font-bold mt-1 group-hover:text-[#0053e2]">Candlestick patterns</h3>
         <p class="text-sm text-gray-600 mt-2">All <strong>61</strong> from TA-Lib, grouped by bars and direction. Plus ATR-proximity gating.</p>
-        <a href="candlestick_gallery.html" class="text-xs text-[#0053e2] font-semibold mt-2 inline-flex items-center gap-1 hover:underline">→ Visual gallery (all 61 drawn)</a>
+        <a href="report/candlestick_gallery.html" class="text-xs text-[#0053e2] font-semibold mt-2 inline-flex items-center gap-1 hover:underline">→ Visual gallery (all 61 drawn)</a>
       </a>
 
-      <a href="chart_patterns.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/chart_patterns.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M3 18l4-5 4 4 4-9 6 7"/></svg>
         </div>
@@ -224,7 +225,7 @@
         <p class="text-sm text-gray-600 mt-2">Head &amp; shoulders, double tops, triangles, broadening, rectangles. LMW geometry.</p>
       </a>
 
-      <a href="news.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/news.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><path d="M19 7h2v10a3 3 0 0 1-3 3"/><line x1="8" y1="9" x2="14" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/><line x1="8" y1="17" x2="11" y2="17"/></svg>
         </div>
@@ -233,7 +234,7 @@
         <p class="text-sm text-gray-600 mt-2">How an LLM filters materiality, frames expectations vs. estimates, and cites sources.</p>
       </a>
 
-      <a href="synthesis.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/synthesis.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v6"/><path d="M12 16v6"/><circle cx="12" cy="12" r="4"/><path d="M4 12h4M16 12h4"/></svg>
         </div>
@@ -242,7 +243,7 @@
         <p class="text-sm text-gray-600 mt-2">Per-horizon weighting (35/65 → 70/30), entry/target/stop placement, NEUTRAL escape.</p>
       </a>
 
-      <a href="horizons.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/horizons.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
         </div>
@@ -251,7 +252,7 @@
         <p class="text-sm text-gray-600 mt-2">Why ATR is the unit. Stop/target bands. Worst-fill vs. midpoint risk-reward.</p>
       </a>
 
-      <a href="guardrails.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/guardrails.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M12 2l9 4v6c0 5-3.5 9-9 10-5.5-1-9-5-9-10V6l9-4z"/><path d="M9 12l2 2 4-4"/></svg>
         </div>
@@ -260,7 +261,7 @@
         <p class="text-sm text-gray-600 mt-2">Four guardrail tiers that catch a prediction before it ships. One retry, then abort.</p>
       </a>
 
-      <a href="example.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block sm:col-span-2 lg:col-span-2">
+      <a href="report/example.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block sm:col-span-2 lg:col-span-2">
         <div class="w-11 h-11 rounded-lg bg-[#ffc220]/20 text-[#995213] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
         </div>
@@ -269,7 +270,7 @@
         <p class="text-sm text-gray-600 mt-2">A hypothetical prediction traced end-to-end. Demonstrates how a strong directional bias correctly downgrades to NEUTRAL when no asymmetric setup exists.</p>
       </a>
 
-      <a href="glossary.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
+      <a href="report/glossary.html" class="feature-card group bg-white border border-gray-200 rounded-xl p-6 block">
         <div class="w-11 h-11 rounded-lg bg-[#ffc220]/20 text-[#995213] flex items-center justify-center mb-4">
           <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         </div>
@@ -386,7 +387,7 @@
             </div>
           </li>
         </ul>
-        <a href="example.html" class="mt-7 inline-flex items-center gap-2 bg-[#ffc220] text-[#1a1a1a] px-4 py-2 rounded-lg font-semibold text-sm hover:bg-[#ffd14d] transition">
+        <a href="report/example.html" class="mt-7 inline-flex items-center gap-2 bg-[#ffc220] text-[#1a1a1a] px-4 py-2 rounded-lg font-semibold text-sm hover:bg-[#ffd14d] transition">
           See the full worked example
           <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
         </a>
@@ -397,7 +398,63 @@
 
 <div class="divider-wave"></div>
 
-<!-- ─── Disclaimers / caveats ─────────────────────────────── -->
+<!-- ─── BEYOND THE PREDICTION — app / tracking / deploy ───── -->
+<section id="app" class="bg-gray-50 py-16 lg:py-24">
+  <div class="max-w-6xl mx-auto px-6 lg:px-10">
+    <div class="text-center mb-12">
+      <div class="text-xs uppercase tracking-widest text-[#0053e2] font-semibold mb-2">Beyond the prediction</div>
+      <h2 class="text-3xl lg:text-4xl font-bold tracking-tight">It doesn't just predict — it keeps score, and it runs itself.</h2>
+      <p class="mt-3 text-gray-600 max-w-2xl mx-auto">
+        The engine above produces the call. Three more layers make it usable day-to-day: a local web
+        app to read it, an honest self-grading loop, and a free one-click deployment.
+      </p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+
+      <!-- The web app -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 21h8"/></svg>
+        </div>
+        <h3 class="font-bold text-lg">A local web app</h3>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">Search any NIFTY50 stock, generate a
+        prediction, and browse it in the browser — no terminal. A <strong>History</strong> page lists
+        every past call with grade pills and a sparkline of how it has scored over time.</p>
+      </div>
+
+      <!-- Self-grading -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-lg bg-blue-50 text-[#0053e2] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <h3 class="font-bold text-lg">It grades itself, honestly</h3>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">A background scheduler re-checks past
+        predictions against what price actually did, then scores calibration with a
+        <strong>Brier skill score</strong> — which asks not "were we right?" but "did we beat a
+        naive baseline?". Every call is stored immutably for audit.</p>
+      </div>
+
+      <!-- Deploy -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-lg bg-[#ffc220]/20 text-[#995213] flex items-center justify-center mb-4">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </div>
+        <h3 class="font-bold text-lg">Free, private, click-to-open</h3>
+        <p class="text-sm text-gray-600 mt-2 leading-relaxed">Runs entirely on one laptop — no hosting,
+        no public URL. On Windows it's a desktop icon: one double-click pulls the latest vetted code,
+        opens the app, and your prediction history persists across every update.</p>
+      </div>
+    </div>
+
+    <p class="text-center text-sm text-gray-500 mt-8">
+      Deployment details live in <code>windows_setup/SETUP.md</code>; the prediction internals are
+      the 10 sections above.
+    </p>
+  </div>
+</section>
+
+<!-- ─── Disclaimers / caveats ────────────────────── -->
 <section class="bg-amber-50 border-y border-amber-100 py-12">
   <div class="max-w-4xl mx-auto px-6 lg:px-10">
     <div class="flex items-start gap-4">
@@ -423,7 +480,7 @@
       <div>
         <div class="flex items-center gap-2 text-white font-bold">
           <svg class="icon" viewBox="0 0 24 24"><path d="M3 12h3l3-9 4 18 3-9h5"/></svg>
-          How we predict
+          Stock Price Predictor
         </div>
         <p class="mt-3 text-sm text-gray-400">A walkthrough for domain experts who want to understand
         the system without reading code.</p>
@@ -432,14 +489,14 @@
         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Navigate</div>
         <ul class="text-sm space-y-1">
           <li><a href="#sections" class="hover:text-white">All sections</a></li>
-          <li><a href="all_in_one.html" class="hover:text-white">Single-page version</a></li>
-          <li><a href="example.html" class="hover:text-white">Worked example</a></li>
-          <li><a href="glossary.html" class="hover:text-white">Glossary</a></li>
+          <li><a href="report/all_in_one.html" class="hover:text-white">Single-page version</a></li>
+          <li><a href="report/example.html" class="hover:text-white">Worked example</a></li>
+          <li><a href="report/glossary.html" class="hover:text-white">Glossary</a></li>
         </ul>
       </div>
       <div>
         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Built with</div>
-p class="text-sm text-gray-400">Tailwind via CDN. Accent palette (blue / yellow).
+<p class="text-sm text-gray-400">Tailwind via CDN. Accent palette (blue / yellow).
         Inline SVG icons &amp; diagrams (no external image deps). Self-contained &mdash; open any
         <code>.html</code> directly.</p>
       </div>

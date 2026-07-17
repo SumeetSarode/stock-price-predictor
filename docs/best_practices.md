@@ -504,7 +504,7 @@ both directly (`from litellm import completion`) and via ADK's `LiteLlm` adapter
 ### Critical patterns (DO)
 - ✅ **`uv add <pkg>`** to add a dependency (updates `pyproject.toml` + `uv.lock`)
 - ✅ **`python scripts/freeze.py`** after `uv add` — regenerates `requirements.txt` from
-  `uv.lock` so pip-only installers (e.g., on Walmart-internal systems without uv)
+  `uv.lock` so pip-only installers (e.g., on locked-down systems without uv)
   stay in sync. Commit both `uv.lock` AND `requirements.txt`.
 - ✅ **`uv add --dev <pkg>`** for dev-only deps (pytest, ruff, etc.)
 - ✅ **`uv sync`** to install from lockfile (CI / fresh clones)
