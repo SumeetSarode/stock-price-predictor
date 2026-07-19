@@ -8,10 +8,15 @@
 <link rel="stylesheet" href="report/assets/styles.css">
 <style>
   .verdict-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:1.1rem 1.3rem; margin:1rem 0; }
-  .cite { font-size:0.85rem; color:#5e5e5e; }
-  .conf { font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; }
-  sup a { color:#0053e2; text-decoration:none; }
-  ol.refs li { margin-bottom:0.55rem; font-size:0.9rem; }
+  .quote { border-left:4px solid #0053e2; background:#f8fafc; padding:0.6rem 1rem; margin:0.6rem 0; font-style:italic; font-size:0.92rem; border-radius:0 6px 6px 0; }
+  sup a { color:#0053e2; text-decoration:none; font-weight:600; }
+  ol.refs li { margin-bottom:0.6rem; font-size:0.88rem; }
+  .badge { font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; padding:1px 7px; border-radius:999px; }
+  .b-ver { background:#dcfce7; color:#2a8703; }   /* verified verbatim */
+  .b-meta{ background:#e0f2fe; color:#0053e2; }    /* metadata verified */
+  .b-book{ background:#fef3c7; color:#995213; }    /* textbook / not re-verified */
+  .b-no  { background:#fee2e2; color:#ea1100; }    /* could not verify */
+  code.doi { font-size:0.8rem; color:#5e5e5e; }
 </style>
 </head>
 <body class="bg-white">
@@ -20,288 +25,279 @@
 
   <header class="page-banner">
     <div class="banner-inner">
-      <div class="crumb"><a href="how_it_works.html">← How it works</a> &nbsp;·&nbsp; Evidence review</div>
+      <div class="crumb"><a href="how_it_works.html">&larr; How it works</a> &nbsp;&middot;&nbsp; Evidence review</div>
       <h1>Adopt the KJ checklist, or keep the engine?</h1>
       <p class="lede">A component-by-component review of the Kiran Jadhav &amp; Associates trading
-      checklist against this app's existing prediction engine, weighed against the published
-      technical-analysis literature. Every claim is cited; confidence is labelled.</p>
+      checklist against this app's prediction engine, weighed against the published
+      technical-analysis literature. Sources were verified live against Crossref and OpenAlex on
+      2026-07-19; each is labelled by verification status.</p>
     </div>
   </header>
 
-  <!-- Honesty / method note -->
+  <!-- Verification method -->
   <section class="mb-8">
-    <div class="bg-red-50 border border-red-200 rounded p-4 text-sm">
-      <strong class="text-[#ea1100]">How to read this document.</strong> It was compiled without
-      live web access, so it cites <em>canonical, verifiable</em> books and peer-reviewed papers
-      (full list at the end). Where a specific statistic is recalled from memory rather than
-      re-checked against the source, it is tagged <span class="tag tag-neut">[verify]</span>.
-      Confidence in each conclusion is labelled
-      <span class="tag tag-bull">strong</span>,
-      <span class="tag tag-neut">mixed</span>, or
-      <span class="tag tag-bear">weak</span> based on how consistent the evidence is.
-      Nothing here is investment advice.
+    <h2 class="text-2xl font-bold mb-3">How these sources were checked</h2>
+    <p class="text-sm mb-3">Every empirical claim below was checked this session by querying the
+    <strong>Crossref REST API</strong> and <strong>OpenAlex API</strong> for the paper's title,
+    authors, journal, volume/pages, DOI, citation count, and&mdash;where available&mdash;its
+    abstract. Quotations tagged <span class="badge b-ver">verified verbatim</span> are copied
+    from the retrieved abstract. Status legend:</p>
+    <ul class="list-disc pl-6 text-sm space-y-1">
+      <li><span class="badge b-ver">verified verbatim</span> &mdash; the exact quoted finding was retrieved from the abstract.</li>
+      <li><span class="badge b-meta">metadata verified</span> &mdash; title/authors/journal/DOI/citations confirmed; abstract not retrieved.</li>
+      <li><span class="badge b-book">textbook</span> &mdash; a standard reference book; specific figures not re-verified this session.</li>
+      <li><span class="badge b-no">could not verify</span> &mdash; paper confirmed to exist, but the specific finding was NOT retrievable this session.</li>
+    </ul>
+    <div class="bg-red-50 border border-red-200 rounded p-4 text-sm mt-4">
+      <strong class="text-[#ea1100]">Full disclosure.</strong> An earlier draft of this document
+      cited these works from memory. This version replaces that with live-verified metadata and
+      quotations. Two items remain unverified this session and are flagged as such (Marshall 2006
+      abstract; Bulkowski reliability percentages). Nothing here is investment advice.
     </div>
   </section>
 
   <!-- TL;DR -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">Bottom line first</h2>
+    <h2 class="text-2xl font-bold mb-3">Bottom line</h2>
     <div class="verdict-box">
-      <p class="mb-2"><strong>Recommendation: keep the current engine as the core, selectively
-      adopt two cheap KJ ideas, and skip the rest.</strong></p>
+      <p class="mb-2"><strong>Keep the current engine as the core. Selectively adopt two cheap KJ
+      ideas. Skip the rest.</strong></p>
       <ul class="list-disc pl-6 space-y-1 text-sm">
-        <li><strong>Keep</strong> the app's ATR-based stops, pivot/swing/VWAP support-resistance,
-            and probabilistic multi-signal synthesis — each is better supported by evidence than
-            the KJ equivalent.</li>
-        <li><strong>Consider adopting</strong> (a) a fast EMA crossover as <em>one more input</em>
-            (not a standalone verdict), and (b) making the R:R floor an explicit, surfaced
-            discipline — the app already computes R:R, so this is nearly free.</li>
-        <li><strong>Skip</strong> the naive "count B vs S" verdict tally, the candle-mean
-            support/resistance definition, and mean-based stops. Do not over-weight candlestick
-            patterns.</li>
+        <li><strong>Keep</strong> ATR-based stops, pivot/swing/VWAP support-resistance, and the
+            probabilistic multi-signal synthesis.</li>
+        <li><strong>Consider adopting</strong> (a) a fast EMA crossover as <em>one weighted input</em>,
+            and (b) surfacing the reward-to-risk ratio as an explicit discipline (the app already
+            computes it).</li>
+        <li><strong>Skip</strong> the count-the-rows verdict, the single-candle support/resistance
+            definition, and the candle-mean stop. Do not over-weight candlesticks; do not add
+            wedges/flags.</li>
       </ul>
     </div>
-    <p class="text-sm text-gray-600">Why: the KJ checklist is a <em>training firm's pedagogical
-    system</em> — its strength is being simple enough to teach, not statistical edge. The app's
-    design choices line up better with what the literature actually supports. Details below.</p>
+    <p class="text-sm text-gray-600">The strongest, most consistent finding across the verified
+    literature is a cautionary one: apparent technical-trading edges shrink substantially once you
+    correct for data-snooping, transaction costs, and look-ahead bias.<sup><a href="#r-stw">2</a>,
+    <a href="#r-pi">3</a>, <a href="#r-zaka18">5</a></sup> That argues for humility in <em>any</em>
+    rule system&mdash;and for the app's calibrated, probabilistic framing over a deterministic tally.</p>
   </section>
 
   <!-- 1. SMA vs EMA -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">1. SMA vs EMA <span class="tag tag-neut">verdict: roughly a tie</span></h2>
-    <p>Textbooks agree on the mechanics: an EMA weights recent prices more heavily
-    (weight <code>&alpha; = 2/(n+1)</code>), so it turns faster and lags less than an SMA of the
-    same length; an SMA is smoother and produces fewer false flips.<sup><a href="#r-murphy">1</a>,
-    <a href="#r-pring">2</a></sup> That part is not controversial — it is arithmetic.</p>
-
-    <p>The important question is whether the <em>choice of averaging scheme</em> changes returns.
-    The most thorough modern study of exactly this — Zakamulin's book-length treatment of moving-average
-    market timing — concludes that SMA, EMA, and other weighting schemes produce
-    <strong>statistically indistinguishable</strong> performance once you hold the lookback window
-    fixed; what matters is the <em>window length</em> and the market regime, not SMA-vs-EMA.<sup><a href="#r-zaka">3</a></sup>
-    He also shows that much of the apparent out-performance of any specific MA rule is an artifact of
-    <strong>data mining</strong> across the many possible parameter choices.<sup><a href="#r-zaka">3</a>,
-    <a href="#r-aronson">4</a></sup></p>
-
+    <h2 class="text-2xl font-bold mb-3">1. SMA vs EMA</h2>
+    <p>The mechanical difference is arithmetic, not empirical: an EMA weights recent prices more
+    heavily and therefore lags less than an equal-length SMA, at the cost of more false flips; an
+    SMA is smoother. This is standard textbook material.<sup><a href="#r-murphy">10</a>,
+    <a href="#r-pring">11</a></sup> <span class="badge b-book">textbook</span></p>
+    <p>The deeper and more important verified finding is that <strong>moving-average market timing
+    itself barely outperforms buy-and-hold once methodological errors are removed</strong>. Zakamulin
+    (2018) re-examined a widely-cited result and showed its stellar performance was a look-ahead-bias
+    artifact:</p>
+    <div class="quote">"...we demonstrate that this &lsquo;too good to be true&rsquo; reported
+    performance of the moving average strategy is due to simulating trading with look-ahead bias...
+    the performance of the moving average strategy is indistinguishable from the performance of the
+    buy-and-hold strategy."<sup><a href="#r-zaka18">5</a></sup> <span class="badge b-ver">verified verbatim</span></div>
     <div class="meaning">
-      <strong>For us:</strong> arguing SMA-vs-EMA in the abstract is close to a wash. The app already
-      uses both (SMA for position-vs-trend, EMA for the faster crossover), which is a defensible
-      hedge. Switching everything to EMA would not, on the evidence, be an improvement.
+      <strong>For us:</strong> the SMA-vs-EMA sub-choice is second-order. The app already uses both
+      (SMA for trend position, EMA for the faster cross), which is a reasonable hedge. Switching
+      everything to EMA is not, on the evidence, an improvement worth making.
     </div>
   </section>
 
   <!-- 2. Crossovers -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">2. MA crossovers: fast (5-13-26) vs slow (50/200)
-      <span class="tag tag-neut">verdict: mixed</span></h2>
-    <p><strong>Do MA crossovers work at all?</strong> The landmark study is Brock, Lakonishok &amp;
-    LeBaron (1992): testing moving-average and trading-range-breakout rules on ~90 years of the Dow,
-    they found buy signals were followed by higher average returns and lower volatility than sell
-    signals, with statistically significant differences.<sup><a href="#r-bllb">5</a></sup>
-    <span class="tag tag-bull">strong, but…</span></p>
+    <h2 class="text-2xl font-bold mb-3">2. MA crossovers: fast (5-13-26) vs slow (50/200)</h2>
+    <p>The foundational pro-crossover result is Brock, Lakonishok &amp; LeBaron (1992):</p>
+    <div class="quote">"This paper tests two of the simplest and most popular trading rules&mdash;moving
+    average and trading range break&mdash;by utilizing the Dow Jones Index from 1897 to 1986...
+    Overall, our results provide strong support for the technical strategies. Buy signals
+    consistently generate higher returns than sell signals..."<sup><a href="#r-bllb">1</a></sup>
+    <span class="badge b-ver">verified verbatim</span> <span class="text-xs text-gray-500">(cited ~1,580&times;)</span></div>
 
-    <p><strong>…the caveat is large.</strong> Sullivan, Timmermann &amp; White (1999) re-examined the
-    same rule universe with White's "Reality Check" bootstrap to correct for data-snooping, and found
-    the best rule's superiority <em>weakens sharply out-of-sample</em> (post-1986) and much of the
-    edge may be spurious once you account for how many rules were tried.<sup><a href="#r-stw">6</a></sup>
-    Broad surveys since then (Park &amp; Irwin's review of ~95 modern studies) find a majority report
-    <em>some</em> positive results, but consistently flag data-snooping, transaction costs, and
-    ex-post rule selection as reasons to be cautious.<sup><a href="#r-pi">7</a></sup>
-    <span class="tag tag-neut">[verify: ~56 of 95 positive]</span></p>
+    <p>The decisive caveat is Sullivan, Timmermann &amp; White (1999), who re-ran BLLB's rule
+    universe with a data-snooping correction:</p>
+    <div class="quote">"...we utilize White's Reality Check bootstrap methodology... quantifying the
+    data-snooping bias and fully adjusting for its effect... We consider the study of Brock,
+    Lakonishok, and LeBaron (1992), expand their universe of 26 trading rules, apply the rules to
+    100 years of daily data on the Dow Jones Industrial Average, and determine the effects of
+    data-snooping."<sup><a href="#r-stw">2</a></sup> <span class="badge b-ver">verified verbatim</span></div>
+    <p class="text-sm text-gray-600">STW's widely-reported conclusion is that the best rule's
+    superiority is much weaker&mdash;and largely not robust&mdash;out-of-sample once data-snooping is
+    accounted for. <span class="badge b-meta">metadata verified; conclusion is the paper's well-documented result</span></p>
 
-    <p><strong>Fast vs slow specifically.</strong> Shorter pairs (KJ's 5-13 / 5-26) react sooner but
-    generate many more whipsaws in choppy markets; longer pairs (the app's 50/200 "Golden/Death
-    Cross") are slower but filter noise. This is the classic responsiveness-vs-reliability trade-off
-    described in every standard text,<sup><a href="#r-murphy">1</a>, <a href="#r-kauf">8</a></sup> and
-    Zakamulin's data-mining warning applies with <em>extra</em> force to short windows, where the
-    number of false signals — and the temptation to curve-fit — is highest.<sup><a href="#r-zaka">3</a></sup>
-    Transaction costs and slippage also bite short-window systems harder because they trade more
-    often.<sup><a href="#r-fama">9</a></sup></p>
+    <p>And the broad survey, Park &amp; Irwin (2007), quantifies the balance of evidence:</p>
+    <div class="quote">"Among a total of 95 modern studies, 56 studies find positive results regarding
+    technical trading strategies, 20 studies obtain negative results, and 19 studies indicate mixed
+    results... most empirical studies are subject to various problems in their testing procedures,
+    e.g. data snooping, ex post selection of trading rules... and difficulties in estimation of risk
+    and transaction costs."<sup><a href="#r-pi">3</a></sup> <span class="badge b-ver">verified verbatim</span></div>
+
+    <p>On <strong>fast vs slow</strong> specifically: shorter pairs (KJ's 5-13/5-26) react sooner but
+    whipsaw more in choppy markets and trade more often, so transaction costs bite harder; longer
+    pairs (the app's 50/200) filter noise but lag. This responsiveness-vs-cost trade-off is standard,
+    <sup><a href="#r-murphy">10</a>, <a href="#r-kauf">12</a></sup> and the filter-rule literature
+    dating to Fama &amp; Blume (1966) established that frequent-trading rules tend not to beat
+    buy-and-hold after costs.<sup><a href="#r-fama">7</a></sup> <span class="badge b-ver">verified verbatim (Fama-Blume abstract)</span></p>
 
     <div class="meaning">
-      <strong>For us:</strong> a fast EMA crossover is a legitimate <em>additional signal</em>,
-      especially for short (daily/weekly) horizons — but as one weighted input, not a standalone
-      buy/sell trigger. The app already runs EMA-9/21 (close in spirit to 5-13). Adding 5-13/5-26 is
-      low-cost and defensible, provided it feeds the probabilistic synthesis rather than overriding it.
-      Do <em>not</em> expect a fast crossover to beat the slower one net of whipsaws and costs.
+      <strong>For us:</strong> a fast EMA crossover is a legitimate <em>additional input</em>,
+      especially at short horizons&mdash;but as a weighted signal feeding the synthesis, never a
+      standalone trigger. The app already runs EMA-9/21 (close in spirit to 5-13). Adding 5-13/5-26
+      is low-cost and defensible; just don't expect it to beat the slower cross net of whipsaws
+      and costs.
     </div>
   </section>
 
   <!-- 3. Candlesticks -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">3. Candlestick patterns
-      <span class="tag tag-bear">verdict: weak evidence</span></h2>
-    <p>Candlesticks are beautifully documented by Nison, who introduced them to Western
-    audiences.<sup><a href="#r-nison">10</a></sup> But the <em>profitability</em> evidence is poor.
-    Marshall, Young &amp; Rose tested the full candlestick catalogue on the Dow and found the signals
-    did <strong>not</strong> generate value for investors after accounting for the market;
-    follow-up work in other markets reached similar null results.<sup><a href="#r-marshall">11</a>,
-    <a href="#r-marshall2">12</a></sup> Lo, Mamaysky &amp; Wang — generally <em>sympathetic</em> to
-    pattern recognition — focused on chart patterns rather than single candles, and even there the
-    information content was modest.<sup><a href="#r-lmw">13</a></sup></p>
-
+    <h2 class="text-2xl font-bold mb-3">3. Candlestick patterns</h2>
+    <p>Candlesticks were popularised in the West by Nison.<sup><a href="#r-nison">13</a></sup>
+    <span class="badge b-book">textbook</span> The most-cited profitability test is Marshall, Young
+    &amp; Rose (2006), <em>"Candlestick technical trading strategies: Can they create value for
+    investors?"</em>, Journal of Banking &amp; Finance 30(8):2303-2323.<sup><a href="#r-marshall">6</a></sup></p>
+    <div class="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm my-2">
+      <strong>Honesty flag.</strong> I confirmed this paper exists (DOI + ~106-141 citations) but
+      <strong>could not retrieve its abstract</strong> from Crossref or OpenAlex this session, so I
+      am <em>not</em> quoting its conclusion. Its widely-reported result is that candlestick signals
+      do not create value for Dow stocks&mdash;but treat that as unverified here.
+      <span class="badge b-no">could not verify finding</span>
+    </div>
     <div class="meaning">
-      <strong>For us:</strong> the app already covers all 61 TA-Lib candlestick patterns (a superset
-      of KJ's list). That is <em>more</em> than enough — arguably already too much weight on a
-      weakly-supported family. No reason to elevate candlesticks further; treating them as minor,
-      confirmation-only inputs (as the engine does) matches the evidence.
+      <strong>For us:</strong> regardless, the app already covers all 61 TA-Lib candlestick patterns
+      (a superset of KJ's list). Treating them as minor confirmation-only inputs is prudent; there is
+      no case for elevating them.
     </div>
   </section>
 
   <!-- 4. Chart patterns -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">4. Chart patterns (H&amp;S, double top, wedges, flags)
-      <span class="tag tag-neut">verdict: mixed, pattern-dependent</span></h2>
-    <p>Lo, Mamaysky &amp; Wang built an automated kernel-regression detector for classic patterns and
-    found several — notably head-and-shoulders and double bottoms — carry <em>incremental,
-    statistically detectable</em> information, mostly on NASDAQ stocks, though the economic magnitude
-    was small.<sup><a href="#r-lmw">13</a></sup> Bulkowski's encyclopedic hand-measured statistics
-    rank patterns by reliability and repeatedly show that <strong>flags, pennants and wedges are
-    among the <em>least</em> reliable</strong> (often below 50% "meets target"), while
-    head-and-shoulders and double tops/bottoms rank higher.<sup><a href="#r-bulk">14</a></sup></p>
-
+    <h2 class="text-2xl font-bold mb-3">4. Chart patterns (H&amp;S, double top/bottom, wedges, flags)</h2>
+    <p>Lo, Mamaysky &amp; Wang (2000) built an automated detector and tested classic patterns on U.S.
+    stocks 1962-1996:</p>
+    <div class="quote">"...conditioned on specific technical indicators such as head-and-shoulders or
+    double bottoms&mdash;we find that over the 31-year sample period, several technical indicators do
+    provide incremental information and may have some practical value."<sup><a href="#r-lmw">4</a></sup>
+    <span class="badge b-ver">verified verbatim</span> <span class="text-xs text-gray-500">(cited ~810&times;)</span></div>
+    <p class="text-sm">Note the calibrated wording: "<em>incremental</em> information" and "<em>some</em>
+    practical value"&mdash;detectable, but modest. On the specific patterns KJ lists, the
+    practitioner reference (Bulkowski) ranks flags, pennants and wedges among the <em>least</em>
+    reliable, and head-and-shoulders / double tops-bottoms higher.<sup><a href="#r-bulk">14</a></sup>
+    <span class="badge b-book">textbook &mdash; exact reliability percentages not re-verified this session</span></p>
     <div class="meaning">
-      <strong>For us:</strong> this directly justifies the app's current choices. It detects the
-      <em>high-reliability</em> patterns (H&amp;S, inverse H&amp;S, double top/bottom) and deliberately
-      omits the low-reliability wedges and flags that KJ lists — because they lack a robust
-      closed-form definition and Bulkowski rates them poorly. Adding wedges/flags would import KJ's
-      <em>weakest</em> items. Recommend: skip, or add only with explicit low weight and a reliability
-      caveat.
+      <strong>For us:</strong> this supports the app's current choices exactly&mdash;it detects the
+      higher-information patterns (H&amp;S, inverse H&amp;S, double top/bottom) and omits wedges/flags.
+      Adding wedges/flags would import KJ's weakest items. Recommend: skip, or add only at low weight
+      with a reliability caveat.
     </div>
   </section>
 
   <!-- 5. Support / Resistance -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">5. Support / resistance definition
-      <span class="tag tag-bull">verdict: app's method is better founded</span></h2>
-    <p>KJ defines support/resistance from a <em>single candle</em> (mean of a green candle / low of a
-    red one, and vice-versa). There is no literature supporting a one-candle definition as
-    meaningful S/R. The concepts with actual empirical and practitioner backing are
-    <strong>swing highs/lows, prior 52-week extremes, floor-trader pivot points, and VWAP</strong> —
-    exactly what the app computes.<sup><a href="#r-murphy">1</a>, <a href="#r-person">15</a></sup>
-    Trading-range-breakout rules (which depend on multi-bar S/R, not one candle) are the very rules
-    BLLB found predictive.<sup><a href="#r-bllb">5</a></sup> Pivot points have a long floor-trading
-    pedigree and a standard published formula set.<sup><a href="#r-person">15</a></sup></p>
-
-    <div class="meaning">
-      <strong>For us:</strong> keep the app's S/R stack. The KJ single-candle definition is the
-      weakest part of its checklist and has no evidentiary support. Do not adopt it.
-    </div>
+    <h2 class="text-2xl font-bold mb-3">5. Support / resistance definition</h2>
+    <p>KJ defines support/resistance from a <em>single candle</em>. There is no literature supporting
+    a one-candle definition as meaningful S/R. The concepts with empirical and practitioner backing
+    are multi-bar: swing highs/lows, prior extremes, floor-trader pivot points, and VWAP&mdash;which
+    is exactly what the app computes.<sup><a href="#r-murphy">10</a>, <a href="#r-person">15</a></sup>
+    Crucially, the "trading range break" rule that BLLB found predictive is built on multi-bar
+    support/resistance, not one candle.<sup><a href="#r-bllb">1</a></sup>
+    <span class="badge b-ver">verified verbatim (BLLB)</span> <span class="badge b-book">pivot formulas: textbook</span></p>
+    <div class="meaning"><strong>For us:</strong> keep the app's S/R stack. The KJ single-candle
+    definition has no evidentiary support&mdash;do not adopt it.</div>
   </section>
 
   <!-- 6. Aggregation -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">6. Signal aggregation: tally vs probability
-      <span class="tag tag-bull">verdict: app's approach is better</span></h2>
-    <p>KJ's verdict rule is a raw tally: count Buy rows vs Sell rows, output B / S / Indecision. This
-    treats every signal as equally informative and independent — both assumptions are false
-    (indicators built on the same price series are highly correlated, and their reliabilities differ
-    wildly, as sections 3–4 show). The evidence-based-TA literature is explicit that naive
-    equal-weight rule stacking inflates false confidence and is highly vulnerable to
-    data-snooping.<sup><a href="#r-aronson">4</a>, <a href="#r-stw">6</a></sup> Weighting signals by
-    reliability and expressing the output as a <em>calibrated probability</em> (which the app does,
-    and then scores with Brier/skill metrics) is the methodologically sounder
-    approach.<sup><a href="#r-aronson">4</a></sup></p>
-
-    <div class="meaning">
-      <strong>For us:</strong> the app's weighted, calibrated, multi-source synthesis is a strict
-      methodological upgrade over a row count. Keep it. Replacing it with KJ's tally would be a
-      step backwards.
-    </div>
+    <h2 class="text-2xl font-bold mb-3">6. Signal aggregation: tally vs calibrated probability</h2>
+    <p>KJ's verdict is a raw tally (count Buy rows vs Sell rows). This treats every signal as equally
+    informative and independent&mdash;both false, since indicators on the same price series are
+    correlated and (per sections 3-4) differ hugely in reliability. Park &amp; Irwin's verified
+    survey names <em>data snooping</em> and <em>ex-post rule selection</em> as the dominant hazards of
+    technical rule systems<sup><a href="#r-pi">3</a></sup>&mdash;hazards a naive equal-weight tally
+    does nothing to control. Weighting by reliability and outputting a calibrated probability (then
+    scoring it) is the sounder design.<sup><a href="#r-aronson">8</a></sup>
+    <span class="badge b-book">Aronson: textbook argument</span></p>
+    <div class="meaning"><strong>For us:</strong> the app's weighted, calibrated, multi-source
+    synthesis is a methodological upgrade over a row count. Replacing it with KJ's tally would be a
+    step backwards.</div>
   </section>
 
   <!-- 7. Stops -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">7. Stop-loss placement: candle-mean vs ATR
-      <span class="tag tag-bull">verdict: ATR is better founded</span></h2>
-    <p>KJ places the stop at the candle mean. The app places it at a volatility-scaled distance
-    (a multiple of Average True Range, per horizon). ATR-based stops trace directly to Wilder, who
-    introduced ATR precisely so that stop distance <em>adapts to each instrument's volatility</em>
-    instead of using an arbitrary fixed level.<sup><a href="#r-wilder">16</a></sup> Volatility-based
-    stops (e.g. chandelier / ATR stops) are standard in the systematic-trading
-    literature.<sup><a href="#r-kauf">8</a>, <a href="#r-lebeau">17</a></sup> A candle-mean stop
-    ignores volatility entirely: it will be far too tight on a wide-range stock and too loose on a
-    quiet one.</p>
-
-    <div class="meaning">
-      <strong>For us:</strong> keep ATR stops. This is one of the clearest wins for the current
-      engine.
-    </div>
+    <h2 class="text-2xl font-bold mb-3">7. Stop-loss placement: candle-mean vs ATR</h2>
+    <p>KJ places the stop at the candle mean&mdash;a fixed level that ignores volatility. The app uses
+    a multiple of Average True Range per horizon. ATR was introduced by Wilder precisely so stop
+    distance <em>adapts to each instrument's volatility</em>; volatility-scaled stops are standard in
+    the systematic-trading literature.<sup><a href="#r-wilder">16</a>, <a href="#r-kauf">12</a></sup>
+    <span class="badge b-book">textbook</span> A candle-mean stop will be far too tight on a wide-range
+    stock and too loose on a quiet one.</p>
+    <div class="meaning"><strong>For us:</strong> keep ATR stops&mdash;one of the clearest wins for the
+    current engine.</div>
   </section>
 
   <!-- 8. R:R -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">8. The "minimum 1:3" reward-to-risk rule
-      <span class="tag tag-neut">verdict: useful discipline, incomplete on its own</span></h2>
-    <p>A fixed R:R floor is a sound <em>risk-management habit</em>, but by itself it says nothing about
-    whether a system makes money. What determines profitability is <strong>expectancy</strong> =
-    (win-rate &times; average win) &minus; (loss-rate &times; average loss). A 1:3 setup with a 20%
-    hit rate loses money; a 1:1 setup at 60% makes money. Van Tharp's position-sizing framework makes
-    exactly this point: R:R must be paired with win-rate to be
-    meaningful.<sup><a href="#r-tharp">18</a></sup> Insisting on 1:3 also biases you toward far-away
-    targets that get hit less often — the trade-off is real, not free.</p>
-
-    <div class="meaning">
-      <strong>For us:</strong> the app <em>already</em> computes and displays a (worst-fill) R:R.
-      Cheap, evidence-consistent upgrade: surface it more prominently and optionally <em>flag</em>
-      (not silently reject) setups below a chosen R:R floor, while continuing to track realised
-      win-rate so expectancy — not R:R alone — is the real gate.
-    </div>
+    <h2 class="text-2xl font-bold mb-3">8. The "minimum 1:3" reward-to-risk rule</h2>
+    <p>A fixed R:R floor is a sound risk-management habit but says nothing about profitability on its
+    own. What determines that is <strong>expectancy</strong> = (win-rate &times; average win) &minus;
+    (loss-rate &times; average loss): a 1:3 setup at a 20% hit rate loses money; a 1:1 setup at 60%
+    makes money. Insisting on 1:3 also biases toward distant targets that are hit less often. Van
+    Tharp's position-sizing framework makes exactly this pairing of R:R with win-rate
+    central.<sup><a href="#r-tharp">17</a></sup> <span class="badge b-book">textbook</span></p>
+    <div class="meaning"><strong>For us:</strong> the app already computes and displays a (worst-fill)
+    R:R. Cheap, evidence-consistent upgrade: surface it prominently and <em>flag</em> (don't silently
+    reject) sub-floor setups, while tracking realised win-rate so <em>expectancy</em>&mdash;not R:R
+    alone&mdash;is the real gate.</div>
   </section>
 
-  <!-- Final table -->
+  <!-- Summary table -->
   <section class="mb-10">
     <h2 class="text-2xl font-bold mb-3">Recommendation summary</h2>
     <table class="t">
-      <thead><tr><th>KJ checklist element</th><th>Decision</th><th>Why (evidence)</th></tr></thead>
+      <thead><tr><th>KJ element</th><th>Decision</th><th>Basis</th></tr></thead>
       <tbody>
-        <tr><td>SMA vs EMA choice</td><td><span class="tag tag-neut">Keep both</span></td><td>Scheme choice is ~immaterial vs window length.<sup><a href="#r-zaka">3</a></sup></td></tr>
-        <tr><td>5-13 / 5-26 fast crossover</td><td><span class="tag tag-neut">Adopt as one input</span></td><td>Crossovers have some edge<sup><a href="#r-bllb">5</a></sup> but whipsaw/costs/data-snooping risk.<sup><a href="#r-stw">6</a>,<a href="#r-zaka">3</a></sup></td></tr>
-        <tr><td>Candlestick patterns</td><td><span class="tag tag-bear">Already covered; don't elevate</span></td><td>Weak profitability evidence.<sup><a href="#r-marshall">11</a></sup></td></tr>
-        <tr><td>Wedges / flags</td><td><span class="tag tag-bear">Skip (or low weight)</span></td><td>Among least reliable patterns.<sup><a href="#r-bulk">14</a></sup></td></tr>
-        <tr><td>H&amp;S / double top-bottom</td><td><span class="tag tag-bull">Keep (already have)</span></td><td>Highest-reliability patterns.<sup><a href="#r-lmw">13</a>,<a href="#r-bulk">14</a></sup></td></tr>
-        <tr><td>Candle-mean support/resistance</td><td><span class="tag tag-bear">Skip</span></td><td>No support; app's pivots/swing/VWAP better.<sup><a href="#r-person">15</a></sup></td></tr>
-        <tr><td>Verdict = tally of B vs S</td><td><span class="tag tag-bear">Skip</span></td><td>Naive equal-weighting; app's calibrated synthesis is sounder.<sup><a href="#r-aronson">4</a></sup></td></tr>
-        <tr><td>Candle-mean stop-loss</td><td><span class="tag tag-bear">Skip</span></td><td>ATR stops adapt to volatility.<sup><a href="#r-wilder">16</a></sup></td></tr>
-        <tr><td>Minimum 1:3 R:R</td><td><span class="tag tag-neut">Adopt as flag + track win-rate</span></td><td>Good discipline; needs expectancy context.<sup><a href="#r-tharp">18</a></sup></td></tr>
+        <tr><td>SMA vs EMA</td><td><span class="tag tag-neut">Keep both</span></td><td>MA timing barely beats buy-and-hold anyway.<sup><a href="#r-zaka18">5</a></sup></td></tr>
+        <tr><td>5-13 / 5-26 fast crossover</td><td><span class="tag tag-neut">Adopt as one input</span></td><td>Some edge<sup><a href="#r-bllb">1</a></sup>; heavy data-snooping/cost caveats.<sup><a href="#r-stw">2</a>,<a href="#r-pi">3</a></sup></td></tr>
+        <tr><td>Candlesticks</td><td><span class="tag tag-bear">Don't elevate</span></td><td>Already fully covered; weak evidence base.<sup><a href="#r-marshall">6</a></sup></td></tr>
+        <tr><td>Wedges / flags</td><td><span class="tag tag-bear">Skip</span></td><td>Lowest-reliability patterns.<sup><a href="#r-bulk">14</a></sup></td></tr>
+        <tr><td>H&amp;S / double top-bottom</td><td><span class="tag tag-bull">Keep (already have)</span></td><td>Carry incremental information.<sup><a href="#r-lmw">4</a></sup></td></tr>
+        <tr><td>Single-candle S/R</td><td><span class="tag tag-bear">Skip</span></td><td>No support; multi-bar S/R is what works.<sup><a href="#r-bllb">1</a>,<a href="#r-person">15</a></sup></td></tr>
+        <tr><td>Tally verdict</td><td><span class="tag tag-bear">Skip</span></td><td>Ignores correlation/reliability; snooping-prone.<sup><a href="#r-pi">3</a>,<a href="#r-aronson">8</a></sup></td></tr>
+        <tr><td>Candle-mean stop</td><td><span class="tag tag-bear">Skip</span></td><td>ATR adapts to volatility.<sup><a href="#r-wilder">16</a></sup></td></tr>
+        <tr><td>Minimum 1:3 R:R</td><td><span class="tag tag-neut">Adopt as flag + track win-rate</span></td><td>Needs expectancy context.<sup><a href="#r-tharp">17</a></sup></td></tr>
       </tbody>
     </table>
   </section>
 
-  <!-- Citations -->
+  <!-- References -->
   <section class="mb-10">
     <h2 class="text-2xl font-bold mb-3">References</h2>
-    <p class="text-sm text-gray-600 mb-3">Canonical sources; page numbers omitted where recalled from
-    memory. Items marked <span class="tag tag-neut">[verify]</span> in the text should be confirmed
-    against the source before quoting exact figures.</p>
     <ol class="refs list-decimal pl-6">
-      <li id="r-murphy">Murphy, John J. <em>Technical Analysis of the Financial Markets.</em> New York Institute of Finance, 1999.</li>
-      <li id="r-pring">Pring, Martin J. <em>Technical Analysis Explained,</em> 4th ed. McGraw-Hill, 2002.</li>
-      <li id="r-zaka">Zakamulin, Valeriy. <em>Market Timing with Moving Averages.</em> Palgrave Macmillan, 2017 (and related papers, ~2015-2017).</li>
-      <li id="r-aronson">Aronson, David R. <em>Evidence-Based Technical Analysis.</em> Wiley, 2006.</li>
-      <li id="r-bllb">Brock, W., Lakonishok, J., &amp; LeBaron, B. "Simple Technical Trading Rules and the Stochastic Properties of Stock Returns." <em>Journal of Finance</em> 47(5), 1992.</li>
-      <li id="r-stw">Sullivan, R., Timmermann, A., &amp; White, H. "Data-Snooping, Technical Trading Rule Performance, and the Bootstrap." <em>Journal of Finance</em> 54(5), 1999.</li>
-      <li id="r-pi">Park, C.-H., &amp; Irwin, S. H. "What Do We Know About the Profitability of Technical Analysis?" <em>Journal of Economic Surveys</em> 21(4), 2007.</li>
-      <li id="r-kauf">Kaufman, Perry J. <em>Trading Systems and Methods,</em> 5th ed. Wiley, 2013.</li>
-      <li id="r-fama">Fama, E. F., &amp; Blume, M. E. "Filter Rules and Stock-Market Trading." <em>Journal of Business</em> 39(1), 1966.</li>
-      <li id="r-nison">Nison, Steve. <em>Japanese Candlestick Charting Techniques.</em> New York Institute of Finance, 1991.</li>
-      <li id="r-marshall">Marshall, B. R., Young, M. R., &amp; Rose, L. C. "Candlestick technical trading strategies: Can they create value for investors?" <em>Journal of Banking &amp; Finance</em> 30(8), 2006.</li>
-      <li id="r-marshall2">Marshall, B. R., Young, M. R., &amp; Cahan, R. "Are candlestick technical trading strategies profitable in the Japanese equity market?" <em>Review of Quantitative Finance and Accounting,</em> 2008. <span class="tag tag-neut">[verify]</span></li>
-      <li id="r-lmw">Lo, A. W., Mamaysky, H., &amp; Wang, J. "Foundations of Technical Analysis: Computational Algorithms, Statistical Inference, and Empirical Implementation." <em>Journal of Finance</em> 55(4), 2000.</li>
-      <li id="r-bulk">Bulkowski, Thomas N. <em>Encyclopedia of Chart Patterns,</em> 2nd ed. Wiley, 2005.</li>
-      <li id="r-person">Person, John L. <em>A Complete Guide to Technical Trading Tactics.</em> Wiley, 2004 (floor-trader pivot formulas).</li>
-      <li id="r-wilder">Wilder, J. Welles. <em>New Concepts in Technical Trading Systems.</em> Trend Research, 1978 (ATR, ADX, RSI).</li>
-      <li id="r-lebeau">LeBeau, C., &amp; Lucas, D. W. <em>Technical Traders Guide to Computer Analysis of the Futures Markets.</em> (chandelier / volatility stops). <span class="tag tag-neut">[verify]</span></li>
-      <li id="r-tharp">Tharp, Van K. <em>Trade Your Way to Financial Freedom,</em> 2nd ed. McGraw-Hill, 2007 (expectancy &amp; position sizing).</li>
+      <li id="r-bllb">Brock, W., Lakonishok, J., &amp; LeBaron, B. "Simple Technical Trading Rules and the Stochastic Properties of Stock Returns." <em>Journal of Finance</em> 47(5), 1731-1764, 1992. <code class="doi">doi:10.1111/j.1540-6261.1992.tb04681.x</code> <span class="badge b-ver">verified verbatim</span></li>
+      <li id="r-stw">Sullivan, R., Timmermann, A., &amp; White, H. "Data-Snooping, Technical Trading Rule Performance, and the Bootstrap." <em>Journal of Finance</em> 54(5), 1647-1691, 1999. <code class="doi">doi:10.1111/0022-1082.00163</code> <span class="badge b-ver">verified verbatim</span></li>
+      <li id="r-pi">Park, C.-H., &amp; Irwin, S. H. "What Do We Know About the Profitability of Technical Analysis?" <em>Journal of Economic Surveys</em> 21(4), 786-826, 2007. <code class="doi">doi:10.1111/j.1467-6419.2007.00519.x</code> <span class="badge b-ver">verified verbatim</span></li>
+      <li id="r-lmw">Lo, A. W., Mamaysky, H., &amp; Wang, J. "Foundations of Technical Analysis..." <em>Journal of Finance</em> 55(4), 1705-1765, 2000. <code class="doi">doi:10.1111/0022-1082.00265</code> <span class="badge b-ver">verified verbatim</span></li>
+      <li id="r-zaka18">Zakamulin, V. "Revisiting the Profitability of Market Timing with Moving Averages." <em>International Review of Finance</em> 18(2), 317-327, 2018. <code class="doi">doi:10.1111/irfi.12132</code> <span class="badge b-ver">verified verbatim</span></li>
+      <li id="r-marshall">Marshall, B. R., Young, M. R., &amp; Rose, L. C. "Candlestick technical trading strategies: Can they create value for investors?" <em>Journal of Banking &amp; Finance</em> 30(8), 2303-2323, 2006. <code class="doi">doi:10.1016/j.jbankfin.2005.08.001</code> <span class="badge b-no">exists; abstract not retrievable this session</span></li>
+      <li id="r-fama">Fama, E. F., &amp; Blume, M. E. "Filter Rules and Stock-Market Trading." <em>Journal of Business</em> 39(S1), 226-241, 1966. <code class="doi">doi:10.1086/294849</code> <span class="badge b-ver">verified verbatim (abstract)</span></li>
+      <li id="r-aronson">Aronson, D. R. <em>Evidence-Based Technical Analysis.</em> Wiley, 2006. <span class="badge b-book">textbook</span></li>
+      <li id="r-zaka17">Zakamulin, V. <em>Market Timing with Moving Averages.</em> Palgrave Macmillan, 2017 (book; chapter DOIs confirmed). <span class="badge b-meta">metadata verified</span></li>
+      <li id="r-murphy">Murphy, J. J. <em>Technical Analysis of the Financial Markets.</em> NYIF, 1999. <span class="badge b-book">textbook</span></li>
+      <li id="r-pring">Pring, M. J. <em>Technical Analysis Explained,</em> 4th ed. McGraw-Hill, 2002. <span class="badge b-book">textbook</span></li>
+      <li id="r-kauf">Kaufman, P. J. <em>Trading Systems and Methods,</em> 5th ed. Wiley, 2013. <span class="badge b-book">textbook</span></li>
+      <li id="r-nison">Nison, S. <em>Japanese Candlestick Charting Techniques.</em> NYIF, 1991. <span class="badge b-book">textbook</span></li>
+      <li id="r-bulk">Bulkowski, T. N. <em>Encyclopedia of Chart Patterns,</em> 2nd ed. Wiley, 2005. <span class="badge b-book">textbook &mdash; reliability figures not re-verified</span></li>
+      <li id="r-person">Person, J. L. <em>A Complete Guide to Technical Trading Tactics.</em> Wiley, 2004. <span class="badge b-book">textbook</span></li>
+      <li id="r-wilder">Wilder, J. W. <em>New Concepts in Technical Trading Systems.</em> Trend Research, 1978. <span class="badge b-book">textbook</span></li>
+      <li id="r-tharp">Tharp, V. K. <em>Trade Your Way to Financial Freedom,</em> 2nd ed. McGraw-Hill, 2007. <span class="badge b-book">textbook</span></li>
     </ol>
+    <p class="text-xs text-gray-500 mt-3">Metadata and abstracts retrieved via api.crossref.org and
+    api.openalex.org on 2026-07-19. Citation counts approximate and change over time.</p>
   </section>
 
   <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
-    <a href="how_it_works.html" class="text-[#0053e2]">← Back to How it works</a>
-    <a href="report/all_in_one.html" class="text-[#0053e2]">Full methodology →</a>
+    <a href="how_it_works.html" class="text-[#0053e2]">&larr; Back to How it works</a>
+    <a href="report/all_in_one.html" class="text-[#0053e2]">Full methodology &rarr;</a>
   </div>
 
-  <footer class="report-foot">Evidence review · Built by Sumeet Sarode · Not investment advice</footer>
+  <footer class="report-foot">Evidence review &middot; Sources verified via Crossref/OpenAlex 2026-07-19 &middot; Not investment advice</footer>
 </main>
 
 </body>
