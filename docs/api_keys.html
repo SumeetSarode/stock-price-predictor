@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Getting your API keys — Stock Price Predictor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="report/assets/styles.css">
+</head>
+<body class="bg-white">
+
+<main class="max-w-4xl mx-auto px-6 lg:px-10 py-8">
+
+  <header class="page-banner">
+    <div class="banner-inner">
+      <div class="crumb"><a href="how_it_works.html">← How it works</a> &nbsp;·&nbsp; Setup guide</div>
+      <h1>Getting your API keys</h1>
+      <p class="lede">The app needs two <strong>free</strong> API keys to run its LLM agents —
+      one from Groq, one from Google (Gemini). No credit card, no payment. Start to finish this
+      takes about three minutes.</p>
+    </div>
+  </header>
+
+  <!-- ── Summary ─────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">What you need at a glance</h2>
+    <table class="t">
+      <thead>
+        <tr><th>Key</th><th>Required?</th><th>Cost</th><th>Get it from</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>GEMINI_API_KEY</code></td>
+          <td><span class="tag tag-bull">Required</span></td>
+          <td>Free tier</td>
+          <td><a class="text-[#0053e2] underline" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a></td>
+        </tr>
+        <tr>
+          <td><code>GROQ_API_KEY</code></td>
+          <td><span class="tag tag-bull">Required</span></td>
+          <td>Free tier</td>
+          <td><a class="text-[#0053e2] underline" href="https://console.groq.com/keys" target="_blank" rel="noopener">Groq Console</a></td>
+        </tr>
+        <tr>
+          <td><code>ALPHA_VANTAGE_API_KEY</code></td>
+          <td><span class="tag tag-neut">Optional</span></td>
+          <td>Free tier</td>
+          <td><a class="text-[#0053e2] underline" href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener">Alpha Vantage</a></td>
+        </tr>
+        <tr>
+          <td><code>STOOQ_API_KEY</code></td>
+          <td><span class="tag tag-neut">Optional</span></td>
+          <td>Free (captcha)</td>
+          <td><a class="text-[#0053e2] underline" href="https://stooq.com/q/d/?s=aapl.us&amp;get_apikey" target="_blank" rel="noopener">Stooq</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="meaning">
+      You only need the <strong>two required</strong> keys (Gemini + Groq). The optional two power
+      price-data providers that are <em>not</em> in the default chain — skip them unless you have a
+      specific reason (see <a class="text-[#0053e2] underline" href="#optional">Optional keys</a> below).
+    </div>
+  </section>
+
+  <!-- ── Why two ─────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">Why two keys?</h2>
+    <p>The LLM agents run on a <strong>fallback chain</strong>: Gemini first (best tool-call
+    compatibility), then Groq models as backups when Gemini's free-tier quota is exhausted. Having
+    both keys means a single provider's rate limit never stops you cold — the next hop lands in a
+    fresh quota bucket.</p>
+    <div class="formula">CHAIN_AGENTIC = gemini/gemini-2.5-flash → groq/gpt-oss-120b → groq/llama-3.3-70b</div>
+  </section>
+
+  <!-- ── Gemini ──────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">1. Gemini key (Google AI Studio)</h2>
+    <ol class="list-decimal pl-6 space-y-2">
+      <li>Go to <a class="text-[#0053e2] underline" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a>.</li>
+      <li>Sign in with any Google account.</li>
+      <li>Click <mark class="k">Create API key</mark>. If prompted, let it create a new Google Cloud
+          project for you (the default is fine) or pick an existing one.</li>
+      <li>Copy the key — it starts with <code>AIza…</code>. This is the value for
+          <code>GEMINI_API_KEY</code>.</li>
+    </ol>
+    <div class="meaning">
+      The key is shown in full only once at creation but you can re-open it from the same page any
+      time. Treat it like a password.
+    </div>
+  </section>
+
+  <!-- ── Groq ────────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">2. Groq key (Groq Console)</h2>
+    <ol class="list-decimal pl-6 space-y-2">
+      <li>Go to <a class="text-[#0053e2] underline" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.</li>
+      <li>Sign in (Google / GitHub / email — no card required).</li>
+      <li>Click <mark class="k">Create API Key</mark>, give it any name (e.g. "price-predictor").</li>
+      <li>Copy the key — it starts with <code>gsk_…</code>. This is the value for
+          <code>GROQ_API_KEY</code>.</li>
+    </ol>
+    <div class="bg-red-50 border border-red-200 rounded p-4 my-4 text-sm">
+      <strong class="text-[#ea1100]">Copy it now.</strong> Groq shows the full key <em>only once</em>.
+      If you lose it, just delete that key and create a new one — no harm done.
+    </div>
+  </section>
+
+  <!-- ── Where to put them ───────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">3. Where to paste them</h2>
+    <p>The app reads keys from a file called <code>.env</code> in the project root. A fresh clone
+    doesn't have one (it's deliberately excluded from git), so create it by copying the template:</p>
+    <div class="formula">cp .env.example .env</div>
+    <p>Then open <code>.env</code> in any text editor and fill in the two lines:</p>
+    <div class="formula">GEMINI_API_KEY=AIza...your_actual_key...<br>GROQ_API_KEY=gsk_...your_actual_key...</div>
+    <div class="meaning">
+      No quotes, no spaces around the <code>=</code>. Save the file. That's it — the app picks the
+      keys up on its next start.
+    </div>
+  </section>
+
+  <!-- ── Free-tier limits ────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">4. Free-tier limits (good to know)</h2>
+    <p>Both free tiers are generous enough for personal use. The app <em>proactively paces</em>
+    itself to stay under these, so you won't get surprise lock-outs:</p>
+    <table class="t">
+      <thead><tr><th>Provider</th><th>Requests / minute</th><th>Requests / day</th></tr></thead>
+      <tbody>
+        <tr><td>Gemini 2.5 Flash</td><td>~10 RPM</td><td>~250 RPD (per Google project)</td></tr>
+        <tr><td>Groq (most free models)</td><td>~30 RPM</td><td>~14,400 RPD (per account)</td></tr>
+      </tbody>
+    </table>
+    <p class="text-sm text-gray-600 mt-3"><strong>Sharing a key with other tools?</strong> If the
+    same Gemini/Groq key is also used by, say, another app, lower <code>GEMINI_RPM</code> /
+    <code>GROQ_RPM</code> in <code>.env</code> so the two don't fight over the same quota.</p>
+  </section>
+
+  <!-- ── Optional keys ───────────────────────────────────── -->
+  <section class="mb-10" id="optional">
+    <h2 class="text-2xl font-bold mb-3">5. Optional keys (you probably don't need these)</h2>
+    <p>These power price-data providers that are <strong>not</strong> in the default chain. Leave
+    them blank unless you have a specific reason:</p>
+    <table class="t">
+      <thead><tr><th>Key</th><th>When you'd want it</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>ALPHA_VANTAGE_API_KEY</code></td>
+          <td>Only if you manually add <code>alpha_vantage</code> back to <code>PRICE_CHAIN</code>.
+              Free tier is just 25 requests/day and its NSE feed is unreliable — omitted by default.</td>
+        </tr>
+        <tr>
+          <td><code>STOOQ_API_KEY</code></td>
+          <td>Only if you fetch <em>non-Indian</em> tickers (US/EU/JP). Stooq has
+              <strong>no NSE coverage</strong>, so it's useless for Indian equities.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="meaning">
+      Price data itself needs <strong>no key</strong> for the default setup — <code>jugaad</code>,
+      <code>nse_bhavcopy</code>, and <code>yfinance</code> are all key-free.
+    </div>
+  </section>
+
+  <!-- ── Security ────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">Keeping your keys safe</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><code>.env</code> is <strong>gitignored</strong> — it never gets committed or pushed. Keep it that way.</li>
+      <li>Never paste a key into chat, screenshots, or a public repo. If one leaks, delete it in the
+          provider console and create a fresh one.</li>
+      <li>The keys live only on your machine — this app runs entirely locally.</li>
+    </ul>
+  </section>
+
+  <!-- ── Verify ──────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">How to know it worked</h2>
+    <p>Start the app and run a prediction on any stock. If the keys are wired correctly, you'll get
+    a full prediction card. If a key is missing or wrong, you'll see a clear error message when you
+    click <strong>Predict</strong> (the UI itself still boots fine — keys are only needed at
+    prediction time).</p>
+  </section>
+
+  <div class="flex justify-between text-sm mt-12 pt-6 border-t border-gray-200">
+    <a href="how_it_works.html" class="text-[#0053e2]">← Back to How it works</a>
+    <a href="report/data_sources.html" class="text-[#0053e2]">Data we ingest →</a>
+  </div>
+
+  <footer class="report-foot">Self-contained setup guide · Built by Sumeet Sarode</footer>
+</main>
+
+</body>
+</html>

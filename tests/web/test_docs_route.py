@@ -48,6 +48,19 @@ class TestDocsServed:
         assert 'href="report/all_in_one.html"' in hub
         assert client.get("/docs/report/all_in_one.html").status_code == 200
 
+    def test_api_keys_guide_is_served(self, client):
+        resp = client.get("/docs/api_keys.html")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        # Both required keys must be named in the guide.
+        assert "GEMINI_API_KEY" in resp.text
+        assert "GROQ_API_KEY" in resp.text
+
+    def test_hub_links_to_api_keys_guide(self, client):
+        hub = client.get("/docs/how_it_works.html").text
+        # Relative link so it resolves under /docs and works as a file too.
+        assert 'href="api_keys.html"' in hub
+
 
 class TestNavLink:
     def test_home_nav_links_to_walkthrough(self, client):

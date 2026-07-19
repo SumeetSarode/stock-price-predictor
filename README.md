@@ -64,6 +64,8 @@ cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
 > **API keys:** a fresh clone has no `.env` (it's gitignored). You need
 > your own free-tier keys: Groq (https://console.groq.com/keys) and
 > Gemini (https://aistudio.google.com/app/apikey). Paste them into `.env`.
+> Step-by-step with screenshots-worth of detail: see
+> **`docs/api_keys.html`** (also linked in-app under *How it works -> API keys*).
 
 > **TA-Lib is a C library** (not just a pip wheel). If `uv sync` fails on
 > it: **macOS** `brew install ta-lib`, **Debian/Ubuntu** `sudo apt-get install
