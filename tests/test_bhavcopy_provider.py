@@ -5,6 +5,7 @@ no HTTP is involved at all.
 """
 from __future__ import annotations
 
+import time
 from datetime import date
 
 import pandas as pd
@@ -14,6 +15,7 @@ from price_predictor.data.bhavcopy import BhavcopyError
 from price_predictor.data.providers.base import PriceFetchError
 from price_predictor.data.providers.bhavcopy_provider import (
     NseBhavcopyProvider,
+    _FAIL_FAST_ERROR_THRESHOLD,
     _iter_trading_days,
 )
 
@@ -221,6 +223,88 @@ class TestErrorPaths:
         with pytest.raises(PriceFetchError, match="no rows for symbol"):
             prov.fetch_ohlcv("RELIANCE", date(2024, 4, 27), date(2024, 4, 28))
         assert fetcher.captured == []  # type: ignore[attr-defined]
+
+
+# ─────────────────────────────────────────────────────────────
+# Fail-fast on wholesale NSE block (geo-block / 403 / timeout).
+#
+# Outside India NSE blocks EVERY per-day fetch. Without fail-fast the
+# provider would grind through hundreds of trading days (workers at a
+# time, 30s timeout each) before giving up -- minutes wasted for a
+# guaranteed-empty result. These tests lock in the early abort that lets
+# the resilient chain fall back to yfinance in seconds.
+#
+# max_workers=1 keeps completion order == submission order so the
+# threshold-counting assertions are deterministic (no thread races).
+# ─────────────────────────────────────────────────────────────
+class TestFailFast:
+    @staticmethod
+    def _always_raises():
+        captured: list[date] = []
+
+        def _impl(d: date) -> pd.DataFrame:
+            captured.append(d)
+            # Simulate NSE latency (real fetches carry a 30s timeout). A
+            # tiny sleep keeps the single worker from racing through every
+            # instant task before the main loop can break + cancel the
+            # pending futures -- which is precisely what fail-fast prevents
+            # in production, where each call is slow.
+            time.sleep(0.02)
+            raise BhavcopyError("403 access denied (NSE geo-block)")
+
+        _impl.captured = captured  # type: ignore[attr-defined]
+        return _impl
+
+    def test_aborts_early_without_fetching_every_day(self):
+        # A month-long window has well over the threshold of trading
+        # days; every one errors -> must abort early rather than fetch
+        # all of them.
+        start, end = date(2024, 4, 1), date(2024, 4, 30)
+        trading_days = list(_iter_trading_days(start, end))
+        assert len(trading_days) > _FAIL_FAST_ERROR_THRESHOLD  # precondition
+
+        fetcher = self._always_raises()
+        prov = NseBhavcopyProvider(bhavcopy_fn=fetcher, max_workers=1)
+        with pytest.raises(PriceFetchError, match="aborted early"):
+            prov.fetch_ohlcv("RELIANCE", start, end)
+
+        # Proof of early abort: not every trading day was fetched.
+        assert len(fetcher.captured) < len(trading_days)  # type: ignore[attr-defined]
+
+    def test_error_message_points_to_yfinance_workaround(self):
+        prov = NseBhavcopyProvider(
+            bhavcopy_fn=self._always_raises(), max_workers=1,
+        )
+        with pytest.raises(PriceFetchError, match="PRICE_CHAIN=yfinance"):
+            prov.fetch_ohlcv("RELIANCE", date(2024, 4, 1), date(2024, 4, 30))
+
+    def test_no_fail_fast_when_a_day_succeeds(self):
+        # A reachable NSE interleaves successes among any blips. One good
+        # day means we must NOT bail -- return what we found.
+        start, end = date(2024, 4, 1), date(2024, 4, 30)
+        good_day = list(_iter_trading_days(start, end))[0]
+
+        def _impl(d: date) -> pd.DataFrame:
+            if d == good_day:
+                return _fake_day(d)
+            raise BhavcopyError("403")
+
+        prov = NseBhavcopyProvider(bhavcopy_fn=_impl, max_workers=1)
+        df = prov.fetch_ohlcv("RELIANCE", start, end)
+        assert len(df) >= 1
+
+    def test_small_range_below_threshold_uses_normal_error_path(self):
+        # <= threshold trading days all erroring -> the ORIGINAL
+        # "day(s) errored" summary, NOT the fail-fast abort.
+        start, end = date(2024, 4, 22), date(2024, 4, 24)  # Mon-Wed
+        trading_days = list(_iter_trading_days(start, end))
+        assert len(trading_days) <= _FAIL_FAST_ERROR_THRESHOLD
+
+        prov = NseBhavcopyProvider(
+            bhavcopy_fn=self._always_raises(), max_workers=1,
+        )
+        with pytest.raises(PriceFetchError, match=r"day\(s\) errored"):
+            prov.fetch_ohlcv("RELIANCE", start, end)
 
 
 # ─────────────────────────────────────────────────────────────

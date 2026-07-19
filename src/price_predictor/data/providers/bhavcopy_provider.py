@@ -36,6 +36,17 @@ Measured impact: a 2-year warm-from-cold fetch (~500 trading days,
 ~0.55s each sequential) drops from ~4.5 min to ~35s. NSE seems fine
 with 8 concurrent connections from one IP; if we ever get rate-limited
 the env var is the throttle knob — no code change required.
+
+FAIL-FAST (NSE wholesale block)
+===============================
+Outside India, NSE geo-blocks the IP and EVERY per-day fetch fails
+(403 / timeout). Without a circuit-breaker we'd wait for all N days to
+exhaust their 30s timeouts before giving up — minutes wasted for a
+guaranteed-empty result. So if the first `_FAIL_FAST_ERROR_THRESHOLD`
+completed days all error with ZERO successes, we cancel the pending
+futures and raise `PriceFetchError` immediately. The resilient chain
+then falls back to yfinance in seconds. A reachable NSE interleaves
+successes (which reset the condition), so this never trips in India.
 """
 from __future__ import annotations
 
@@ -61,6 +72,16 @@ BhavcopyFetcher = Callable[[date], pd.DataFrame]
 # Override at deployment time via env var; constructor arg wins over env.
 _DEFAULT_MAX_WORKERS_ENV = "PRICE_PREDICTOR_BHAVCOPY_MAX_WORKERS"
 _DEFAULT_MAX_WORKERS_FALLBACK = 8
+
+# Fail-fast threshold. If the first N *completed* trading days all error
+# with ZERO successful data so far, NSE is almost certainly blocking this
+# network (geo-block / 403 / timeout -- the norm outside India). Grinding
+# through the remaining hundreds of days would waste minutes for a
+# guaranteed-empty result, so we abort and let the resilient chain fall
+# back to yfinance in seconds. Set low enough to bail quickly, high enough
+# that a handful of genuine holiday/404 blips on a reachable NSE won't trip
+# it (a reachable fetch interleaves successes, which reset the condition).
+_FAIL_FAST_ERROR_THRESHOLD = 5
 
 
 def _resolve_default_max_workers() -> int:
@@ -152,6 +173,7 @@ class NseBhavcopyProvider(PriceProvider):
 
         if days:
             workers = max(1, min(self._max_workers, len(days)))
+            fail_fast_tripped = False
             with ThreadPoolExecutor(
                 max_workers=workers,
                 thread_name_prefix="bhavcopy",
@@ -168,11 +190,35 @@ class NseBhavcopyProvider(PriceProvider):
                         # newly-listed-day rows, etc. Don't kill the whole
                         # batch for one bad day; record + move on.
                         per_day_errors.append((d, str(e)))
+                        # Fail-fast: first N completions all failed with no
+                        # data yet -> NSE is blocking us. Cancel the pending
+                        # (not-yet-started) futures and bail. In-flight ones
+                        # (<= workers) still finish, so worst-case extra wait
+                        # is one timeout window, not hundreds of days.
+                        if (
+                            not per_day_frames
+                            and len(days) > _FAIL_FAST_ERROR_THRESHOLD
+                            and len(per_day_errors) >= _FAIL_FAST_ERROR_THRESHOLD
+                        ):
+                            fail_fast_tripped = True
+                            for pending in future_to_day:
+                                pending.cancel()
+                            break
                         continue
 
                     hits = day_df[day_df["SYMBOL"].str.upper() == symbol_upper]
                     if not hits.empty:
                         per_day_frames.append(hits)
+
+            if fail_fast_tripped:
+                raise PriceFetchError(
+                    f"NSE bhavcopy aborted early for symbol={symbol_upper!r}: "
+                    f"the first {len(per_day_errors)} of {len(days)} trading "
+                    f"day(s) all failed with zero data -- NSE is likely blocking "
+                    f"this network (geo-block / 403 / timeout, common outside "
+                    f"India). Set PRICE_CHAIN=yfinance to skip the NSE tiers. "
+                    f"Sample errors: {per_day_errors[:3]}"
+                )
 
         if not per_day_frames:
             err_summary = (
