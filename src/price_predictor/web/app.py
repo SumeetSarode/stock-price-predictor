@@ -72,6 +72,23 @@ def create_app() -> FastAPI:
         name="static",
     )
 
+    # The 'How it works' walkthrough (docs/how_it_works.html + report/
+    # chapters + assets) served read-only at /docs, linked from the nav.
+    # Guarded: docs are OPTIONAL, so a deploy without docs/ (e.g. a slim
+    # checkout) still boots -- unlike frontend/, whose absence is fatal.
+    # html=True lets extensionless paths resolve and 404s render cleanly.
+    if settings.docs_dir.is_dir():
+        app.mount(
+            "/docs",
+            StaticFiles(directory=str(settings.docs_dir), html=True),
+            name="docs",
+        )
+    else:
+        logger.warning(
+            f"docs/ not found at {settings.docs_dir} -- the 'How it works' "
+            f"nav link will 404. This is non-fatal."
+        )
+
     # Routers — keep page routes and API routes cleanly separated.
     app.include_router(pages.router)
     app.include_router(api.router)

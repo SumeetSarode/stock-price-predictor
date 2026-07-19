@@ -114,6 +114,14 @@ class WebSettings(BaseSettings):
         # vendor/, and assets/ are all reachable via predictable URLs.
         return self.frontend_dir
 
+    @property
+    def docs_dir(self) -> Path:
+        # The 'How it works' walkthrough (how_it_works.html + report/
+        # chapters + assets) lives at repo-root docs/. Served read-only
+        # at /docs so the nav can link to it in-app. Optional: unlike
+        # frontend/, a missing docs/ won't stop the server (see app.py).
+        return _REPO_ROOT / "docs"
+
 
 # Module-level singleton — import this everywhere instead of
 # instantiating per-request. Pydantic-cheap but not free.
