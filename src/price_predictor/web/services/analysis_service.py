@@ -44,6 +44,13 @@ from price_predictor.analysis.momentum import momentum_snapshot
 from price_predictor.analysis.trend import trend_snapshot
 from price_predictor.analysis.volatility import volatility_snapshot
 from price_predictor.data._shared_cache import get_cache
+from price_predictor.web.utils.candle_chart import (
+    CANDLE_H,
+    CANDLE_W,
+    CHART_H,
+    CHART_W,
+    build_candle_chart,
+)
 
 # ── Tuning constants ─────────────────────────────────────────────────
 # 400 calendar days ≈ 250 trading days, enough headroom for the 200-day
@@ -55,6 +62,73 @@ _DEFAULT_PRESET = "standard"
 _CANDLESTICK_LOOKBACK = 5
 # Floor below which most indicators are noise (matches detector contracts).
 _MIN_BARS = 20
+# Candle-window shaping for the inline pattern charts (see candle_chart.py).
+_CANDLE_CTX_BEFORE = 4   # bars of context before a candlestick pattern bar
+_CANDLE_CTX_AFTER = 1    # bars after (usually the pattern IS the latest bar)
+_CHART_CTX_PAD = 3       # bars of padding around a chart pattern's pivots
+_CHART_MAX_BARS = 50     # cap so candles never shrink to invisible slivers
+
+
+def _window_bars(df: pd.DataFrame, start: int, end: int, highlight: set[int]) -> list[dict]:
+    """Slice df[start:end] into candle dicts, flagging `highlight` positions.
+
+    Positions in `highlight` are absolute (positive) row indices into df.
+    """
+    out: list[dict] = []
+    sub = df.iloc[start:end]
+    for pos, (_, row) in zip(range(start, end), sub.iterrows()):
+        out.append({
+            "open": row.get("open"),
+            "high": row.get("high"),
+            "low": row.get("low"),
+            "close": row.get("close"),
+            "highlight": pos in highlight,
+        })
+    return out
+
+
+def _attach_candlestick_charts(df: pd.DataFrame, hits: list[dict]) -> None:
+    """Mutate each candlestick hit dict, adding a real-data ``chart``.
+
+    bar_index is NEGATIVE (-1 = latest). We render a few bars of context
+    ending just after the pattern bar, highlighting the pattern bar itself.
+    """
+    n = len(df)
+    for hit in hits:
+        pos = n + int(hit.get("bar_index", -1))  # negative -> absolute
+        if pos < 0 or pos >= n:
+            hit["chart"] = None
+            continue
+        start = max(0, pos - _CANDLE_CTX_BEFORE)
+        end = min(n, pos + 1 + _CANDLE_CTX_AFTER)
+        bars = _window_bars(df, start, end, {pos})
+        hit["chart"] = build_candle_chart(bars, width=CANDLE_W, height=CANDLE_H)
+
+
+def _attach_chart_pattern_charts(df: pd.DataFrame, hits: list[dict]) -> None:
+    """Mutate each chart-pattern hit dict, adding a real-data ``chart``.
+
+    bar_indices are POSITIVE row indices of the pattern's pivots. We render
+    the window spanning those pivots (plus padding), highlight the pivots,
+    and overlay key_levels as horizontal reference lines.
+    """
+    n = len(df)
+    for hit in hits:
+        idxs = [int(i) for i in hit.get("bar_indices", []) if 0 <= int(i) < n]
+        if not idxs:
+            hit["chart"] = None
+            continue
+        start = max(0, min(idxs) - _CHART_CTX_PAD)
+        end = min(n, max(idxs) + 1 + _CHART_CTX_PAD)
+        # Cap the window so candles stay legible; keep the most-recent bars
+        # (the neckline/breakout end that traders actually act on).
+        if end - start > _CHART_MAX_BARS:
+            start = end - _CHART_MAX_BARS
+        bars = _window_bars(df, start, end, set(idxs))
+        hit["chart"] = build_candle_chart(
+            bars, width=CHART_W, height=CHART_H,
+            levels=hit.get("key_levels") or None,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +228,11 @@ async def compute_live_analysis(ticker: str) -> LiveAnalysis:
     levels = levels_snapshot(df, swing_lookback=lvl_p["swing_lookback"])
     candles = detect_recent_patterns(df, lookback=_CANDLESTICK_LOOKBACK)
     charts = detect_all_patterns(df)
+
+    # Enrich each hit with a real-data inline candlestick chart (the actual
+    # bars that triggered detection -- no external images, no made-up shapes).
+    _attach_candlestick_charts(df, candles)
+    _attach_chart_pattern_charts(df, charts)
 
     return LiveAnalysis(
         ticker=t,

@@ -2394,6 +2394,11 @@
   padding: var(--space-2) var(--space-3);
   background: var(--color-bg-subtle);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .pattern-list__item--bullish { border-left-color: var(--color-bullish); }
@@ -2420,6 +2425,48 @@
   text-transform: capitalize;
   font-weight: var(--fw-medium);
 }
+
+/* ── Real-data candlestick chart per pattern (web/utils/candle_chart.py).
+   The candles rendered here are the ACTUAL OHLC bars that triggered the
+   detection -- not a stock illustration. Context bars are dimmed; the
+   pattern bar(s) are full-opacity with an outline. ─────────────────── */
+.pattern-list__body { flex: 1 1 12rem; min-width: 0; }
+.pattern-list__chart {
+  margin: 0;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.pattern-list__chart--wide { flex-basis: 100%; }
+.candle-svg {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+  height: auto;
+}
+.pattern-list__chart-cap {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  letter-spacing: 0.02em;
+}
+.candle { opacity: 0.38; }
+.candle--hl { opacity: 1; }
+.candle__wick { stroke-width: 1; }
+.candle--bull .candle__wick { stroke: var(--color-bullish); }
+.candle--bull .candle__body { fill: var(--color-bullish); }
+.candle--bear .candle__wick { stroke: var(--color-bearish); }
+.candle--bear .candle__body { fill: var(--color-bearish); }
+.candle--hl .candle__body { stroke: var(--color-fg); stroke-width: 1; }
+.candle-level {
+  stroke: var(--color-fg-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+  opacity: 0.55;
+}
+.candle-level__label { font-size: 8px; fill: var(--color-fg-muted); }
 
 /* ── News list ────────────────────────────────────────────────── */
 .news-list {

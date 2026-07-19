@@ -1,14 +1,42 @@
 {#
-  detail_patterns.html — HTMX partial for the "🕯 Patterns" tab.
+  detail_patterns.html — HTMX partial for the " Patterns" tab.
 
   Context:
     analysis: LiveAnalysis dataclass
       .candlesticks: list[dict] from detect_recent_patterns
-        each has: name, bar_date, bar_index, direction, confidence
+        each has: name, bar_date, bar_index, direction, confidence, chart
       .chart_patterns: list[dict] from detect_all_patterns
-        each has: name, confidence, key_levels, bar_indices
+        each has: name, confidence, key_levels, bar_indices, chart
     error: optional str — soft-error message
+
+  `chart` is a CandleChart (web/utils/candle_chart.py) of the REAL OHLC bars
+  that triggered the detection — actual market data, not a stock illustration.
 #}
+
+{#-- Inline SVG candlestick chart from real OHLC geometry. --#}
+{% macro candle_svg(chart, label) -%}
+  {%- if chart and chart.candles -%}
+  <svg class="candle-svg" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+       width="{{ chart.width }}" height="{{ chart.height }}"
+       role="img" aria-label="{{ label }} — real price candles"
+       preserveAspectRatio="xMidYMid meet">
+    <title>{{ label }} — actual OHLC candles</title>
+    {%- for lv in chart.levels %}
+    <line class="candle-level" x1="0" y1="{{ lv.y }}" x2="{{ chart.width }}" y2="{{ lv.y }}"/>
+    <text class="candle-level__label" x="{{ chart.width - 2 }}" y="{{ lv.y - 2 }}"
+          text-anchor="end">{{ lv.label }}</text>
+    {%- endfor %}
+    {%- for c in chart.candles %}
+    <g class="candle {{ 'candle--bull' if c.bullish else 'candle--bear' }}{{ ' candle--hl' if c.highlighted }}">
+      <line class="candle__wick" x1="{{ c.x }}" y1="{{ c.wick_top }}" x2="{{ c.x }}" y2="{{ c.wick_bottom }}"/>
+      <rect class="candle__body" x="{{ c.body_x }}" y="{{ c.body_top }}"
+            width="{{ c.body_w }}" height="{{ c.body_h }}"/>
+    </g>
+    {%- endfor %}
+  </svg>
+  {%- endif -%}
+{%- endmacro %}
+
 {% if error %}
   <div class="analysis-error">
     <p>{{ error }}</p>
@@ -37,16 +65,24 @@
         <ul class="pattern-list">
           {% for p in analysis.candlesticks %}
             <li class="pattern-list__item pattern-list__item--{{ p.direction }}">
-              <div class="pattern-list__name">
-                {{ p.name.replace("_", " ") | title }}
-                {% if p.confidence >= 200 %}
-                  <span class="analysis-card__tag analysis-card__tag--pos">high-confidence</span>
-                {% endif %}
+              <div class="pattern-list__body">
+                <div class="pattern-list__name">
+                  {{ p.name.replace("_", " ") | title }}
+                  {% if p.confidence >= 200 %}
+                    <span class="analysis-card__tag analysis-card__tag--pos">high-confidence</span>
+                  {% endif %}
+                </div>
+                <div class="pattern-list__meta num">
+                  {{ p.bar_date }} ·
+                  <span class="pattern-list__dir">{{ p.direction }}</span>
+                </div>
               </div>
-              <div class="pattern-list__meta num">
-                {{ p.bar_date }} ·
-                <span class="pattern-list__dir">{{ p.direction }}</span>
-              </div>
+              {% if p.chart %}
+                <figure class="pattern-list__chart">
+                  {{ candle_svg(p.chart, p.name.replace("_", " ") | title) }}
+                  <figcaption class="pattern-list__chart-cap">actual candles</figcaption>
+                </figure>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>
@@ -66,18 +102,26 @@
         <ul class="pattern-list">
           {% for p in analysis.chart_patterns %}
             <li class="pattern-list__item">
-              <div class="pattern-list__name">
-                {{ p.name.replace("_", " ") | title }}
-                <span class="analysis-card__meta num">
-                  {{ "%.0f"|format(p.confidence * 100) }}% confidence
-                </span>
-              </div>
-              {% if p.key_levels %}
-                <div class="pattern-list__meta num">
-                  {% for k, v in p.key_levels.items() %}
-                    {{ k.replace("_", " ") }}: ₹{{ "%.2f"|format(v) }}{% if not loop.last %} · {% endif %}
-                  {% endfor %}
+              <div class="pattern-list__body">
+                <div class="pattern-list__name">
+                  {{ p.name.replace("_", " ") | title }}
+                  <span class="analysis-card__meta num">
+                    {{ "%.0f"|format(p.confidence * 100) }}% confidence
+                  </span>
                 </div>
+                {% if p.key_levels %}
+                  <div class="pattern-list__meta num">
+                    {% for k, v in p.key_levels.items() %}
+                      {{ k.replace("_", " ") }}: ₹{{ "%.2f"|format(v) }}{% if not loop.last %} · {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              {% if p.chart %}
+                <figure class="pattern-list__chart pattern-list__chart--wide">
+                  {{ candle_svg(p.chart, p.name.replace("_", " ") | title) }}
+                  <figcaption class="pattern-list__chart-cap">actual candles · pivots highlighted</figcaption>
+                </figure>
               {% endif %}
             </li>
           {% endfor %}
@@ -90,7 +134,9 @@
   </div>
 
   <p class="analysis-panel__footer">
-    Recent candlesticks scan the last 5 bars; chart patterns scan the full {{ analysis.bars_used }}-bar window.
+    Charts show the <strong>real OHLC candles</strong> that triggered each
+    detection — not illustrations. Recent candlesticks scan the last 5 bars;
+    chart patterns scan the full {{ analysis.bars_used }}-bar window.
   </p>
 </div>
 {% endif %}

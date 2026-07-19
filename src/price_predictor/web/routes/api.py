@@ -431,6 +431,10 @@ async def _render_analysis_tab(
         )
     if analysis is None:
         return JSONResponse(status_code=503, content={"error": error})
+    # The JSON API stays schema-stable: strip the presentation-only `chart`
+    # geometry (CandleChart dataclass) that the HTML template consumes.
+    def _no_chart(items: list[dict]) -> list[dict]:
+        return [{k: v for k, v in it.items() if k != "chart"} for it in items]
     return JSONResponse(content={
         "ticker": analysis.ticker,
         "as_of": analysis.as_of.isoformat(),
@@ -439,8 +443,8 @@ async def _render_analysis_tab(
         "momentum": analysis.momentum,
         "volatility": analysis.volatility,
         "levels": analysis.levels,
-        "candlesticks": analysis.candlesticks,
-        "chart_patterns": analysis.chart_patterns,
+        "candlesticks": _no_chart(analysis.candlesticks),
+        "chart_patterns": _no_chart(analysis.chart_patterns),
     })
 
 
