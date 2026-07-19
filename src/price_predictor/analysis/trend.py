@@ -25,11 +25,17 @@ import pandas_ta as ta
 
 # Default pairs computed by trend_snapshot. SMA-50/200 is the textbook
 # Golden Cross (Murphy 1999); EMA-9/21 is the swing-trader's faster pair
-# (Pring 2002). See git history for sourcing and the
-# data-snooping caveat (Sullivan-Timmermann-White 1999).
+# (Pring 2002). EMA-5/13 and EMA-5/26 are the fast intraday/swing pairs
+# from the Kiran Jadhav checklist -- added as ADDITIONAL low-weight inputs
+# (see _trend_signal.py vote weights). They react sooner but whipsaw more,
+# so they intentionally carry less voting weight than the slower pairs.
+# See docs/research_kj_vs_app.html for the evidence review and the
+# data-snooping caveat (Sullivan-Timmermann-White 1999, Zakamulin 2018).
 DEFAULT_MA_CROSS_PAIRS: list[tuple[str, int, int]] = [
     ("sma", 50, 200),
     ("ema", 9, 21),
+    ("ema", 5, 13),
+    ("ema", 5, 26),
 ]
 
 

@@ -109,14 +109,17 @@ class TestTrendSnapshot:
         assert snap["pct_above_sma"][200] is None
 
     def test_snapshot_includes_default_ma_crosses(self):
-        """trend_snapshot ships the default pairs (SMA-50/200 + EMA-9/21)
-        without the caller having to know the keys."""
+        """trend_snapshot ships the default pairs (SMA-50/200 + EMA-9/21
+        + fast EMA-5/13 & EMA-5/26) without the caller having to know the
+        keys."""
         df = linear_uptrend(n=250, start=100, slope=1)
         snap = trend_snapshot(
             df, sma_lengths=[20, 50, 200], ema_length=20, adx_length=14
         )
         assert "ma_crosses" in snap
-        assert set(snap["ma_crosses"].keys()) == {"sma_50_200", "ema_9_21"}
+        assert set(snap["ma_crosses"].keys()) == {
+            "sma_50_200", "ema_9_21", "ema_5_13", "ema_5_26"
+        }
 
     def test_snapshot_custom_ma_pairs_override(self):
         df = linear_uptrend(n=250, start=100, slope=1)
@@ -236,7 +239,9 @@ class TestDetectMaCrossesPlural:
     def test_default_pairs_returned(self):
         df = linear_uptrend(n=250, start=100, slope=1)
         out = detect_ma_crosses(df)
-        assert set(out.keys()) == {"sma_50_200", "ema_9_21"}
+        assert set(out.keys()) == {
+            "sma_50_200", "ema_9_21", "ema_5_13", "ema_5_26"
+        }
         for v in out.values():
             assert {"current", "last_event", "bars_since_event",
                     "short_ma", "long_ma"} == set(v.keys())

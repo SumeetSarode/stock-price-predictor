@@ -39,6 +39,12 @@ ADX_WEAK_FLOOR = 20
 MA_CROSS_FRESH_BARS = 5         # cross is "fresh" within ~1 trading week
 MA_CROSS_VOTE_SMA_50_200 = 0.5  # canonical Golden / Death Cross
 MA_CROSS_VOTE_EMA_9_21 = 0.3    # faster swing-trader pair
+# Fast Kiran-Jadhav-checklist pairs. Deliberately LOW weight: they react
+# sooner but whipsaw far more, and the evidence review (docs/research_
+# kj_vs_app.html) says treat fast crossovers as one input, never a
+# standalone trigger. 5/26 > 5/13 because the wider gap whipsaws less.
+MA_CROSS_VOTE_EMA_5_26 = 0.2
+MA_CROSS_VOTE_EMA_5_13 = 0.15
 
 # Pretty-print label for the canonical Golden Cross pair only.
 # Other pairs get generic "{kind}-{short}/{long}" framing.
@@ -90,6 +96,10 @@ def _cross_vote_weight(key: str) -> float:
         return MA_CROSS_VOTE_SMA_50_200
     if key == "ema_9_21":
         return MA_CROSS_VOTE_EMA_9_21
+    if key == "ema_5_26":
+        return MA_CROSS_VOTE_EMA_5_26
+    if key == "ema_5_13":
+        return MA_CROSS_VOTE_EMA_5_13
     return 0.0
 
 

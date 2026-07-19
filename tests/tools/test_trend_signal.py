@@ -227,6 +227,23 @@ class TestCrossVoteWeight:
     def test_ema_9_21_weight(self):
         assert _cross_vote_weight("ema_9_21") == 0.3
 
+    def test_ema_5_26_weight(self):
+        # Fast KJ pair -- lower weight than 9/21 (whipsaws more).
+        assert _cross_vote_weight("ema_5_26") == 0.2
+
+    def test_ema_5_13_weight(self):
+        # Fastest KJ pair -- lowest non-zero weight (whipsaws most).
+        assert _cross_vote_weight("ema_5_13") == 0.15
+
+    def test_fast_pairs_ranked_below_slow_pairs(self):
+        # Sanity: reliability ranking baked into the weights.
+        assert (
+            _cross_vote_weight("ema_5_13")
+            < _cross_vote_weight("ema_5_26")
+            < _cross_vote_weight("ema_9_21")
+            < _cross_vote_weight("sma_50_200")
+        )
+
     def test_unknown_pair_zero_weight(self):
         # Custom pairs surface in rationale but do not vote.
         assert _cross_vote_weight("sma_20_50") == 0.0
