@@ -17,23 +17,24 @@
   <meta name="description"
         content="Local-first AI-driven price predictions for NSE stocks. Bring your own keys, run on your laptop." />
 
-  {# Design system — load order matters: tokens → base → components #}
-  <link rel="stylesheet" href="/static/styles/tokens.css" />
-  <link rel="stylesheet" href="/static/styles/base.css" />
-  <link rel="stylesheet" href="/static/styles/components.css" />
+  {# Design system — load order matters: tokens → base → components.
+     asset() appends ?v=<mtime> so CSS edits show up without a hard-refresh. #}
+  <link rel="stylesheet" href="{{ asset('styles/tokens.css') }}" />
+  <link rel="stylesheet" href="{{ asset('styles/base.css') }}" />
+  <link rel="stylesheet" href="{{ asset('styles/components.css') }}" />
 
   {# Favicon (inline SVG — no extra request, no asset to manage) #}
   <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Cpath d='M8 22 L13 14 L18 19 L24 10' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 
   {# HTMX — vendored, no CDN at runtime #}
-  <script src="/static/vendor/htmx-1.9.12.min.js" defer></script>
+  <script src="{{ asset('vendor/htmx-1.9.12.min.js') }}" defer></script>
 
   {# Tiny per-feature scripts. Keep these small + focused; each owns ONE
      interaction (search keyboard nav, etc.). HTMX handles the rest. #}
-  <script src="/static/scripts/search.js" defer></script>
-  <script src="/static/scripts/dashboard.js" defer></script>
-  <script src="/static/scripts/toast.js" defer></script>
+  <script src="{{ asset('scripts/search.js') }}" defer></script>
+  <script src="{{ asset('scripts/dashboard.js') }}" defer></script>
+  <script src="{{ asset('scripts/toast.js') }}" defer></script>
 
   {% block extra_head %}{% endblock %}
 </head>

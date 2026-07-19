@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 
 from price_predictor.web.services.analysis_service import (
     AnalysisServiceError,
@@ -33,10 +32,9 @@ from price_predictor.web.services.prediction_service import (
 )
 from price_predictor.web.services.search_service import search as search_stocks
 from price_predictor.web.services.watchlist_service import is_watched, toggle as toggle_watchlist
-from price_predictor.web.settings import settings
+from price_predictor.web.templating import templates
 
 router = APIRouter(prefix="/api")
-templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
 def _is_htmx(request: Request) -> bool:

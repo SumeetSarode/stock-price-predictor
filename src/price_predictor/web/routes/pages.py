@@ -7,14 +7,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from price_predictor._version import __version__
 from price_predictor.web.services.search_service import get_by_ticker
-from price_predictor.web.settings import settings
+from price_predictor.web.templating import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
 # Single source of truth for the version string we render in the footer:
