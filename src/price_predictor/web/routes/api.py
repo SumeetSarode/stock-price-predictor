@@ -430,9 +430,11 @@ async def _render_analysis_tab(
     if analysis is None:
         return JSONResponse(status_code=503, content={"error": error})
     # The JSON API stays schema-stable: strip the presentation-only `chart`
-    # geometry (CandleChart dataclass) that the HTML template consumes.
+    # geometry (CandleChart dataclass) + `chart_rows` (modal table data)
+    # that only the HTML template consumes.
     def _no_chart(items: list[dict]) -> list[dict]:
-        return [{k: v for k, v in it.items() if k != "chart"} for it in items]
+        drop = {"chart", "chart_rows"}
+        return [{k: v for k, v in it.items() if k not in drop} for it in items]
     return JSONResponse(content={
         "ticker": analysis.ticker,
         "as_of": analysis.as_of.isoformat(),

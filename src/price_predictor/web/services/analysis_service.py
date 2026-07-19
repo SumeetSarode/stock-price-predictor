@@ -69,15 +69,23 @@ _CHART_CTX_PAD = 3       # bars of padding around a chart pattern's pivots
 _CHART_MAX_BARS = 50     # cap so candles never shrink to invisible slivers
 
 
+def _bar_date(idx_label) -> str:
+    """Render a DataFrame index label as YYYY-MM-DD (falls back to str)."""
+    return str(idx_label.date()) if hasattr(idx_label, "date") else str(idx_label)
+
+
 def _window_bars(df: pd.DataFrame, start: int, end: int, highlight: set[int]) -> list[dict]:
     """Slice df[start:end] into candle dicts, flagging `highlight` positions.
 
     Positions in `highlight` are absolute (positive) row indices into df.
+    Each dict also carries the bar `date` so the click-through modal can
+    show the actual OHLC numbers, not just the drawn candle.
     """
     out: list[dict] = []
     sub = df.iloc[start:end]
-    for pos, (_, row) in zip(range(start, end), sub.iterrows()):
+    for pos, (idx_label, row) in zip(range(start, end), sub.iterrows()):
         out.append({
+            "date": _bar_date(idx_label),
             "open": row.get("open"),
             "high": row.get("high"),
             "low": row.get("low"),
@@ -103,6 +111,7 @@ def _attach_candlestick_charts(df: pd.DataFrame, hits: list[dict]) -> None:
         end = min(n, pos + 1 + _CANDLE_CTX_AFTER)
         bars = _window_bars(df, start, end, {pos})
         hit["chart"] = build_candle_chart(bars, width=CANDLE_W, height=CANDLE_H)
+        hit["chart_rows"] = bars
 
 
 def _attach_chart_pattern_charts(df: pd.DataFrame, hits: list[dict]) -> None:
@@ -129,6 +138,7 @@ def _attach_chart_pattern_charts(df: pd.DataFrame, hits: list[dict]) -> None:
             bars, width=CHART_W, height=CHART_H,
             levels=hit.get("key_levels") or None,
         )
+        hit["chart_rows"] = bars
 
 
 @dataclass(frozen=True, slots=True)

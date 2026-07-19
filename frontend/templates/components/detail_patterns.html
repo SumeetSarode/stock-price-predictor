@@ -1,23 +1,24 @@
 {#
-  detail_patterns.html — HTMX partial for the " Patterns" tab.
+  detail_patterns.html — HTMX partial for the "Patterns" tab.
 
   Context:
     analysis: LiveAnalysis dataclass
       .candlesticks: list[dict] from detect_recent_patterns
-        each has: name, bar_date, bar_index, direction, confidence, chart
+        each has: name, bar_date, bar_index, direction, confidence,
+                  chart (CandleChart), chart_rows (list[dict] date+OHLC)
       .chart_patterns: list[dict] from detect_all_patterns
-        each has: name, confidence, key_levels, bar_indices, chart
+        each has: name, confidence, key_levels, bar_indices,
+                  chart (CandleChart), chart_rows
     error: optional str — soft-error message
 
-  `chart` is a CandleChart (web/utils/candle_chart.py) of the REAL OHLC bars
-  that triggered the detection — actual market data, not a stock illustration.
+  Every chart is the REAL OHLC data that triggered detection. Click a chart
+  to open a modal with a larger view AND the actual numbers (chart_rows).
 #}
 
 {#-- Inline SVG candlestick chart from real OHLC geometry. --#}
 {% macro candle_svg(chart, label) -%}
   {%- if chart and chart.candles -%}
   <svg class="candle-svg" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
-       width="{{ chart.width }}" height="{{ chart.height }}"
        role="img" aria-label="{{ label }} — real price candles"
        preserveAspectRatio="xMidYMid meet">
     <title>{{ label }} — actual OHLC candles</title>
@@ -34,6 +35,59 @@
     </g>
     {%- endfor %}
   </svg>
+  {%- endif -%}
+{%- endmacro %}
+
+{#-- OHLC data table for the click-through modal. --#}
+{% macro ohlc_table(rows) -%}
+  <table class="ohlc-table num">
+    <thead>
+      <tr><th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th></tr>
+    </thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr class="{{ 'ohlc-table__row--hl' if r.highlight }}">
+        <td class="ohlc-table__date">{{ r.date }}</td>
+        <td>{{ "%.2f"|format(r.open) }}</td>
+        <td>{{ "%.2f"|format(r.high) }}</td>
+        <td>{{ "%.2f"|format(r.low) }}</td>
+        <td>{{ "%.2f"|format(r.close) }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}
+
+{#-- Clickable chart + its modal (big chart + real numbers). --#}
+{% macro pattern_chart(p, label, wide=False) -%}
+  {%- if p.chart -%}
+  <div class="pattern-chart-wrap{{ ' pattern-chart-wrap--wide' if wide }}">
+    <button type="button" class="pattern-chart-btn"
+            aria-haspopup="dialog"
+            title="Click to see the actual OHLC data"
+            onclick="this.parentElement.querySelector('dialog').showModal()">
+      {{ candle_svg(p.chart, label) }}
+      <span class="pattern-chart-btn__cap">click for data</span>
+    </button>
+
+    <dialog class="pattern-dialog"
+            aria-label="{{ label }} — price data"
+            onclick="if (event.target === this) this.close()">
+      <div class="pattern-dialog__inner">
+        <header class="pattern-dialog__head">
+          <h5 class="pattern-dialog__title">{{ label }}</h5>
+          <button type="button" class="pattern-dialog__close"
+                  aria-label="Close" onclick="this.closest('dialog').close()">&#10005;</button>
+        </header>
+        <div class="pattern-dialog__chart">{{ candle_svg(p.chart, label) }}</div>
+        {% if p.chart_rows %}{{ ohlc_table(p.chart_rows) }}{% endif %}
+        <p class="pattern-dialog__note">
+          Highlighted rows are the pattern bar(s). These are the real
+          OHLC values that triggered detection — not illustrations.
+        </p>
+      </div>
+    </dialog>
+  </div>
   {%- endif -%}
 {%- endmacro %}
 
@@ -58,7 +112,7 @@
     <section class="analysis-card">
       <h4 class="analysis-card__title">
         Candlesticks
-        <span class="analysis-card__meta">last 5 bars</span>
+        <span class="analysis-card__meta">scanned: last 5 bars</span>
       </h4>
 
       {% if analysis.candlesticks %}
@@ -77,12 +131,7 @@
                   <span class="pattern-list__dir">{{ p.direction }}</span>
                 </div>
               </div>
-              {% if p.chart %}
-                <figure class="pattern-list__chart">
-                  {{ candle_svg(p.chart, p.name.replace("_", " ") | title) }}
-                  <figcaption class="pattern-list__chart-cap">actual candles</figcaption>
-                </figure>
-              {% endif %}
+              {{ pattern_chart(p, p.name.replace("_", " ") | title) }}
             </li>
           {% endfor %}
         </ul>
@@ -95,7 +144,7 @@
     <section class="analysis-card">
       <h4 class="analysis-card__title">
         Chart patterns
-        <span class="analysis-card__meta">full window</span>
+        <span class="analysis-card__meta">scanned: full window</span>
       </h4>
 
       {% if analysis.chart_patterns %}
@@ -117,12 +166,7 @@
                   </div>
                 {% endif %}
               </div>
-              {% if p.chart %}
-                <figure class="pattern-list__chart pattern-list__chart--wide">
-                  {{ candle_svg(p.chart, p.name.replace("_", " ") | title) }}
-                  <figcaption class="pattern-list__chart-cap">actual candles · pivots highlighted</figcaption>
-                </figure>
-              {% endif %}
+              {{ pattern_chart(p, p.name.replace("_", " ") | title, wide=True) }}
             </li>
           {% endfor %}
         </ul>
@@ -135,8 +179,8 @@
 
   <p class="analysis-panel__footer">
     Charts show the <strong>real OHLC candles</strong> that triggered each
-    detection — not illustrations. Recent candlesticks scan the last 5 bars;
-    chart patterns scan the full {{ analysis.bars_used }}-bar window.
+    detection — click any chart to see the actual numbers. Candlesticks
+    scan the last 5 bars; chart patterns scan the full {{ analysis.bars_used }}-bar window.
   </p>
 </div>
 {% endif %}

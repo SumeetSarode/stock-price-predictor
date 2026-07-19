@@ -2431,26 +2431,44 @@
    detection -- not a stock illustration. Context bars are dimmed; the
    pattern bar(s) are full-opacity with an outline. ─────────────────── */
 .pattern-list__body { flex: 1 1 12rem; min-width: 0; }
-.pattern-list__chart {
-  margin: 0;
-  flex: 0 0 auto;
+
+/* Clickable chart -> opens a modal with the big chart + real OHLC table. */
+.pattern-chart-wrap { flex: 0 0 auto; margin: 0; }
+.pattern-chart-wrap--wide { flex-basis: 100%; }
+.pattern-chart-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  padding: 3px;
+  width: 210px;
+  max-width: 100%;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
 }
-.pattern-list__chart--wide { flex-basis: 100%; }
+.pattern-chart-wrap--wide .pattern-chart-btn { width: 100%; }
+.pattern-chart-btn:hover { background: var(--color-bg-subtle); }
+.pattern-chart-btn:hover .candle-svg { border-color: var(--color-primary); }
+.pattern-chart-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.pattern-chart-btn__cap {
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  color: var(--color-primary);
+  letter-spacing: 0.02em;
+}
 .candle-svg {
+  display: block;
+  width: 100%;
+  height: auto;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  max-width: 100%;
-  height: auto;
-}
-.pattern-list__chart-cap {
-  font-size: 10px;
-  color: var(--color-fg-muted);
-  letter-spacing: 0.02em;
 }
 .candle { opacity: 0.38; }
 .candle--hl { opacity: 1; }
@@ -2467,6 +2485,73 @@
   opacity: 0.55;
 }
 .candle-level__label { font-size: 8px; fill: var(--color-fg-muted); }
+
+/* Pattern click-through modal (native <dialog>) + real OHLC table. */
+.pattern-dialog {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0;
+  max-width: min(560px, 92vw);
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.25));
+}
+.pattern-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.pattern-dialog__inner { padding: var(--space-4); }
+.pattern-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.pattern-dialog__title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.pattern-dialog__close {
+  background: none;
+  border: 0;
+  font-size: var(--fs-md);
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-fg-muted);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+.pattern-dialog__close:hover { color: var(--color-fg); background: var(--color-bg-subtle); }
+.pattern-dialog__chart { margin-bottom: var(--space-3); }
+.pattern-dialog__chart .candle-svg { width: 100%; }
+.pattern-dialog__note {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-muted);
+  margin: var(--space-2) 0 0;
+}
+.ohlc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+}
+.ohlc-table th,
+.ohlc-table td {
+  padding: 4px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--color-border);
+}
+.ohlc-table th {
+  color: var(--color-fg-muted);
+  font-weight: var(--fw-medium);
+  text-align: right;
+}
+.ohlc-table th:first-child,
+.ohlc-table td:first-child { text-align: left; }
+.ohlc-table__date { color: var(--color-fg-muted); }
+.ohlc-table__row--hl {
+  background: var(--color-primary-soft);
+  font-weight: var(--fw-semibold);
+}
+.ohlc-table__row--hl .ohlc-table__date { color: var(--color-fg); }
 
 /* ── News list ────────────────────────────────────────────────── */
 .news-list {
