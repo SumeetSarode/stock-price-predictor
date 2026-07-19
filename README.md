@@ -65,6 +65,17 @@ cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
 > your own free-tier keys: Groq (https://console.groq.com/keys) and
 > Gemini (https://aistudio.google.com/app/apikey). Paste them into `.env`.
 
+> **TA-Lib is a C library** (not just a pip wheel). If `uv sync` fails on
+> it: **macOS** `brew install ta-lib`, **Debian/Ubuntu** `sudo apt-get install
+> ta-lib` (or build from source), **Windows** install the free Microsoft C++
+> Build Tools — then re-run `uv sync`.
+
+> **Running outside India (USA/EU/etc.)?** NSE geo-blocks foreign IPs, so the
+> default `jugaad` + `nse_bhavcopy` price tiers fail (403/timeout) and waste
+> 1-2 minutes per fetch before falling back. Set `PRICE_CHAIN=yfinance` in
+> `.env` to skip the blocked tiers — fetches drop to ~2s. (The Windows
+> installer asks about this automatically.)
+
 ### Run — CLI
 
 ```bash

@@ -79,13 +79,40 @@ try {
 # 4. .env check (developer adds this by hand)
 # ----------------------------------------------------------------------------
 Step "Checking .env..."
-if (Test-Path (Join-Path $RepoRoot ".env")) {
+$envPath = Join-Path $RepoRoot ".env"
+if (Test-Path $envPath) {
     Ok ".env present."
 } else {
     Warn "No .env found in the repo root."
     Write-Host "   Create it (copy .env.example -> .env) and paste your GROQ_API_KEY"
     Write-Host "   and GEMINI_API_KEY. The app can't predict without it."
     Write-Host "   You can do this now, or before the first launch."
+}
+
+# ----------------------------------------------------------------------------
+# 4b. Region check -- NSE geo-blocks foreign IPs.
+#     Outside India, the jugaad + nse_bhavcopy price tiers hit NSE and fail
+#     (403/timeout), wasting 1-2 minutes per fetch before falling back to
+#     yfinance. Setting PRICE_CHAIN=yfinance skips the dead tiers so data
+#     fetches take ~2s instead of minutes.
+# ----------------------------------------------------------------------------
+Step "Region check (price data source)..."
+$outside = Read-Host "   Is this laptop OUTSIDE India (USA/EU/etc.)? NSE blocks foreign IPs. [y/N]"
+if ($outside -match '^(y|Y|yes|YES)$') {
+    if (Test-Path $envPath) {
+        $lines = Get-Content $envPath
+        if ($lines -match '^\s*PRICE_CHAIN\s*=') {
+            $lines = $lines -replace '^\s*PRICE_CHAIN\s*=.*', 'PRICE_CHAIN=yfinance'
+        } else {
+            $lines += 'PRICE_CHAIN=yfinance'
+        }
+        Set-Content -Path $envPath -Value $lines
+        Ok "Set PRICE_CHAIN=yfinance in .env (skips NSE tiers blocked outside India)."
+    } else {
+        Warn "No .env yet -- when you create it, add this line:  PRICE_CHAIN=yfinance"
+    }
+} else {
+    Ok "Keeping the India default chain (jugaad -> nse_bhavcopy -> yfinance)."
 }
 
 # ----------------------------------------------------------------------------
