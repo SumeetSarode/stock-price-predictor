@@ -9,30 +9,62 @@ Why a script (instead of hand-editing a CSV):
     and get the same CSV byte-for-byte.
 
 Run:
-    python scripts/build_search_index.py
+    python scripts/build_search_index.py             # curated ~200 names
+    python scripts/build_search_index.py --fetch-nse  # + every NSE stock
+
+The --fetch-nse flag downloads NSE's official EQUITY_L.csv (the full
+listed-equity master, ~2000 symbols) and MERGES it in: Nifty 50 and the
+curated extras keep their hand-tuned sectors, and every remaining NSE
+symbol is added with sector 'NSE Listed'. Must be run OFF the corporate
+VPN — www.nseindia.com is blocked on many corporate networks.
 
 Output:
     frontend/data/nifty500.csv      (ticker,name,sector,nifty50)
 
-Future enhancement: add a `--fetch-nifty500` flag that downloads the
-official NSE Nifty 500 CSV to replace the hand-curated extras list.
-For v1, we ship with ~150 popular tickers — enough that search feels
-useful for >95% of retail-investor queries.
-
-Naming note: the CSV is called nifty500.csv even though v1 has ~150
-entries — the name signals the eventual target. It's a forward-
+Naming note: the CSV is called nifty500.csv even though the curated build
+has ~200 entries — the name signals the eventual target. It's a forward-
 compatible filename, not a current claim.
 """
 from __future__ import annotations
 
+import argparse
 import csv
+import io
 import json
+import sys
 from pathlib import Path
 
 # Repo root = parent of this script's parent (scripts/).
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KB_STOCKS_JSON = REPO_ROOT / "data" / "kb" / "stocks.json"
 OUTPUT_CSV = REPO_ROOT / "frontend" / "data" / "nifty500.csv"
+
+# ── NSE full equity master (used only with --fetch-nse) ─────────────
+# EQUITY_L.csv is NSE's authoritative list of every listed equity. It is
+# served from the archives host; the www host is a fallback. NSE blocks
+# plain Python User-Agents, so we prime a session (homepage GET for
+# cookies) with browser-like headers first — same trick as data/filings.py.
+NSE_HOMEPAGE = "https://www.nseindia.com/"
+NSE_EQUITY_L_URLS = (
+    "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+    "https://www.nseindia.com/content/equities/EQUITY_L.csv",
+)
+_BROWSER_HEADERS: dict[str, str] = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/csv,application/csv,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Referer": NSE_HOMEPAGE,
+    "Connection": "keep-alive",
+}
+# Which NSE series count as tradeable equity for our purposes. EQ = normal
+# rolling settlement; BE = trade-to-trade (still real equity). Everything
+# else (illiquid / non-equity series) is skipped.
+_KEEP_SERIES: frozenset[str] = frozenset({"EQ", "BE"})
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -245,8 +277,76 @@ POPULAR_EXTRAS: list[tuple[str, str, str]] = [
 ]
 
 
-def build() -> None:
-    """Build the search-index CSV and write to disk."""
+def fetch_nse_equity_list() -> list[tuple[str, str]]:
+    """Download NSE's full listed-equity master (EQUITY_L.csv).
+
+    Returns a list of (symbol, company_name) for every EQ/BE series
+    listing. Requires network access to www.nseindia.com (run OFF the
+    corporate VPN). Raises RuntimeError with an actionable message on
+    any failure so the caller can fall back to the curated build.
+    """
+    try:
+        import httpx  # local import: only needed on the --fetch-nse path
+    except ImportError as exc:  # pragma: no cover - httpx is a project dep
+        raise RuntimeError(
+            "httpx is required for --fetch-nse (it's already a project dep; "
+            "run `uv sync`)."
+        ) from exc
+
+    last_err: Exception | None = None
+    with httpx.Client(
+        headers=_BROWSER_HEADERS, timeout=30.0, follow_redirects=True
+    ) as client:
+        # Prime cookies. NSE 403s the CSV without a warmed session.
+        try:
+            client.get(NSE_HOMEPAGE)
+        except Exception as exc:  # noqa: BLE001 - warmup is best-effort
+            last_err = exc
+
+        for url in NSE_EQUITY_L_URLS:
+            try:
+                resp = client.get(url)
+                resp.raise_for_status()
+                return _parse_equity_l(resp.text)
+            except Exception as exc:  # noqa: BLE001 - try the next mirror
+                last_err = exc
+                continue
+
+    raise RuntimeError(
+        "Couldn't download NSE EQUITY_L.csv. Are you OFF the corporate VPN? "
+        f"(www.nseindia.com is blocked on many corp networks.) Last error: {last_err}"
+    )
+
+
+def _parse_equity_l(text: str) -> list[tuple[str, str]]:
+    """Parse EQUITY_L.csv text -> [(symbol, name), ...] for EQ/BE series.
+
+    NSE's header has inconsistent leading spaces (e.g. ' SERIES'), so we
+    normalize keys by stripping whitespace before reading.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    out: list[tuple[str, str]] = []
+    for raw in reader:
+        row = {(k or "").strip().upper(): (v or "").strip() for k, v in raw.items()}
+        symbol = row.get("SYMBOL", "")
+        name = row.get("NAME OF COMPANY", "")
+        series = row.get("SERIES", "")
+        if not symbol or series not in _KEEP_SERIES:
+            continue
+        out.append((symbol, name or symbol))
+    if not out:
+        raise RuntimeError(
+            "EQUITY_L.csv parsed to 0 rows — the format may have changed."
+        )
+    return out
+
+
+def build(fetch_nse: bool = False) -> None:
+    """Build the search-index CSV and write to disk.
+
+    When ``fetch_nse`` is True, the full NSE equity master is merged in on
+    top of the Nifty 50 + curated extras (which keep their nicer sectors).
+    """
 
     # Load Nifty 50 from the KB (single source of truth).
     with KB_STOCKS_JSON.open(encoding="utf-8") as fp:
@@ -282,12 +382,31 @@ def build() -> None:
             "nifty50": "false",
         })
 
-    # Sort: Nifty 50 first (alphabetic within group), then extras
-    # (alphabetic). This means binary-search-style autocomplete can do
-    # smart things like "show N50 matches first" with simple slicing.
+    # Optionally merge the full NSE equity master. Curated rows win on
+    # dedup, so popular names keep their hand-tuned sectors; the long tail
+    # gets a neutral 'NSE Listed' sector.
+    nse_rows: list[dict[str, str]] = []
+    if fetch_nse:
+        print("Downloading NSE EQUITY_L.csv (must be off-VPN)…")
+        listings = fetch_nse_equity_list()
+        for symbol, name in listings:
+            if symbol in seen:
+                continue
+            seen.add(symbol)
+            nse_rows.append({
+                "ticker": f"{symbol}.NS",
+                "name": name,
+                "sector": "NSE Listed",
+                "nifty50": "false",
+            })
+
+    # Sort: Nifty 50 first (alphabetic within group), then curated extras,
+    # then the full-NSE tail — each group alphabetic. This means simple
+    # slicing can still do 'show N50 matches first'.
     n50_rows.sort(key=lambda r: r["ticker"])
     extra_rows.sort(key=lambda r: r["ticker"])
-    all_rows = n50_rows + extra_rows
+    nse_rows.sort(key=lambda r: r["ticker"])
+    all_rows = n50_rows + extra_rows + nse_rows
 
     OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_CSV.open("w", newline="", encoding="utf-8") as fp:
@@ -297,9 +416,36 @@ def build() -> None:
 
     n50_count = len(n50_rows)
     extra_count = len(extra_rows)
-    print(f"✅ Wrote {OUTPUT_CSV.relative_to(REPO_ROOT)}")
-    print(f"   {n50_count} Nifty 50 + {extra_count} popular extras = {n50_count + extra_count} total tickers")
+    nse_count = len(nse_rows)
+    total = n50_count + extra_count + nse_count
+    print(f"Wrote {OUTPUT_CSV.relative_to(REPO_ROOT)}")
+    if fetch_nse:
+        print(
+            f"   {n50_count} Nifty 50 + {extra_count} curated extras + "
+            f"{nse_count} full-NSE = {total} total tickers"
+        )
+    else:
+        print(
+            f"   {n50_count} Nifty 50 + {extra_count} popular extras = "
+            f"{total} total tickers"
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--fetch-nse",
+        action="store_true",
+        help="Download NSE's full equity master and merge in every listed "
+             "stock (run OFF the corporate VPN).",
+    )
+    args = parser.parse_args()
+    try:
+        build(fetch_nse=args.fetch_nse)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":
-    build()
+    main()
