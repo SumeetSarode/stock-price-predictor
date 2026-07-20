@@ -2485,6 +2485,7 @@
   opacity: 0.55;
 }
 .candle-level__label { font-size: 8px; fill: var(--color-fg-muted); }
+.candle-xtick { font-size: 8px; fill: var(--color-fg-muted); }
 
 /* Pattern click-through modal (native <dialog>) + real OHLC table. */
 .pattern-dialog {

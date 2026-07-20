@@ -70,7 +70,26 @@
         {% endif %}
       </header>
 
-      {# ── Horizon tabs — swap the body via HTMX in-place ─────── #}
+      {# ── 90-day price chart (close line + prediction level lines) ──
+         Rendered client-side by /static/scripts/chart.js, which reads
+         data-ticker (+ optional prediction levels) and fetches /api/chart.
+         Fixed-height wrapper is required by Chart.js (responsive:true
+         ignores the canvas height attribute). #}
+      <section class="card price-chart-wrap">
+        <div class="price-chart"
+             data-ticker="{{ detail.ticker }}"
+             {% if detail.view %}
+             data-entry-low="{{ detail.view.entry_low }}"
+             data-entry-high="{{ detail.view.entry_high }}"
+             data-target="{{ detail.view.target_value }}"
+             data-stop="{{ detail.view.stop_value }}"
+             data-direction="{{ detail.view.direction }}"
+             {% endif %}>
+          <canvas></canvas>
+        </div>
+      </section>
+
+      {# ── Horizon tabs — swap the body via HTMX in-place ───── #}
       <nav class="panel__tabs detail-tabs" role="tablist" aria-label="Prediction horizon">
         {% for tab_value, tab_label in [
             ("daily",    "Daily"),
@@ -157,4 +176,12 @@
     };
   })();
 </script>
+{% endblock %}
+
+{% block extra_scripts %}
+  {# Chart.js (vendored) + the price-chart bootstrapper. Loaded only on
+     this page. Both deferred so load order (library before script) is
+     preserved and they run after the DOM is parsed. #}
+  <script src="{{ asset('vendor/chart-4.4.6.umd.min.js') }}" defer></script>
+  <script src="{{ asset('scripts/chart.js') }}" defer></script>
 {% endblock %}

@@ -34,6 +34,9 @@
             width="{{ c.body_w }}" height="{{ c.body_h }}"/>
     </g>
     {%- endfor %}
+    {%- for t in chart.x_ticks %}
+    <text class="candle-xtick" x="{{ t.x }}" y="{{ t.y }}" text-anchor="middle">{{ t.label }}</text>
+    {%- endfor %}
   </svg>
   {%- endif -%}
 {%- endmacro %}

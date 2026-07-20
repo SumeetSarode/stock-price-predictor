@@ -14,15 +14,24 @@ Boundary
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+
+from loguru import logger
 
 from price_predictor.data.news import NewsFetchError, fetch_news
 from price_predictor.web.services.search_service import get_by_ticker
 
 _DEFAULT_DAYS = 7
 _MAX_HEADLINES = 25  # cap render volume; GDELT can return up to 250
+# GDELT is flaky under load -- it often answers a rate-limited request
+# with a non-JSON HTML page (surfaced as NewsFetchError). A couple of
+# short retries with backoff turns most of those transient failures into
+# successful loads. Backoff list length == number of RETRIES after the
+# first attempt, so 2 entries = up to 3 total attempts.
+_RETRY_BACKOFF_S = (0.6, 1.4)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +98,32 @@ def _age_label(published: datetime, now: datetime) -> str:
     return f"{secs // 86400}d ago"
 
 
+async def _fetch_with_retry(query: str, start: str, end: str) -> Any:
+    """Call GDELT, retrying transient failures with backoff.
+
+    Returns the articles DataFrame on success. Re-raises the LAST
+    NewsFetchError only after every attempt is exhausted, so the caller
+    still gets a clean soft-error to show.
+    """
+    attempts = len(_RETRY_BACKOFF_S) + 1
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            return await fetch_news(query, start, end, max_records=_MAX_HEADLINES)
+        except (NewsFetchError, ValueError) as exc:
+            last_exc = exc
+            if i < len(_RETRY_BACKOFF_S):
+                backoff = _RETRY_BACKOFF_S[i]
+                logger.warning(
+                    "news: GDELT attempt {}/{} failed for {!r} ({}); "
+                    "retrying in {}s",
+                    i + 1, attempts, query, type(exc).__name__, backoff,
+                )
+                await asyncio.sleep(backoff)
+    assert last_exc is not None  # unreachable: loop always sets it on failure
+    raise last_exc
+
+
 async def fetch_recent_headlines(
     ticker: str,
     *,
@@ -115,7 +150,7 @@ async def fetch_recent_headlines(
     headlines: list[Headline] = []
 
     try:
-        df = await fetch_news(query, start, end, max_records=_MAX_HEADLINES)
+        df = await _fetch_with_retry(query, start, end)
     except (NewsFetchError, ValueError) as exc:
         error = f"Couldn't load news right now ({type(exc).__name__})."
         df = None

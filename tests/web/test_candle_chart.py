@@ -92,3 +92,40 @@ class TestBuildCandleChart:
     def test_nan_level_skipped(self):
         chart = build_candle_chart([_bar(10, 12, 9, 11)], levels={"bad": float("nan")})
         assert chart.levels == []
+
+
+class TestXAxis:
+    def _dbar(self, d, o, h, low, c):
+        return {"date": d, "open": o, "high": h, "low": low, "close": c}
+
+    def test_no_ticks_without_dates(self):
+        chart = build_candle_chart([_bar(10, 12, 9, 11), _bar(11, 13, 10, 12)])
+        assert chart.x_ticks == []
+
+    def test_ticks_present_with_dates(self):
+        bars = [
+            self._dbar("2026-07-01", 10, 12, 9, 11),
+            self._dbar("2026-07-02", 11, 13, 10, 12),
+            self._dbar("2026-07-03", 12, 14, 11, 13),
+        ]
+        chart = build_candle_chart(bars)
+        assert len(chart.x_ticks) == 3
+        assert chart.x_ticks[0].label == "01/07"
+        assert chart.x_ticks[-1].label == "03/07"
+        # Ticks sit under their candle (same x).
+        assert chart.x_ticks[0].x == chart.candles[0].x
+
+    def test_ticks_capped_and_include_ends(self):
+        bars = [self._dbar(f"2026-07-{i:02d}", 10, 12, 9, 11) for i in range(1, 21)]
+        chart = build_candle_chart(bars, width=380, height=142)
+        assert 0 < len(chart.x_ticks) <= 6
+        # First and last bars are always labelled.
+        assert chart.x_ticks[0].x == chart.candles[0].x
+        assert chart.x_ticks[-1].x == chart.candles[-1].x
+
+    def test_dates_reserve_axis_space(self):
+        # With dates, candles must stay ABOVE the axis strip (never render
+        # into the bottom ~14px reserved for labels).
+        bars = [self._dbar("2026-07-01", 10, 20, 5, 15)]
+        chart = build_candle_chart(bars, height=110)
+        assert chart.candles[0].wick_bottom <= 110 - 14

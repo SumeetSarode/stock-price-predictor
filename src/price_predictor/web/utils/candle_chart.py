@@ -20,15 +20,22 @@ from typing import Any
 
 # Default canvas sizes. Candlesticks get a compact box (few bars of
 # context); chart patterns get a wider box (they span more bars).
+# Heights include the ~14px date-axis strip added below the candles.
 CANDLE_W = 200
-CANDLE_H = 96
+CANDLE_H = 110
 CHART_W = 380
-CHART_H = 128
+CHART_H = 142
 _PAD = 6
 # Fraction of each bar's horizontal slot taken up by the body rectangle.
 _BODY_FRAC = 0.6
 # Minimum body width so a body never vanishes to an invisible sliver.
 _MIN_BODY_W = 1.0
+# Vertical strip reserved at the bottom for the date (x) axis, in px.
+# Only reserved when bars carry a ``date`` -- keeps date-less callers
+# (and their geometry) unchanged.
+_AXIS_H = 14
+# Most date ticks we'll ever draw (avoid crowding on wide charts).
+_MAX_X_TICKS = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +68,15 @@ class LevelLine:
 
 
 @dataclass(frozen=True, slots=True)
+class XTick:
+    """One date label on the x-axis, positioned under its candle."""
+
+    x: float
+    y: float
+    label: str
+
+
+@dataclass(frozen=True, slots=True)
 class CandleChart:
     """Full geometry bundle for one inline candlestick SVG."""
 
@@ -68,6 +84,7 @@ class CandleChart:
     height: int
     candles: list[Candle]
     levels: list[LevelLine]
+    x_ticks: list[XTick]
 
 
 def _num(value: Any) -> float | None:
@@ -82,6 +99,18 @@ def _num(value: Any) -> float | None:
     if f != f:
         return None
     return f
+
+
+def _short_date(iso: Any) -> str:
+    """Turn 'YYYY-MM-DD' into a compact 'DD/MM' axis label.
+
+    Falls back to the raw string (trimmed) for anything unexpected.
+    """
+    s = str(iso)
+    parts = s.split("-")
+    if len(parts) == 3 and all(parts):
+        return f"{parts[2]}/{parts[1]}"
+    return s[:5]
 
 
 def build_candle_chart(
@@ -114,6 +143,7 @@ def build_candle_chart(
     # Parse + validate every bar up front. One bad value → bail to the
     # text fallback rather than draw a misleading partial chart.
     parsed: list[tuple[float, float, float, float, bool]] = []
+    dates: list[str | None] = []
     for b in bars:
         o = _num(b.get("open"))
         h = _num(b.get("high"))
@@ -122,6 +152,10 @@ def build_candle_chart(
         if None in (o, h, low, c):
             return None
         parsed.append((o, h, low, c, bool(b.get("highlight"))))
+        dates.append(b.get("date"))
+
+    has_dates = any(d for d in dates)
+    axis_h = _AXIS_H if has_dates else 0
 
     lo_vals = [p[2] for p in parsed]
     hi_vals = [p[1] for p in parsed]
@@ -136,7 +170,9 @@ def build_candle_chart(
             vmax = max(vmax, fv)
 
     span = vmax - vmin
-    inner_h = height - 2 * pad
+    # Reserve a strip at the bottom for date labels (only when we have
+    # dates). Candles map into the space ABOVE that strip.
+    inner_h = height - 2 * pad - axis_h
     inner_w = width - 2 * pad
     n = len(parsed)
 
@@ -176,6 +212,28 @@ def build_candle_chart(
             LevelLine(y=y_for(fv), label=label.replace("_", " "), value=fv)
         )
 
+    # Date (x) axis: pick up to _MAX_X_TICKS evenly-spaced bars, always
+    # including the first and last, and label them under their candle.
+    x_ticks: list[XTick] = []
+    if has_dates:
+        if n <= _MAX_X_TICKS:
+            tick_idxs = list(range(n))
+        else:
+            step = (n - 1) / (_MAX_X_TICKS - 1)
+            tick_idxs = sorted({round(i * step) for i in range(_MAX_X_TICKS)})
+        label_y = height - pad + 2
+        for i in tick_idxs:
+            d = dates[i]
+            if not d:
+                continue
+            x_ticks.append(
+                XTick(x=candles[i].x, y=round(label_y, 3), label=_short_date(d))
+            )
+
     return CandleChart(
-        width=width, height=height, candles=candles, levels=level_lines
+        width=width,
+        height=height,
+        candles=candles,
+        levels=level_lines,
+        x_ticks=x_ticks,
     )
