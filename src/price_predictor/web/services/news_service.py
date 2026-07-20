@@ -152,7 +152,19 @@ async def fetch_recent_headlines(
     try:
         df = await _fetch_with_retry(query, start, end)
     except (NewsFetchError, ValueError) as exc:
-        error = f"Couldn't load news right now ({type(exc).__name__})."
+        # By here we've already retried with backoff, so the failure is
+        # almost always transient: GDELT rate-limiting us, or the host
+        # being unreachable on this network (e.g. behind a VPN/proxy that
+        # blocks it). Keep the user-facing copy plain-English + actionable;
+        # log the technical detail for anyone tailing the server.
+        logger.warning(
+            "news: giving up on {!r} after retries ({}: {})",
+            query, type(exc).__name__, exc,
+        )
+        error = (
+            "Couldn't reach the news service right now \u2014 it may be "
+            "rate-limited or unreachable on this network. Try again in a moment."
+        )
         df = None
 
     if df is not None and not df.empty:

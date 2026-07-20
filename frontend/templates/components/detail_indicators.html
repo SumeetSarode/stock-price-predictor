@@ -65,6 +65,46 @@
             </span>
           {% else %}—{% endif %}
         </dd>
+
+        {# ── MA crossovers (KJ 5-13 / 5-26 first, then app's 9-21 / 50-200) ── #}
+        {% set crosses = analysis.trend.ma_crosses %}
+        {% if crosses %}
+          {% for key, label in [
+              ("ema_5_13", "EMA 5/13"),
+              ("ema_5_26", "EMA 5/26"),
+              ("ema_9_21", "EMA 9/21"),
+              ("sma_50_200", "SMA 50/200"),
+          ] %}
+            {% set x = crosses.get(key) %}
+            {% if x and x.current %}
+              <dt>{{ label }}</dt>
+              <dd>
+                <span class="analysis-card__tag analysis-card__tag--{{ 'pos' if x.current == 'above' else 'neg' }}">
+                  {{ x.current }}
+                </span>
+                {% if x.last_event %}
+                  <span class="analysis-card__meta">
+                    {{ x.last_event }} cross{% if x.bars_since_event is not none %} · {{ x.bars_since_event }} bars ago{% endif %}
+                  </span>
+                {% endif %}
+              </dd>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
+        {# ── Ichimoku cloud regime ── #}
+        {% set ich = analysis.trend.ichimoku %}
+        {% if ich and ich.price_vs_cloud %}
+          <dt>Ichimoku</dt>
+          <dd>
+            <span class="analysis-card__tag analysis-card__tag--{{ 'pos' if ich.price_vs_cloud == 'above' else ('neg' if ich.price_vs_cloud == 'below' else 'warn') }}">
+              price {{ ich.price_vs_cloud }} cloud
+            </span>
+            {% if ich.tk_signal %}
+              <span class="analysis-card__meta">Tenkan/Kijun {{ ich.tk_signal }}</span>
+            {% endif %}
+          </dd>
+        {% endif %}
       </dl>
     </section>
 
@@ -104,6 +144,18 @@
             %D {{ "%.1f"|format(stoch.d) }}
           {% else %}—{% endif %}
         </dd>
+
+        {# ── OBV / volume flow (KJ "volumes" item, done properly) ── #}
+        {% set obv = analysis.momentum.obv %}
+        {% if obv and obv.slope_20 is not none %}
+          <dt>Volume (OBV)</dt>
+          <dd>
+            <span class="analysis-card__tag analysis-card__tag--{{ 'pos' if obv.slope_20 >= 0 else 'neg' }}">
+              {{ 'rising' if obv.slope_20 >= 0 else 'falling' }}
+            </span>
+            <span class="analysis-card__meta num">20-bar {{ "%+.1f"|format(obv.slope_20) }}%</span>
+          </dd>
+        {% endif %}
       </dl>
     </section>
 
@@ -205,6 +257,21 @@
             {% if d.vwap_rolling is not none %}
               <span class="analysis-card__meta">({{ "%+.2f"|format(d.vwap_rolling) }}%)</span>
             {% endif %}
+          </dd>
+        {% endif %}
+
+        {# ── Classic floor-trader pivots = the app's support/resistance ── #}
+        {% set p = analysis.levels.pivots %}
+        {% if p and p.pp is not none %}
+          <dt>Pivot (PP)</dt>
+          <dd class="num">₹{{ "%.2f"|format(p.pp) }}</dd>
+          <dt>Resistance</dt>
+          <dd class="num">
+            R1 {{ "%.1f"|format(p.r1) }} · R2 {{ "%.1f"|format(p.r2) }} · R3 {{ "%.1f"|format(p.r3) }}
+          </dd>
+          <dt>Support</dt>
+          <dd class="num">
+            S1 {{ "%.1f"|format(p.s1) }} · S2 {{ "%.1f"|format(p.s2) }} · S3 {{ "%.1f"|format(p.s3) }}
           </dd>
         {% endif %}
       </dl>
