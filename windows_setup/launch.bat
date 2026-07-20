@@ -60,6 +60,21 @@ if errorlevel 1 (
     echo   [warn] Dependency sync had an issue - trying to start anyway.
 )
 
+REM -- 2b. Refresh the full NSE stock search index (runs every launch).
+REM    We download NSE's official listed-equity master (EQUITY_L.csv). This
+REM    is a STATIC file on NSE's archives CDN - reachable worldwide, incl.
+REM    outside India (unlike NSE's dynamic price APIs, which do geo-block).
+REM    Safety: tight timeout (~5s to fail if truly blocked/offline), the
+REM    builder writes NOTHING on failure and rejects a suspiciously small
+REM    response, and the git reset above already restored the shipped index
+REM    - so a bad/offline fetch can never leave you with a broken search
+REM    box. Fully non-fatal.
+echo   Refreshing the stock search list from NSE... ^(a few seconds; skipped if offline^)
+uv run python scripts\build_search_index.py --fetch-nse
+if errorlevel 1 (
+    echo   [info] Stock list refresh skipped/failed - using the built-in list.
+)
+
 REM -- 3. Launch. Scheduler ON so predictions auto-grade while the app is open,
 REM    which keeps your history meaningful over time.
 set WEB_ENABLE_SCHEDULER=true

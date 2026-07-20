@@ -65,6 +65,11 @@ _BROWSER_HEADERS: dict[str, str] = {
 # rolling settlement; BE = trade-to-trade (still real equity). Everything
 # else (illiquid / non-equity series) is skipped.
 _KEEP_SERIES: frozenset[str] = frozenset({"EQ", "BE"})
+# Sanity floor: NSE lists ~2000 equities. If a fetch returns far fewer,
+# it's almost certainly a partial/blocked/garbage response (e.g. an HTML
+# error page). Refuse to overwrite the bundled index in that case so an
+# unattended startup refresh can never clobber a good file with junk.
+_MIN_NSE_ROWS: int = 1000
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -294,8 +299,14 @@ def fetch_nse_equity_list() -> list[tuple[str, str]]:
         ) from exc
 
     last_err: Exception | None = None
+    # Tight timeouts: this runs on every app launch (see windows_setup/
+    # launch.bat). A truly-blocked/offline laptop should fail in a few
+    # seconds and fall back to the shipped index -- not hang for a minute.
+    # connect=5s catches network-level blocks fast; read=12s tolerates a
+    # slow-but-alive CDN.
+    timeout = httpx.Timeout(12.0, connect=5.0)
     with httpx.Client(
-        headers=_BROWSER_HEADERS, timeout=30.0, follow_redirects=True
+        headers=_BROWSER_HEADERS, timeout=timeout, follow_redirects=True
     ) as client:
         # Prime cookies. NSE 403s the CSV without a warmed session.
         try:
@@ -389,6 +400,12 @@ def build(fetch_nse: bool = False) -> None:
     if fetch_nse:
         print("Downloading NSE EQUITY_L.csv (must be off-VPN)…")
         listings = fetch_nse_equity_list()
+        if len(listings) < _MIN_NSE_ROWS:
+            raise RuntimeError(
+                f"NSE fetch returned only {len(listings)} rows "
+                f"(expected ≥{_MIN_NSE_ROWS}); refusing to overwrite the "
+                "bundled index with a suspiciously small list."
+            )
         for symbol, name in listings:
             if symbol in seen:
                 continue
