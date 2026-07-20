@@ -138,22 +138,10 @@ def _similarity_score(a: float, b: float, tolerance: float = 0.015) -> float:
 # ── Double top / bottom ────────────────────────────────────────────
 
 
-def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
-    """Two consecutive swing highs at similar price, separated by a trough.
-
-    Implements LMW (2000) Definition 5: two tops within 1.5% of their
-    average, separated by at least 22 trading days. The 22-day figure is
-    LMW's own operationalization ("...the two tops occur at least a month,
-    or 22 trading days, apart") — NOT a direct Edwards & Magee number;
-    E&M only gave qualitative "~one month / several weeks" guidance.
-    """
-    highs = _find_swing_highs(df)
-    if len(highs) < 2:
-        return None
-
-    # Use the two most recent swing highs
-    h1_idx, h2_idx = highs[-2], highs[-1]
-
+def _build_double_top(
+    df: pd.DataFrame, h1_idx: int, h2_idx: int,
+) -> ChartPattern | None:
+    """Score one candidate top pair (h1_idx < h2_idx). None if invalid."""
     # LMW Def 5: tops must be at least ~1 month apart. The 22-day figure
     # is LMW's own discretization, not a direct Edwards & Magee number.
     if (h2_idx - h1_idx) < _DOUBLE_TOP_MIN_SEPARATION_BARS:
@@ -190,13 +178,35 @@ def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
     )
 
 
-def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
-    """Mirror of double top. See detect_double_top for citations."""
-    lows = _find_swing_lows(df)
-    if len(lows) < 2:
-        return None
-    l1_idx, l2_idx = lows[-2], lows[-1]
+def detect_double_top(df: pd.DataFrame) -> ChartPattern | None:
+    """Two swing highs at similar price, separated by a trough.
 
+    Implements LMW (2000) Definition 5: two tops within 1.5% of their
+    average, separated by at least 22 trading days. The 22-day figure is
+    LMW's own operationalization ("...the two tops occur at least a month,
+    or 22 trading days, apart") — NOT a direct Edwards & Magee number;
+    E&M only gave qualitative "~one month / several weeks" guidance.
+
+    Scans EVERY valid pair of swing highs (not just the two most recent)
+    and returns the highest-confidence match — so a textbook top earlier
+    in the window isn't hidden by a later minor swing.
+    """
+    highs = _find_swing_highs(df)
+    if len(highs) < 2:
+        return None
+    best: ChartPattern | None = None
+    for i in range(len(highs)):
+        for j in range(i + 1, len(highs)):
+            cand = _build_double_top(df, int(highs[i]), int(highs[j]))
+            if cand and (best is None or cand.confidence > best.confidence):
+                best = cand
+    return best
+
+
+def _build_double_bottom(
+    df: pd.DataFrame, l1_idx: int, l2_idx: int,
+) -> ChartPattern | None:
+    """Score one candidate bottom pair (l1_idx < l2_idx). None if invalid."""
     # LMW Def 5 (mirror): bottoms must be at least ~1 month apart. 22 is
     # LMW's discretization of E&M's qualitative "several weeks" guidance.
     if (l2_idx - l1_idx) < _DOUBLE_TOP_MIN_SEPARATION_BARS:
@@ -231,20 +241,30 @@ def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
     )
 
 
+def detect_double_bottom(df: pd.DataFrame) -> ChartPattern | None:
+    """Mirror of double top. See detect_double_top for citations.
+
+    Scans every valid pair of swing lows and keeps the best match.
+    """
+    lows = _find_swing_lows(df)
+    if len(lows) < 2:
+        return None
+    best: ChartPattern | None = None
+    for i in range(len(lows)):
+        for j in range(i + 1, len(lows)):
+            cand = _build_double_bottom(df, int(lows[i]), int(lows[j]))
+            if cand and (best is None or cand.confidence > best.confidence):
+                best = cand
+    return best
+
+
 # ── Head and shoulders ─────────────────────────────────────────────
 
 
-def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
-    """Three consecutive swing highs: middle (head) is tallest, two shoulders
-    are shorter and roughly equal.
-
-    Implements LMW (2000) Definition 1: shoulders (E1, E5) within 1.5% of
-    their average AND neckline troughs (E2, E4) within 1.5% of theirs.
-    """
-    highs = _find_swing_highs(df)
-    if len(highs) < 3:
-        return None
-    s1_idx, h_idx, s2_idx = highs[-3], highs[-2], highs[-1]
+def _build_head_shoulders(
+    df: pd.DataFrame, s1_idx: int, h_idx: int, s2_idx: int,
+) -> ChartPattern | None:
+    """Score one candidate H&S triple (s1 < head < s2). None if invalid."""
     s1, head, s2 = (
         df.iloc[s1_idx]["high"],
         df.iloc[h_idx]["high"],
@@ -295,16 +315,35 @@ def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
     )
 
 
-def detect_inverse_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
-    """Mirror: three swing lows with middle (head) lowest.
+def detect_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
+    """Three swing highs: middle (head) tallest, shoulders shorter & ~equal.
 
-    Implements LMW (2000) Definition 1 (inverted): shoulders within 1.5%
-    of average AND neckline peaks within 1.5% of theirs.
+    Implements LMW (2000) Definition 1: shoulders (E1, E5) within 1.5% of
+    their average AND neckline troughs (E2, E4) within 1.5% of theirs.
+
+    Scans every valid (left, head, right) triple of swing highs and keeps
+    the highest-confidence match — not just the last three swings.
     """
-    lows = _find_swing_lows(df)
-    if len(lows) < 3:
+    highs = _find_swing_highs(df)
+    if len(highs) < 3:
         return None
-    s1_idx, h_idx, s2_idx = lows[-3], lows[-2], lows[-1]
+    best: ChartPattern | None = None
+    n = len(highs)
+    for a in range(n):
+        for b in range(a + 1, n):
+            for c in range(b + 1, n):
+                cand = _build_head_shoulders(
+                    df, int(highs[a]), int(highs[b]), int(highs[c]),
+                )
+                if cand and (best is None or cand.confidence > best.confidence):
+                    best = cand
+    return best
+
+
+def _build_inverse_head_shoulders(
+    df: pd.DataFrame, s1_idx: int, h_idx: int, s2_idx: int,
+) -> ChartPattern | None:
+    """Score one candidate inverse-H&S triple (s1 < head < s2). None if bad."""
     s1, head, s2 = (
         df.iloc[s1_idx]["low"],
         df.iloc[h_idx]["low"],
@@ -351,6 +390,31 @@ def detect_inverse_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
         },
         bar_indices=[int(s1_idx), int(h_idx), int(s2_idx)],
     )
+
+
+def detect_inverse_head_shoulders(df: pd.DataFrame) -> ChartPattern | None:
+    """Mirror: three swing lows with middle (head) lowest.
+
+    Implements LMW (2000) Definition 1 (inverted): shoulders within 1.5%
+    of average AND neckline peaks within 1.5% of theirs.
+
+    Scans every valid (left, head, right) triple of swing lows and keeps
+    the highest-confidence match.
+    """
+    lows = _find_swing_lows(df)
+    if len(lows) < 3:
+        return None
+    best: ChartPattern | None = None
+    n = len(lows)
+    for a in range(n):
+        for b in range(a + 1, n):
+            for c in range(b + 1, n):
+                cand = _build_inverse_head_shoulders(
+                    df, int(lows[a]), int(lows[b]), int(lows[c]),
+                )
+                if cand and (best is None or cand.confidence > best.confidence):
+                    best = cand
+    return best
 
 
 # ── Triangles ──────────────────────────────────────────────────────

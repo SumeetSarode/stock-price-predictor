@@ -67,6 +67,12 @@ _CANDLE_CTX_BEFORE = 4   # bars of context before a candlestick pattern bar
 _CANDLE_CTX_AFTER = 1    # bars after (usually the pattern IS the latest bar)
 _CHART_CTX_PAD = 3       # bars of padding around a chart pattern's pivots
 _CHART_MAX_BARS = 50     # cap so candles never shrink to invisible slivers
+# Confidence floor for the INFORMATIONAL Analysis tab. Lower than the
+# prediction pipeline's 0.7 (see chart_patterns.DEFAULT_CONFIDENCE_THRESHOLD)
+# on purpose: the tab shows a confidence % badge per pattern, so the user
+# can judge quality themselves. The prediction side stays strict at 0.7 --
+# this only affects what the "show me the receipts" tab displays.
+_DISPLAY_PATTERN_CONFIDENCE = 0.5
 
 
 def _bar_date(idx_label) -> str:
@@ -237,7 +243,7 @@ async def compute_live_analysis(ticker: str) -> LiveAnalysis:
     )
     levels = levels_snapshot(df, swing_lookback=lvl_p["swing_lookback"])
     candles = detect_recent_patterns(df, lookback=_CANDLESTICK_LOOKBACK)
-    charts = detect_all_patterns(df)
+    charts = detect_all_patterns(df, min_confidence=_DISPLAY_PATTERN_CONFIDENCE)
 
     # Enrich each hit with a real-data inline candlestick chart (the actual
     # bars that triggered detection -- no external images, no made-up shapes).

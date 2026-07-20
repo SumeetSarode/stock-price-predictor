@@ -245,3 +245,68 @@ class TestRectangleBottom:
         result = detect_rectangle_bottom(df)
         assert result is not None
         assert result.name == "rectangle_bottom"
+
+
+# ─────────────────────────────────────────────────────────────────
+# All-pairs scanning: a pattern earlier in the window must NOT be
+# hidden by a later, minor swing (regression for the old "last 2/3
+# swings only" behavior).
+# ─────────────────────────────────────────────────────────────────
+class TestAllPairsScan:
+    def test_double_top_survives_a_later_minor_swing(self):
+        # A clean double top forms early (peaks ~120), then a smaller,
+        # more-recent swing high (~114) appears. The old detector looked
+        # only at the last two swing highs and would miss the real top.
+        closes = (
+            list(np.linspace(100, 120, 20))    # peak 1 @ ~120
+            + list(np.linspace(120, 108, 15))  # trough
+            + list(np.linspace(108, 120, 15))  # peak 2 @ ~120
+            + list(np.linspace(120, 106, 15))  # decline
+            + list(np.linspace(106, 114, 8))   # later MINOR swing high @ ~114
+            + list(np.linspace(114, 108, 8))
+        )
+        df = _build_df(closes)
+        result = detect_double_top(df)
+        assert result is not None, "early double top should be found despite later swing"
+        assert result.name == "double_top"
+        # The detected top pair should be the early ~120 peaks, not the
+        # later ~114 swing.
+        h1, h2 = result.bar_indices
+        assert df.iloc[h1]["high"] > 118 and df.iloc[h2]["high"] > 118
+
+    def test_head_shoulders_scanned_across_full_window(self):
+        # H&S forms early, followed by unrelated later swings.
+        closes = (
+            list(np.linspace(100, 112, 12))    # left shoulder @ ~112
+            + list(np.linspace(112, 104, 10))  # trough 1
+            + list(np.linspace(104, 122, 14))  # head @ ~122
+            + list(np.linspace(122, 104, 12))  # trough 2
+            + list(np.linspace(104, 112, 12))  # right shoulder @ ~112
+            + list(np.linspace(112, 100, 12))  # decline
+            + list(np.linspace(100, 107, 8))   # later minor swing
+            + list(np.linspace(107, 101, 8))
+        )
+        df = _build_df(closes)
+        result = detect_head_shoulders(df)
+        assert result is not None, "H&S should be found even with later swings present"
+        assert result.name == "head_and_shoulders"
+        # Head must be the tallest of the three chosen bars.
+        s1, h, s2 = result.bar_indices
+        assert df.iloc[h]["high"] > df.iloc[s1]["high"]
+        assert df.iloc[h]["high"] > df.iloc[s2]["high"]
+
+    def test_best_confidence_pair_is_kept(self):
+        # Two candidate top pairs: one sloppy, one clean. The clean pair
+        # (more similar peaks + deeper trough) should win on confidence.
+        closes = (
+            list(np.linspace(100, 118, 18))    # peak A1 @ ~118
+            + list(np.linspace(118, 112, 12))  # shallow trough
+            + list(np.linspace(112, 121, 12))  # peak A2 @ ~121 (sloppy pair)
+            + list(np.linspace(121, 103, 15))  # deep trough
+            + list(np.linspace(103, 121, 15))  # peak B2 @ ~121 (clean, deep)
+            + list(np.linspace(121, 110, 10))
+        )
+        df = _build_df(closes)
+        result = detect_double_top(df)
+        assert result is not None
+        assert result.confidence > 0.3
