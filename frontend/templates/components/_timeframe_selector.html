@@ -1,0 +1,30 @@
+{#
+  _timeframe_selector.html — Daily / Weekly / Monthly switch for the
+  analysis tabs (Indicators + Patterns).
+
+  Params (pass via {% with %}):
+    endpoint: str  — "/api/analysis/indicators" or "/api/analysis/patterns"
+    ticker: str
+    timeframe: str — currently active key (defaults to "daily")
+    timeframe_options: list[{key,label}]
+
+  Each button re-requests the SAME tab at the chosen timeframe, swapping
+  the drawer body in place. Active state is server-rendered — no JS.
+  Renders nothing if no options were supplied (safe outside the route).
+#}
+{% set _tf = timeframe|default("daily") %}
+{% if timeframe_options %}
+  <nav class="timeframe-switch" role="group" aria-label="Indicator timeframe">
+    {% for opt in timeframe_options %}
+      <button type="button"
+              class="timeframe-switch__btn
+                     {%- if opt.key == _tf %} timeframe-switch__btn--active{% endif %}"
+              aria-pressed="{{ 'true' if opt.key == _tf else 'false' }}"
+              hx-get="{{ endpoint }}?ticker={{ ticker }}&timeframe={{ opt.key }}"
+              hx-target="#analysis-drawer-body"
+              hx-swap="innerHTML">
+        {{ opt.label }}
+      </button>
+    {% endfor %}
+  </nav>
+{% endif %}

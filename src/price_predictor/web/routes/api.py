@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from price_predictor.web.services.analysis_service import (
     AnalysisServiceError,
     compute_live_analysis,
+    timeframe_options,
 )
 from price_predictor.web.services.dashboard_service import (
     get_dashboard,
@@ -407,6 +408,7 @@ async def _render_analysis_tab(
     request: Request,
     ticker: str,
     template_name: str,
+    timeframe: str = "daily",
 ) -> HTMLResponse | JSONResponse:
     """Shared helper for the indicators + patterns tabs.
 
@@ -415,7 +417,7 @@ async def _render_analysis_tab(
     across both tabs.
     """
     try:
-        analysis = await compute_live_analysis(ticker)
+        analysis = await compute_live_analysis(ticker, timeframe=timeframe)
         error: str | None = None
     except AnalysisServiceError as exc:
         analysis = None
@@ -425,7 +427,13 @@ async def _render_analysis_tab(
         return templates.TemplateResponse(
             request=request,
             name=template_name,
-            context={"analysis": analysis, "error": error},
+            context={
+                "analysis": analysis,
+                "error": error,
+                "ticker": ticker,
+                "timeframe": timeframe,
+                "timeframe_options": timeframe_options(),
+            },
         )
     if analysis is None:
         return JSONResponse(status_code=503, content={"error": error})
@@ -438,6 +446,7 @@ async def _render_analysis_tab(
     return JSONResponse(content={
         "ticker": analysis.ticker,
         "as_of": analysis.as_of.isoformat(),
+        "timeframe": analysis.timeframe,
         "bars_used": analysis.bars_used,
         "trend": analysis.trend,
         "momentum": analysis.momentum,
@@ -452,10 +461,11 @@ async def _render_analysis_tab(
 async def analysis_indicators_endpoint(
     request: Request,
     ticker: str,
+    timeframe: str = "daily",
 ) -> HTMLResponse | JSONResponse:
     """Live trend / momentum / volatility / levels for `ticker`."""
     return await _render_analysis_tab(
-        request, ticker, "components/detail_indicators.html",
+        request, ticker, "components/detail_indicators.html", timeframe,
     )
 
 
@@ -463,10 +473,11 @@ async def analysis_indicators_endpoint(
 async def analysis_patterns_endpoint(
     request: Request,
     ticker: str,
+    timeframe: str = "daily",
 ) -> HTMLResponse | JSONResponse:
     """Live candlestick + chart pattern hits for `ticker`."""
     return await _render_analysis_tab(
-        request, ticker, "components/detail_patterns.html",
+        request, ticker, "components/detail_patterns.html", timeframe,
     )
 
 

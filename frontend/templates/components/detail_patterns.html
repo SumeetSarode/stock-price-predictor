@@ -96,15 +96,22 @@
 
 {% if error %}
   <div class="analysis-error">
+    {% with endpoint = "/api/analysis/patterns" %}
+      {% include "components/_timeframe_selector.html" %}
+    {% endwith %}
     <p>{{ error }}</p>
   </div>
 {% else %}
 <div class="analysis-panel">
 
+  {% with endpoint = "/api/analysis/patterns" %}
+    {% include "components/_timeframe_selector.html" %}
+  {% endwith %}
+
   <header class="analysis-panel__header">
     <h3 class="analysis-panel__title">Detected patterns</h3>
     <span class="analysis-panel__meta num">
-      {{ analysis.bars_used }} bars · as of
+      {{ analysis.bars_used }} {{ analysis.timeframe_unit }} · as of
       {{ analysis.as_of.strftime("%d %b %H:%M") }}
     </span>
   </header>
@@ -183,7 +190,7 @@
   <p class="analysis-panel__footer">
     Charts show the <strong>real OHLC candles</strong> that triggered each
     detection — click any chart to see the actual numbers. Candlesticks
-    scan the last 5 bars; chart patterns scan the full {{ analysis.bars_used }}-bar window.
+    scan the last 5 {{ analysis.timeframe_unit }}; chart patterns scan the full {{ analysis.bars_used }}-{{ analysis.timeframe_unit[:-1] }} window.
   </p>
 </div>
 {% endif %}

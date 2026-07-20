@@ -56,6 +56,39 @@ from price_predictor.web.utils.candle_chart import (
 # 400 calendar days ≈ 250 trading days, enough headroom for the 200-day
 # SMA and 52-week levels to compute without NaNs.
 _LOOKBACK_DAYS = 400
+
+# Timeframe presets. Every indicator length (SMA 20/50/200, RSI 14, ...)
+# is interpreted in units of the CHOSEN timeframe -- so an "SMA 50" is
+# 50 days on daily, 50 weeks on weekly, 50 months on monthly. We fetch
+# daily bars from the provider and resample up, so higher timeframes need
+# a longer daily lookback to have enough resampled bars for the 200-period
+# SMA (200 weeks ≈ 1400 days; 200 months is ~17y and will simply be None
+# when history is short -- the snapshots degrade gracefully on NaN).
+
+
+@dataclass(frozen=True, slots=True)
+class _TimeframeSpec:
+    key: str            # "daily" | "weekly" | "monthly"
+    label: str          # UI label
+    unit: str           # "days" | "weeks" | "months" (for footer copy)
+    lookback_days: int  # daily bars to fetch before resampling
+    resample_rule: str | None  # pandas offset alias; None == no resample
+
+
+_TIMEFRAMES: dict[str, _TimeframeSpec] = {
+    "daily": _TimeframeSpec("daily", "Daily", "days", _LOOKBACK_DAYS, None),
+    # ~6y of dailies -> ~310 weekly bars (enough for a 200-week SMA).
+    "weekly": _TimeframeSpec("weekly", "Weekly", "weeks", 2200, "W-FRI"),
+    # ~11y of dailies -> ~130 monthly bars (SMA 20/50 fine; 200 may be None).
+    "monthly": _TimeframeSpec("monthly", "Monthly", "months", 4000, "ME"),
+}
+DEFAULT_TIMEFRAME = "daily"
+
+
+def timeframe_options() -> list[dict[str, str]]:
+    """Render-ready [{key,label}] list for the timeframe selector UI."""
+    return [{"key": s.key, "label": s.label} for s in _TIMEFRAMES.values()]
+
 # "standard" preset matches what the production agent uses by default.
 _DEFAULT_PRESET = "standard"
 # Last 5 trading days for candlestick scan — one trading week of context.
@@ -158,6 +191,8 @@ class LiveAnalysis:
 
     ticker: str
     as_of: datetime          # tz-naive local-ish; only used for display
+    timeframe: str           # "daily" | "weekly" | "monthly"
+    timeframe_unit: str      # "days" | "weeks" | "months" (footer copy)
     bars_used: int
     trend: dict[str, Any]
     momentum: dict[str, Any]
@@ -188,35 +223,64 @@ def _normalize(ticker: str) -> str:
     return t
 
 
-async def _fetch_bars(ticker: str) -> pd.DataFrame:
-    """Pull `_LOOKBACK_DAYS` of daily bars via the shared cache."""
+async def _fetch_bars(ticker: str, lookback_days: int = _LOOKBACK_DAYS) -> pd.DataFrame:
+    """Pull `lookback_days` of daily bars via the shared cache."""
     today = date.today()
-    start = today - timedelta(days=_LOOKBACK_DAYS)
+    start = today - timedelta(days=lookback_days)
     cache = get_cache()
     return await cache.get(ticker, start, today, "1d")
 
 
-async def compute_live_analysis(ticker: str) -> LiveAnalysis:
+def _resample_ohlc(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    """Resample daily OHLCV up to a higher timeframe (weekly/monthly).
+
+    Standard OHLC aggregation: open=first, high=max, low=min, close=last,
+    volume=sum. Periods with no trading are dropped so indicators never
+    see phantom flat bars.
+    """
+    agg: dict[str, str] = {
+        "open": "first",
+        "high": "max",
+        "low": "min",
+        "close": "last",
+        "volume": "sum",
+    }
+    if "adj_close" in df.columns:
+        agg["adj_close"] = "last"
+    out = df.resample(rule).agg(agg)
+    return out.dropna(subset=["open", "high", "low", "close"])
+
+
+async def compute_live_analysis(
+    ticker: str,
+    timeframe: str = DEFAULT_TIMEFRAME,
+) -> LiveAnalysis:
     """Fetch fresh OHLCV for `ticker` and run every analyzer.
 
-    Returns a single `LiveAnalysis` snapshot. Raises
-    `AnalysisServiceError` on fetch failure or insufficient history.
+    `timeframe` is one of daily/weekly/monthly; daily bars are fetched and
+    resampled up for the higher timeframes. Returns a single `LiveAnalysis`
+    snapshot. Raises `AnalysisServiceError` on fetch failure or
+    insufficient history.
     """
     t = _normalize(ticker)
+    spec = _TIMEFRAMES.get(timeframe, _TIMEFRAMES[DEFAULT_TIMEFRAME])
 
     try:
-        df = await _fetch_bars(t)
+        df = await _fetch_bars(t, lookback_days=spec.lookback_days)
     except Exception as exc:  # noqa: BLE001 — re-raise as service error
         raise AnalysisServiceError(
             f"Couldn't fetch price history for {t}.",
             hint=str(exc),
         ) from exc
 
+    if spec.resample_rule is not None and not df.empty:
+        df = _resample_ohlc(df, spec.resample_rule)
+
     if df.empty or len(df) < _MIN_BARS:
         raise AnalysisServiceError(
-            f"Not enough price history for {t} "
+            f"Not enough {spec.label.lower()} price history for {t} "
             f"(need ≥{_MIN_BARS} bars, got {len(df)}).",
-            hint="Yahoo Finance may not have data for this ticker yet.",
+            hint="Try a shorter timeframe, or this ticker may be too new.",
         )
 
     trend_p = TREND_PRESETS[_DEFAULT_PRESET]
@@ -253,6 +317,8 @@ async def compute_live_analysis(ticker: str) -> LiveAnalysis:
     return LiveAnalysis(
         ticker=t,
         as_of=datetime.now(),
+        timeframe=spec.key,
+        timeframe_unit=spec.unit,
         bars_used=len(df),
         trend=trend,
         momentum=momentum,

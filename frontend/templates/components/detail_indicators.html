@@ -11,15 +11,22 @@
 #}
 {% if error %}
   <div class="analysis-error">
+    {% with endpoint = "/api/analysis/indicators" %}
+      {% include "components/_timeframe_selector.html" %}
+    {% endwith %}
     <p>{{ error }}</p>
   </div>
 {% else %}
 <div class="analysis-panel">
 
+  {% with endpoint = "/api/analysis/indicators" %}
+    {% include "components/_timeframe_selector.html" %}
+  {% endwith %}
+
   <header class="analysis-panel__header">
     <h3 class="analysis-panel__title">Live indicators</h3>
     <span class="analysis-panel__meta num">
-      {{ analysis.bars_used }} bars · as of
+      {{ analysis.bars_used }} {{ analysis.timeframe_unit }} · as of
       {{ analysis.as_of.strftime("%d %b %H:%M") }}
     </span>
   </header>

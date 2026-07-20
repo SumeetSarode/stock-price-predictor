@@ -3164,3 +3164,42 @@ html, body {
     padding: var(--space-2) 0;
   }
 }
+
+/* ── Timeframe switch (Daily/Weekly/Monthly) on analysis tabs ──────── */
+.timeframe-switch {
+  display: inline-flex;
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+}
+
+.timeframe-switch__btn {
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  border: none;
+  color: var(--color-fg-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+
+.timeframe-switch__btn + .timeframe-switch__btn {
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.timeframe-switch__btn:hover {
+  color: var(--color-fg);
+}
+
+.timeframe-switch__btn--active {
+  background: var(--color-primary);
+  color: #ffffff;  /* white on indigo-600 ≈ 7:1 — WCAG AA */
+}
+
+.timeframe-switch__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
