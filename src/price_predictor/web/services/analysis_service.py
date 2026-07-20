@@ -79,8 +79,11 @@ _TIMEFRAMES: dict[str, _TimeframeSpec] = {
     "daily": _TimeframeSpec("daily", "Daily", "days", _LOOKBACK_DAYS, None),
     # ~6y of dailies -> ~310 weekly bars (enough for a 200-week SMA).
     "weekly": _TimeframeSpec("weekly", "Weekly", "weeks", 2200, "W-FRI"),
-    # ~11y of dailies -> ~130 monthly bars (SMA 20/50 fine; 200 may be None).
-    "monthly": _TimeframeSpec("monthly", "Monthly", "months", 4000, "ME"),
+    # ~14y of dailies -> ~165 monthly bars. Needs to clear the ADX warm-up
+    # guard (10*length = 140 bars for ADX-14) so monthly ADX isn't always
+    # None; 4000 days (~132 months) fell just short. SMA-200 monthly may
+    # still be None for shorter-lived names -- that degrades gracefully.
+    "monthly": _TimeframeSpec("monthly", "Monthly", "months", 5200, "ME"),
 }
 DEFAULT_TIMEFRAME = "daily"
 
@@ -272,6 +275,13 @@ async def compute_live_analysis(
             f"Couldn't fetch price history for {t}.",
             hint=str(exc),
         ) from exc
+
+    # Drop rows missing core OHLC — notably today's still-forming bar, which
+    # some providers return with a NaN close. Without this the latest-bar
+    # reads (close, RSI, pivots, Ichimoku) come back None on the DAILY view.
+    # The resample path drops these too, but daily needs it explicitly.
+    if not df.empty:
+        df = df.dropna(subset=["open", "high", "low", "close"])
 
     if spec.resample_rule is not None and not df.empty:
         df = _resample_ohlc(df, spec.resample_rule)

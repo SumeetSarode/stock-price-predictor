@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from price_predictor.web.services.analysis_service import (
     DEFAULT_TIMEFRAME,
@@ -76,3 +77,27 @@ class TestResampleOhlc:
         df = _daily_df(400)
         out = _resample_ohlc(df, "W-FRI")
         assert not out[["open", "high", "low", "close"]].isna().any().any()
+
+
+class TestTrailingNanBar:
+    """Regression: today's still-forming bar (NaN OHLC) must not blank out
+    the latest-bar reads (close, RSI) on the daily view."""
+
+    @pytest.mark.asyncio
+    async def test_daily_close_survives_trailing_nan(self, monkeypatch):
+        import price_predictor.web.services.analysis_service as svc
+
+        base = _daily_df(260)
+        # Simulate the provider's forming bar: last row NaN OHLC.
+        base.loc[base.index[-1], ["open", "high", "low", "close"]] = np.nan
+
+        async def _fake_fetch(ticker, lookback_days=400):
+            return base
+
+        monkeypatch.setattr(svc, "_fetch_bars", _fake_fetch)
+
+        a = await svc.compute_live_analysis("RELIANCE", timeframe="daily")
+        assert a.trend["close"] is not None, "close blanked by trailing NaN bar"
+        assert a.momentum["rsi"] is not None, "RSI blanked by trailing NaN bar"
+        # dropna should have removed exactly the one NaN row.
+        assert a.bars_used == len(base) - 1
