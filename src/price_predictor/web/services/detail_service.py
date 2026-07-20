@@ -13,6 +13,7 @@ when rendering a cached prediction.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from price_predictor.web.services.dashboard_service import (
@@ -56,6 +57,7 @@ class StockDetail:
     close: float | None
     change_pct: float | None
     price_direction: str    # bullish / bearish / neutral
+    last_trading_day: date | None   # the session the displayed close is from
 
     # Body — depends on the active horizon
     horizon: str
@@ -65,6 +67,18 @@ class StockDetail:
     @property
     def display_ticker(self) -> str:
         return self.ticker.removesuffix(".NS")
+
+    @property
+    def close_as_of(self) -> str | None:
+        """Human date the displayed close is 'as of', e.g. '17 Jul 2026'.
+
+        None when we have no trading day (price fetch failed). Used to make
+        provider lag obvious at a glance — off-VPN the yfinance close can be
+        a session or two behind, and 'today's close' would be a lie.
+        """
+        if self.last_trading_day is None:
+            return None
+        return self.last_trading_day.strftime("%d %b %Y").lstrip("0")
 
 
 async def get_stock_detail(ticker: str, horizon: str = "weekly") -> StockDetail:
@@ -100,6 +114,7 @@ async def get_stock_detail(ticker: str, horizon: str = "weekly") -> StockDetail:
         close=price_row.close if price_row else None,
         change_pct=price_row.change_pct if price_row else None,
         price_direction=price_row.direction if price_row else "neutral",
+        last_trading_day=price_row.last_trading_day if price_row else None,
         horizon=h,
         prediction=cached,
         view=view,

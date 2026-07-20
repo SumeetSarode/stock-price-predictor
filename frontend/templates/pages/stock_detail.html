@@ -65,7 +65,11 @@
                 {{ "%+.2f"|format(detail.change_pct) }}%
               </span>
             {% endif %}
-            <span class="detail-header__price-label">today's close</span>
+            {% if detail.close_as_of %}
+              <span class="detail-header__price-label">as of {{ detail.close_as_of }}</span>
+            {% else %}
+              <span class="detail-header__price-label">latest close</span>
+            {% endif %}
           </div>
         {% endif %}
       </header>
