@@ -77,6 +77,14 @@ async def get_chart_series(
     if df is None or df.empty:
         return ChartSeries(ticker=t, dates=[], closes=[])
 
+    # Drop rows missing a close — notably today's still-forming bar, which
+    # some providers return with a NaN close. NaN is not JSON-serialisable,
+    # so leaving it in crashes the /api/chart endpoint with a 500. Mirrors
+    # the guard in dashboard_service and analysis_service.
+    df = df.dropna(subset=["close"])
+    if df.empty:
+        return ChartSeries(ticker=t, dates=[], closes=[])
+
     # Ensure we have close + a date index/column. The DataFrame schema
     # is established by data.prices; we defensively coerce anyway.
     try:

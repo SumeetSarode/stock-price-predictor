@@ -190,6 +190,13 @@ def _fetch_one_sync(stock: Stock, lookback_days: int = 10) -> DashboardRow:
     start = end - timedelta(days=lookback_days)
     try:
         df = fetch_ohlcv(stock.ticker, start=start, end=end)
+        if df is not None and len(df) > 0:
+            # Drop rows missing a close — notably today's still-forming bar,
+            # which some providers return with a NaN close. Without this the
+            # "latest" bar is NaN, which blanks the price in the UI AND
+            # crashes JSON endpoints (NaN is not JSON-serialisable). Mirrors
+            # the guard already in analysis_service._fetch_bars.
+            df = df.dropna(subset=["close"])
         if df is None or len(df) == 0:
             return DashboardRow(
                 ticker=stock.ticker,
