@@ -163,6 +163,10 @@ When it's done you'll see:
 2. **Double-click it.** A black window opens (that's the app running — normal),
    and after a moment your browser opens to the app at
    `http://127.0.0.1:8000`.
+   - Among the startup lines you'll see **"Refreshing the stock search
+     list from NSE..."** — that's the app pulling the full list of ~2,300+
+     NSE-listed stocks so search is always current. It takes a few seconds,
+     and if the laptop is offline it's skipped harmlessly (see the FAQ).
 3. Search for a stock (e.g. `RELIANCE`), generate a prediction, and confirm it
    appears.
 4. Click **History** — your prediction should be listed.
@@ -216,10 +220,23 @@ needed on their end.
 | Predictions say "no API key" / fail instantly | The `.env` keys are wrong or missing. Re-check Phase 4 (no quotes, no spaces around `=`). |
 | App won't update | Confirm the laptop has internet, and that you actually pushed to the `release` branch (Phase 3 + "Shipping updates"). |
 | Running `launch.bat` shows "cannot check for updates" | It's just offline — the app still starts with the last version it has. |
+| "Stock list refresh skipped/failed - using the built-in list" | Harmless. The laptop couldn't reach NSE (offline, or a temporary NSE hiccup), so search falls back to the ~2,300-stock list that ships with the app. It'll refresh on the next launch that has a connection. |
 
 ---
 
 ## FAQ
+
+**Which stocks can I search?**
+Every equity listed on the NSE — roughly 2,300+ names, not just the big ones.
+The list refreshes automatically from NSE's official records **on every
+launch** (you'll see a "Refreshing the stock search list" line in the black
+window), so newly listed stocks and renames show up without any manual step.
+If the laptop is offline or NSE is briefly unreachable, the refresh is skipped
+and search uses the copy that shipped with the app — nothing breaks, and it
+tries again next launch. (Note: this refresh downloads a *static list file*
+from NSE's archive, which works worldwide including outside India — unlike
+NSE's live price feed, which is India-only and is why out-of-India laptops set
+`PRICE_CHAIN=yfinance`.)
 
 **Where is my prediction history stored?**
 In a small database at `C:\Users\<their-username>\.price_predictor\app.db`.
