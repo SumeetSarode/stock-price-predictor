@@ -63,6 +63,8 @@ from loguru import logger
 
 from price_predictor.agents.news_impact import (
     ImpactAssessment,
+    build_news_impact_prompt,
+    gather_news_impact_inputs,
     make_news_impact_agent,
 )
 from price_predictor.agents.synthesizer import (
@@ -256,11 +258,19 @@ async def _run_agent_for_text(
 
 
 async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
-    """Invoke the news_impact agent and return the parsed ImpactAssessment.
+    """Gather impact inputs (pure code) then synthesize with ONE LLM call.
+
+    'Gather in code, reason once': all data (company news, sector news,
+    filings, estimates, prices) is fetched deterministically and in
+    parallel by gather_news_impact_inputs(), then handed to the tool-less
+    synthesizer in a single prompt. No tool loop, no re-sent context.
+
+    Look-ahead is automatic: gather reads the replay contextvar, so a
+    backtest that wraps this call in replay_context(as_of=...) stays
+    honest with no extra plumbing here.
 
     Args:
-        ticker: Canonical yfinance ticker (caller is responsible for KB
-            resolution).
+        ticker: Canonical yfinance ticker (caller resolves KB aliases).
 
     Returns:
         Validated ImpactAssessment.
@@ -268,12 +278,8 @@ async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
     Raises:
         PredictionError: agent failed or returned unparseable output.
     """
-    # The news_impact agent has its own internal prompt logic for tools
-    # discovery; its user message just needs to identify the target.
-    prompt = (
-        f"Analyze the news, filings, estimates, and recent price action "
-        f"for {ticker}. Produce an ImpactAssessment."
-    )
+    inputs = await gather_news_impact_inputs(ticker)
+    prompt = build_news_impact_prompt(inputs)
     raw = await _run_agent_for_text(_news_impact_agent, prompt)
     try:
         return ImpactAssessment.model_validate_json(raw)

@@ -1,26 +1,27 @@
 """News-impact analyzer ADK agent — public package interface.
 
 ADK CLI (`adk run`, `adk web`) discovers `root_agent` from this module.
-Tests and other code import the tools / schemas / factory directly.
+The predictor imports the gather layer, prompt builder, factory and
+schemas directly.
 """
 from price_predictor.agents.news_impact.agent import (
     Catalyst,
     ImpactAssessment,
-    fetch_estimates_tool,
-    fetch_recent_filings_tool,
-    fetch_recent_news_tool,
-    fetch_recent_prices_tool,
+    build_news_impact_prompt,
     make_news_impact_agent,
     root_agent,
+)
+from price_predictor.agents.news_impact.gather import (
+    NewsImpactInputs,
+    gather_news_impact_inputs,
 )
 
 __all__ = [
     "Catalyst",
     "ImpactAssessment",
-    "fetch_estimates_tool",
-    "fetch_recent_filings_tool",
-    "fetch_recent_news_tool",
-    "fetch_recent_prices_tool",
+    "NewsImpactInputs",
+    "build_news_impact_prompt",
+    "gather_news_impact_inputs",
     "make_news_impact_agent",
     "root_agent",
 ]
