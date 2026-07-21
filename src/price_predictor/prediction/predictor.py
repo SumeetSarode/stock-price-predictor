@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import Iterable
 from datetime import date, datetime, time
 from typing import Literal
 
@@ -66,6 +67,7 @@ from price_predictor.agents.news_impact import (
     build_news_impact_prompt,
     gather_news_impact_inputs,
     make_news_impact_agent,
+    neutral_impact_assessment,
 )
 from price_predictor.agents.synthesizer import (
     build_synth_prompt,
@@ -77,16 +79,16 @@ from price_predictor.data.news_snapshot import (
     get_news_snapshot,
     set_news_snapshot,
 )
+from price_predictor.prediction.guardrails import (
+    HallucinationError,
+    validate_all,
+)
 from price_predictor.prediction.inputs import (
     SynthesisInput,
     TechnicalView,
     TechnicalViewError,
-    compose_technical_view,
     _resolve_ticker,
-)
-from price_predictor.prediction.guardrails import (
-    HallucinationError,
-    validate_all,
+    compose_technical_view,
 )
 from price_predictor.prediction.replay_context import replay_context
 from price_predictor.prediction.runner import USER_ID, get_runner, get_session_service
@@ -95,8 +97,6 @@ from price_predictor.prediction.schema import (
     Prediction,
     PredictionHorizon,
 )
-
-from collections.abc import Iterable
 
 # Horizon literal mirrors PredictionHorizon enum values. We accept the
 # raw string for ergonomic API; the synthesizer agent passes it through
@@ -279,6 +279,18 @@ async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
         PredictionError: agent failed or returned unparseable output.
     """
     inputs = await gather_news_impact_inputs(ticker)
+
+    # LLM only when there's something to reason about. If gather found no
+    # news, filings, or covered estimates, there is no news-driven impact
+    # to assess — return a deterministic neutral assessment and skip the
+    # model entirely (saves a call on quiet / illiquid names).
+    if not inputs.has_news_evidence:
+        logger.info(
+            f"news_impact: no evidence for {ticker}; "
+            f"skipping LLM, returning neutral assessment"
+        )
+        return neutral_impact_assessment(ticker)
+
     prompt = build_news_impact_prompt(inputs)
     raw = await _run_agent_for_text(_news_impact_agent, prompt)
     try:

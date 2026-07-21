@@ -247,3 +247,45 @@ class TestCompanyName:
         monkeypatch.setattr(g.search_service, "get_by_ticker", lambda t: None)
         out = await g.gather_news_impact_inputs("WEIRD.NS")
         assert out.company_name == "WEIRD"
+
+
+# ── has_news_evidence gate (LLM only when there's something to reason) ─
+class TestHasNewsEvidence:
+    def _blank(self):
+        return g.NewsImpactInputs(
+            ticker="X.NS", company_name="X", sector=None,
+            window_start="2026-01-01", window_end="2026-01-08",
+        )
+
+    def test_empty_is_false(self):
+        assert self._blank().has_news_evidence is False
+
+    def test_prices_alone_is_false(self):
+        inp = self._blank()
+        inp.prices = {"status": "success", "last_close": 100.0}
+        assert inp.has_news_evidence is False
+
+    def test_company_news_is_true(self):
+        inp = self._blank()
+        inp.company_news = [{"title": "t"}]
+        assert inp.has_news_evidence is True
+
+    def test_sector_news_is_true(self):
+        inp = self._blank()
+        inp.sector_news = [{"title": "t"}]
+        assert inp.has_news_evidence is True
+
+    def test_filings_is_true(self):
+        inp = self._blank()
+        inp.filings = [{"subject": "results"}]
+        assert inp.has_news_evidence is True
+
+    def test_covered_estimates_is_true(self):
+        inp = self._blank()
+        inp.estimates = {"has_coverage": True}
+        assert inp.has_news_evidence is True
+
+    def test_uncovered_estimates_is_false(self):
+        inp = self._blank()
+        inp.estimates = {"has_coverage": False}
+        assert inp.has_news_evidence is False

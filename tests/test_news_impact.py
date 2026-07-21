@@ -20,8 +20,23 @@ from price_predictor.agents.news_impact import (
     NewsImpactInputs,
     build_news_impact_prompt,
     make_news_impact_agent,
+    neutral_impact_assessment,
     root_agent,
 )
+
+
+class TestNeutralImpactAssessment:
+    """Deterministic 'no evidence' assessment — built without an LLM."""
+
+    def test_is_valid_neutral(self):
+        a = neutral_impact_assessment("RELIANCE.NS")
+        assert isinstance(a, ImpactAssessment)
+        assert a.ticker == "RELIANCE.NS"
+        assert a.sentiment == "neutral"
+        assert a.confidence == 0.0
+        assert a.estimated_pct_move == 0.0
+        assert a.catalysts == []
+        assert len(a.reasoning) >= 20  # passes schema floor
 
 
 # ═════════════════════════════════════════════════════════════

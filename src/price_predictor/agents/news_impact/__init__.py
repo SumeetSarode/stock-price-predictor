@@ -9,6 +9,7 @@ from price_predictor.agents.news_impact.agent import (
     ImpactAssessment,
     build_news_impact_prompt,
     make_news_impact_agent,
+    neutral_impact_assessment,
     root_agent,
 )
 from price_predictor.agents.news_impact.gather import (
@@ -23,5 +24,6 @@ __all__ = [
     "build_news_impact_prompt",
     "gather_news_impact_inputs",
     "make_news_impact_agent",
+    "neutral_impact_assessment",
     "root_agent",
 ]

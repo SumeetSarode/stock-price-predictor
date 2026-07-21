@@ -685,3 +685,45 @@ class TestAsOfPlumbing:
             assert end == past, (
                 f"cache fetched with end={end}, expected {past}: as_of leak!"
             )
+
+
+# ── news-impact LLM gate (LLM only when there's evidence) ───────────
+class TestNewsImpactGate:
+    """run_news_impact_agent must skip the LLM when gather is empty."""
+
+    def _inputs(self, **kw):
+        from price_predictor.agents.news_impact import NewsImpactInputs
+        base = dict(
+            ticker="X.NS", company_name="X", sector=None,
+            window_start="2026-01-01", window_end="2026-01-08",
+        )
+        base.update(kw)
+        return NewsImpactInputs(**base)
+
+    @patch("price_predictor.prediction.predictor._run_agent_for_text",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.gather_news_impact_inputs",
+           new_callable=AsyncMock)
+    def test_empty_evidence_skips_llm(self, mock_gather, mock_llm):
+        from price_predictor.prediction.predictor import run_news_impact_agent
+        mock_gather.return_value = self._inputs()  # no evidence
+        out = asyncio.run(run_news_impact_agent("X.NS"))
+        mock_llm.assert_not_called()             # LLM never invoked
+        assert out.sentiment == "neutral"
+        assert out.confidence == 0.0
+        assert out.catalysts == []
+
+    @patch("price_predictor.prediction.predictor._run_agent_for_text",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.gather_news_impact_inputs",
+           new_callable=AsyncMock)
+    def test_evidence_invokes_llm(self, mock_gather, mock_llm):
+        from price_predictor.prediction.predictor import run_news_impact_agent
+        mock_gather.return_value = self._inputs(
+            company_news=[{"title": "Big news", "url": "u",
+                           "published_at": "2026-01-05", "source": "ET"}],
+        )
+        mock_llm.return_value = _sample_impact().model_dump_json()
+        out = asyncio.run(run_news_impact_agent("X.NS"))
+        mock_llm.assert_called_once()            # LLM invoked exactly once
+        assert isinstance(out, ImpactAssessment)

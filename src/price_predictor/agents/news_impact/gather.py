@@ -73,8 +73,9 @@ _MAX_FILINGS = 20
 class NewsImpactInputs:
     """Everything the synthesizer needs, gathered deterministically.
 
-    Plain data — no behavior. `errors` collects soft-fail notes so the
-    synthesis prompt can honestly say what was unavailable.
+    Plain data — no behavior beyond `has_news_evidence`. `errors`
+    collects soft-fail notes so the synthesis prompt can honestly say
+    what was unavailable.
     """
 
     ticker: str
@@ -88,6 +89,27 @@ class NewsImpactInputs:
     estimates: dict | None = None
     prices: dict | None = None
     errors: list[str] = field(default_factory=list)
+
+    @property
+    def has_news_evidence(self) -> bool:
+        """True when there's something for the LLM to actually reason about.
+
+        'Reasoning material' = free-text or event evidence: company news,
+        sector news, filings, or analyst estimates *with coverage*.
+
+        Prices are deliberately EXCLUDED: price action is already owned by
+        the technical view + synthesizer, so raw prices alone are not a
+        reason to spend an LLM call on news synthesis. When this is False
+        the caller returns a deterministic neutral assessment and skips
+        the model entirely — LLM only when there's something to reason about.
+        """
+        has_estimates = bool(self.estimates) and self.estimates.get("has_coverage")
+        return bool(
+            self.company_news
+            or self.sector_news
+            or self.filings
+            or has_estimates
+        )
 
 
 # ─────────────────────────────────────────────────────────────

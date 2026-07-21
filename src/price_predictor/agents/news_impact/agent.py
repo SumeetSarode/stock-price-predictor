@@ -101,6 +101,32 @@ class ImpactAssessment(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────
+# Deterministic short-circuit (no LLM)
+# ─────────────────────────────────────────────────────────────
+def neutral_impact_assessment(ticker: str) -> ImpactAssessment:
+    """Build a neutral assessment for the 'no evidence' case — no LLM.
+
+    When gather finds no news, filings, or covered estimates there is
+    literally nothing to reason about, so we skip the model and return
+    this deterministically. Shape matches the degraded path: neutral,
+    confidence 0, no catalysts — which makes the downstream synthesizer
+    lean entirely on technicals (news contributes nothing either way).
+    """
+    return ImpactAssessment(
+        ticker=ticker,
+        sentiment="neutral",
+        confidence=0.0,
+        estimated_pct_move=0.0,
+        reasoning=(
+            "No company news, sector news, filings, or analyst estimates "
+            "were found in the lookback window; no news-driven impact to "
+            "assess. Prediction relies on technical evidence."
+        ),
+        catalysts=[],
+    )
+
+
+# ─────────────────────────────────────────────────────────────
 # Prompt builder (renders gathered inputs → one synthesis prompt)
 # ─────────────────────────────────────────────────────────────
 def _fmt_news(rows: list[dict], label: str) -> str:
