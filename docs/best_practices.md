@@ -156,14 +156,14 @@ of Gemini.
   # Error
   {"status": "error", "error_message": "human-readable description"}
   ```
-- 🎯 Agent name format: lowercase_snake_case (`hello_agent`, `analyst_agent`)
+-  Agent name format: lowercase_snake_case (`price_agent`, `analyst_agent`)
 - 🎯 **Agent identity rule: package name = factory name (minus `make_`) = agent's `name` attribute**
   - Package: `agents/<name>_agent/` (a directory, NOT a single .py file — ADK CLI requires this)
   - Implementation: `agents/<name>_agent/agent.py`
   - Public API: `agents/<name>_agent/__init__.py` re-exports `root_agent`, `make_<name>_agent`, tools
   - Factory: `make_<name>_agent() -> LlmAgent`
   - Agent `name=`: `"<name>_agent"`
-  - Example: `agents/hello_agent/agent.py` → `make_hello_agent()` → `name="hello_agent"`
+  - Example: `agents/price_agent/agent.py` → `make_price_agent()` → `name="price_agent"`
 - 🎯 **ADK CLI entry point: every agent package MUST export `root_agent`**
   - In `agent.py`: `root_agent = make_<name>_agent()` at module bottom
   - In `__init__.py`: re-export it via `from .agent import root_agent`
@@ -583,8 +583,8 @@ price_predictor/
   belong to one agent stay in that agent's file.
 
 ### Tool placement convention
-- 🎯 **One agent uses it**: tool function lives IN the agent file (e.g.,
-  `get_current_time` in `hello_agent.py`).
+-  **One agent uses it**: tool function lives IN the agent file (e.g.,
+  `fetch_prices_tool` in `price_agent/agent.py`).
 - 🎯 **Multiple agents use it**: extract to the relevant domain package (e.g.,
   `data/yfinance_tools.py`, `analysis/indicators.py`).
 - 🎯 **Cross-cutting and reusable**: `utils/<domain>.py`.
@@ -617,7 +617,7 @@ price_predictor/
 - 🎯 Functions / variables: `lowercase_snake_case`
 - 🎯 Constants: `UPPER_SNAKE_CASE`
 - 🎯 Private: leading underscore (`_helper`)
-- 🎯 Agent files: filename matches agent name exactly (`hello_agent.py`, not `hello.py`), expose `make_<name>_agent()` AND module-level `root_agent = make_<name>_agent()`
+- 🎯 Agent files: filename matches agent name exactly (`price_agent.py`, not `price.py`), expose `make_<name>_agent()` AND module-level `root_agent = make_<name>_agent()`
 
 ### Async vs sync
 - 🎯 Agent code: async (use `acompletion`, `runner.run_async`)

@@ -227,7 +227,6 @@ price_predictor/
 │   │   └── chart_patterns.py
 │   │
 │   ├── agents/                    # ── ADK agents ──
-│   │   ├── hello_agent/           #    Learning spike
 │   │   ├── price_agent/           #    Tool-wrapped price fetcher
 │   │   ├── news_impact/           #    LLM scoring per article
 │   │   ├── technical_agent/       #    4 thematic tools (trend/momentum/volatility/levels)
