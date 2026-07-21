@@ -35,6 +35,7 @@ from price_predictor.data.news import (
     fetch_news,
     fetch_news_batch,
     fetch_news_paginated,
+    fetch_news_relevant,
 )
 from price_predictor.data.schema import ArticleBody, NewsArticle
 
@@ -108,20 +109,95 @@ class TestToGdeltDatetime:
 # _build_params
 # ─────────────────────────────────────────────────────────────
 class TestBuildParams:
-    def test_lang_appended_to_query(self):
+    def test_exact_phrase_quotes_query_by_default(self):
         params = _build_params(
-            "Reliance",
+            "Reliance Industries",
             datetime(2024, 1, 1, tzinfo=UTC),
             datetime(2024, 1, 31, tzinfo=UTC),
             lang="eng",
             max_records=250,
         )
-        assert params["query"] == "Reliance sourcelang:eng"
+        assert params["query"] == '"Reliance Industries" sourcelang:eng'
         assert params["mode"] == "ArtList"
         assert params["format"] == "json"
         assert params["maxrecords"] == "250"
         assert params["startdatetime"] == "20240101000000"
         assert params["enddatetime"] == "20240131235959"
+
+    def test_exact_phrase_off_leaves_tokens_loose(self):
+        params = _build_params(
+            "Reliance", datetime(2024, 1, 1, tzinfo=UTC),
+            datetime(2024, 1, 31, tzinfo=UTC), lang="eng", max_records=250,
+            exact_phrase=False,
+        )
+        assert params["query"] == "Reliance sourcelang:eng"
+
+    def test_source_country_appended(self):
+        params = _build_params(
+            "Infosys", datetime(2024, 1, 1, tzinfo=UTC),
+            datetime(2024, 1, 31, tzinfo=UTC), lang="eng", max_records=250,
+            source_country="IN",
+        )
+        assert params["query"] == '"Infosys" sourcelang:eng sourcecountry:IN'
+
+
+# ─────────────────────────────────────────────────────────────
+# fetch_news_relevant (relevance ladder)
+# ─────────────────────────────────────────────────────────────
+class TestFetchNewsRelevant:
+    @pytest.mark.asyncio
+    async def test_returns_first_tier_when_it_has_results(self, monkeypatch):
+        import price_predictor.data.news as news_mod
+        calls = []
+
+        async def fake(query, start, end, *, exact_phrase, source_country, **kw):
+            calls.append((exact_phrase, source_country))
+            return _normalize_articles([_article()])  # non-empty
+
+        monkeypatch.setattr(news_mod, "fetch_news", fake)
+        df = await fetch_news_relevant("Infosys", "2024-01-01", "2024-01-07")
+        assert len(df) == 1
+        # Stopped after the strictest tier (exact phrase + IN).
+        assert calls == [(True, "IN")]
+
+    @pytest.mark.asyncio
+    async def test_relaxes_when_earlier_tiers_empty(self, monkeypatch):
+        import price_predictor.data.news as news_mod
+        calls = []
+
+        async def fake(query, start, end, *, exact_phrase, source_country, **kw):
+            calls.append((exact_phrase, source_country))
+            # Only the loosest tier (no quotes, no country) returns anything.
+            if not exact_phrase and source_country is None:
+                return _normalize_articles([_article()])
+            return _normalize_articles([])
+
+        monkeypatch.setattr(news_mod, "fetch_news", fake)
+        df = await fetch_news_relevant("Infosys", "2024-01-01", "2024-01-07")
+        assert len(df) == 1
+        assert calls == [(True, "IN"), (True, None), (False, None)]
+
+    @pytest.mark.asyncio
+    async def test_all_tiers_empty_returns_empty(self, monkeypatch):
+        import price_predictor.data.news as news_mod
+
+        async def fake(query, start, end, *, exact_phrase, source_country, **kw):
+            return _normalize_articles([])
+
+        monkeypatch.setattr(news_mod, "fetch_news", fake)
+        df = await fetch_news_relevant("Nothing", "2024-01-01", "2024-01-07")
+        assert df.empty
+
+    @pytest.mark.asyncio
+    async def test_fetch_error_propagates(self, monkeypatch):
+        import price_predictor.data.news as news_mod
+
+        async def fake(query, start, end, *, exact_phrase, source_country, **kw):
+            raise NewsFetchError("GDELT down")
+
+        monkeypatch.setattr(news_mod, "fetch_news", fake)
+        with pytest.raises(NewsFetchError):
+            await fetch_news_relevant("Infosys", "2024-01-01", "2024-01-07")
 
 
 # ─────────────────────────────────────────────────────────────

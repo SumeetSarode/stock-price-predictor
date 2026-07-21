@@ -99,13 +99,29 @@ def _build_params(
     end_dt: datetime,
     lang: str,
     max_records: int,
+    *,
+    exact_phrase: bool = True,
+    source_country: str | None = None,
 ) -> dict[str, str]:
     """Build the GDELT query-string params dict.
 
-    Note: we APPEND `sourcelang:<lang>` to the query (GDELT operator syntax)
-    rather than passing it as a separate param — that's how their API works.
+    Relevance controls (GDELT operator syntax, all APPENDED to the query
+    string — that's how their API works, there are no separate params):
+
+    - ``exact_phrase`` (default True): wrap the query in double quotes so
+      GDELT matches the whole phrase, not each loose token. This is the
+      fix for junk like a bare ticker 'INFY' matching a WrestleMania
+      recap — '"Infosys"' only matches articles actually containing that
+      phrase.
+    - ``source_country`` (e.g. 'IN'): bias to a source country via
+      ``sourcecountry:``. Left off by default; the relevance ladder in
+      ``fetch_news_relevant`` adds it as the most-specific first tier.
     """
-    full_query = f"{query} sourcelang:{lang}"
+    phrase = f'"{query}"' if exact_phrase else query
+    parts = [phrase, f"sourcelang:{lang}"]
+    if source_country:
+        parts.append(f"sourcecountry:{source_country}")
+    full_query = " ".join(parts)
     return {
         "query": full_query,
         "mode": "ArtList",
@@ -162,6 +178,8 @@ async def fetch_news(
     max_records: int = 250,
     timeout: float = DEFAULT_TIMEOUT_S,
     client: httpx.AsyncClient | None = None,
+    exact_phrase: bool = True,
+    source_country: str | None = None,
 ) -> pd.DataFrame:
     """Fetch news article metadata from GDELT Doc API 2.0.
 
@@ -174,6 +192,9 @@ async def fetch_news(
         timeout: Per-request timeout in seconds.
         client: Optional shared AsyncClient (for batch reuse). If None, a
                 temporary client is created per call.
+        exact_phrase: Wrap the query in quotes for whole-phrase matching
+                (default True — kills loose-token false positives).
+        source_country: Optional GDELT sourcecountry bias (e.g. 'IN').
 
     Returns:
         DataFrame with columns: title, url, published_at (tz-aware UTC),
@@ -185,7 +206,10 @@ async def fetch_news(
         NewsFetchError: On HTTP / JSON / timeout failures.
     """
     start_dt, end_dt = _validate_inputs(query, start, end)
-    params = _build_params(query, start_dt, end_dt, lang, max_records)
+    params = _build_params(
+        query, start_dt, end_dt, lang, max_records,
+        exact_phrase=exact_phrase, source_country=source_country,
+    )
     headers = {"User-Agent": DEFAULT_USER_AGENT}
 
     owns_client = client is None
@@ -218,6 +242,65 @@ async def fetch_news(
         )
 
     return _normalize_articles(articles)
+
+
+# Relevance ladder: most-specific first, loosened only if a tier finds
+# nothing. Each tuple is (exact_phrase, source_country). This is the fix
+# for both halves of the relevance problem: exact-phrase quoting kills
+# loose-token junk (INFY -> WrestleMania), and the IN source bias favours
+# Indian coverage — while the fallbacks guarantee we never over-filter to
+# zero (dropping the country, then the quotes, before giving up).
+_RELEVANCE_LADDER: tuple[tuple[bool, str | None], ...] = (
+    (True, "IN"),    # "Infosys" from Indian sources
+    (True, None),    # "Infosys" from anywhere (Reuters/Bloomberg on India)
+    (False, None),   # loose tokens — last resort so we return *something*
+)
+
+
+async def fetch_news_relevant(
+    query: str,
+    start: str,
+    end: str,
+    *,
+    lang: str = "eng",
+    max_records: int = 250,
+    timeout: float = DEFAULT_TIMEOUT_S,
+    client: httpx.AsyncClient | None = None,
+) -> pd.DataFrame:
+    """Fetch news, trading precision for recall only when needed.
+
+    Walks `_RELEVANCE_LADDER`: tries the strictest query first (exact
+    phrase, Indian sources) and relaxes one notch at a time ONLY when a
+    tier returns zero rows. Returns the first non-empty result, or an
+    empty DataFrame if even the loosest tier finds nothing.
+
+    This is the live-path wrapper around `fetch_news`. `fetch_news` itself
+    stays a single deterministic call (exact-phrase by default) so the
+    backtest snapshot store records one faithful query per (name, date).
+
+    Same args/raises as `fetch_news`. A NewsFetchError on any tier
+    propagates immediately (we don't mask real API failures as 'empty').
+    """
+    owns_client = client is None
+    if owns_client:
+        client = httpx.AsyncClient(
+            timeout=timeout, headers={"User-Agent": DEFAULT_USER_AGENT},
+        )
+    try:
+        df = pd.DataFrame(columns=NEWS_DF_COLUMNS)
+        for exact_phrase, country in _RELEVANCE_LADDER:
+            df = await fetch_news(
+                query, start, end,
+                lang=lang, max_records=max_records, timeout=timeout,
+                client=client, exact_phrase=exact_phrase,
+                source_country=country,
+            )
+            if not df.empty:
+                return df
+        return df  # exhausted the ladder — legitimately nothing
+    finally:
+        if owns_client:
+            await client.aclose()
 
 
 async def fetch_news_batch(

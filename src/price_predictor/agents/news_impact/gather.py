@@ -43,7 +43,7 @@ from price_predictor.agents.news_impact.sectors import (
 from price_predictor.agents.price_agent.agent import fetch_prices_tool
 from price_predictor.data.estimates import EstimatesFetchError, fetch_estimates
 from price_predictor.data.filings import FilingsFetchError, fetch_filings
-from price_predictor.data.news import NewsFetchError, fetch_news
+from price_predictor.data.news import NewsFetchError, fetch_news_relevant
 from price_predictor.data.news_snapshot import (
     NewsSnapshotError,
     get_news_snapshot,
@@ -115,7 +115,9 @@ async def _fetch_news_rows(query: str, days_back: int, as_of, cap: int) -> list[
     if as_of is not None and snapshot is not None:
         df = await snapshot.get_or_fetch(query, as_of, days_back)
     else:
-        df = await fetch_news(query, start, end)
+        # Live path: use the relevance ladder (exact phrase + India bias,
+        # relaxed only if a tier finds nothing).
+        df = await fetch_news_relevant(query, start, end)
     rows = df.head(cap)
     return [
         {

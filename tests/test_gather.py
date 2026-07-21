@@ -74,7 +74,7 @@ def happy_fetchers(monkeypatch):
         calls["prices"].append((tk, start, end))
         return {"status": "success", "last_close": 100.0}
 
-    monkeypatch.setattr(g, "fetch_news", fake_news)
+    monkeypatch.setattr(g, "fetch_news_relevant", fake_news)
     monkeypatch.setattr(g, "fetch_filings", fake_filings)
     monkeypatch.setattr(g, "fetch_estimates", fake_estimates)
     monkeypatch.setattr(g, "fetch_prices_tool", fake_prices)
@@ -158,7 +158,7 @@ class TestSoftFail:
         def boom_sync(*a, **k):
             raise RuntimeError("down")
 
-        monkeypatch.setattr(g, "fetch_news", boom)
+        monkeypatch.setattr(g, "fetch_news_relevant", boom)
         monkeypatch.setattr(g, "fetch_filings", boom)
         monkeypatch.setattr(g, "fetch_estimates", boom)
         monkeypatch.setattr(g, "fetch_prices_tool", boom_sync)
@@ -188,7 +188,7 @@ class TestLookAhead:
         out = await g.gather_news_impact_inputs("INFY.NS", as_of=date(2025, 1, 1))
         # snapshot used for BOTH company and sector news
         assert len(snap_calls) == 2
-        # live fetch_news NOT called
+        # live fetch NOT called
         assert happy_fetchers["news"] == []
         assert out.company_news
 
