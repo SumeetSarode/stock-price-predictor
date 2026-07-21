@@ -28,9 +28,9 @@ touch yfinance — they pass a fake that returns/raises deterministically.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable, Iterable
 
 from loguru import logger
 

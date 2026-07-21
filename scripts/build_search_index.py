@@ -38,7 +38,7 @@ from pathlib import Path
 # Make src/ importable so we can reuse the tested sector-backfill module
 # rather than re-implementing yfinance plumbing here (DRY).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from price_predictor.data.sector_lookup import (  # noqa: E402
+from price_predictor.data.sector_lookup import (
     backfill_sectors,
 )
 
@@ -322,7 +322,7 @@ def fetch_nse_equity_list() -> list[tuple[str, str]]:
         # Prime cookies. NSE 403s the CSV without a warmed session.
         try:
             client.get(NSE_HOMEPAGE)
-        except Exception as exc:  # noqa: BLE001 - warmup is best-effort
+        except Exception as exc:
             last_err = exc
 
         for url in NSE_EQUITY_L_URLS:
@@ -330,7 +330,7 @@ def fetch_nse_equity_list() -> list[tuple[str, str]]:
                 resp = client.get(url)
                 resp.raise_for_status()
                 return _parse_equity_l(resp.text)
-            except Exception as exc:  # noqa: BLE001 - try the next mirror
+            except Exception as exc:
                 last_err = exc
                 continue
 

@@ -1,8 +1,6 @@
 """Tests for the sector → news-query cheat-sheet (news_impact/sectors.py)."""
 from __future__ import annotations
 
-import pytest
-
 from price_predictor.agents.news_impact import sectors
 from price_predictor.web.services.search_service import Stock
 
