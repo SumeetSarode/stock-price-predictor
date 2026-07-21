@@ -43,7 +43,11 @@ from price_predictor.agents.news_impact.sectors import (
 from price_predictor.agents.price_agent.agent import fetch_prices_tool
 from price_predictor.data.estimates import EstimatesFetchError, fetch_estimates
 from price_predictor.data.filings import FilingsFetchError, fetch_filings
-from price_predictor.data.news import NewsFetchError, fetch_news_relevant
+from price_predictor.data.news import (
+    NewsFetchError,
+    fetch_news,
+    fetch_news_relevant,
+)
 from price_predictor.data.news_snapshot import (
     NewsSnapshotError,
     get_news_snapshot,
@@ -118,6 +122,34 @@ async def _fetch_news_rows(query: str, days_back: int, as_of, cap: int) -> list[
         # Live path: use the relevance ladder (exact phrase + India bias,
         # relaxed only if a tier finds nothing).
         df = await fetch_news_relevant(query, start, end)
+    rows = df.head(cap)
+    return [
+        {
+            "title": str(r["title"])[:250],
+            "url": str(r["url"]),
+            "published_at": str(r["published_at"]),
+            "source": str(r.get("source", "")),
+        }
+        for _, r in rows.iterrows()
+    ]
+
+
+async def _fetch_sector_news_rows(query: str, days_back: int, as_of, cap: int) -> list[dict]:
+    """Fetch + shape SECTOR news rows.
+
+    Unlike company news, sector queries are concept queries, so we use
+    loose token matching (exact_phrase=False) and NO India country bias
+    — that's what lets a bare '<Sector> sector' search surface global
+    coverage (US tech spend, China metals demand, OPEC, ...) naturally.
+    """
+    start, end = _window(days_back, as_of)
+    snapshot = get_news_snapshot()
+    if as_of is not None and snapshot is not None:
+        df = await snapshot.get_or_fetch(query, as_of, days_back, exact_phrase=False)
+    else:
+        df = await fetch_news(
+            query, start, end, exact_phrase=False, source_country=None,
+        )
     rows = df.head(cap)
     return [
         {
@@ -216,8 +248,8 @@ async def gather_news_impact_inputs(
     ]
     if sector_query:
         tasks.append(
-            _fetch_news_rows(sector_query, _SECTOR_NEWS_DAYS, as_of,
-                             _MAX_SECTOR_ARTICLES)
+            _fetch_sector_news_rows(sector_query, _SECTOR_NEWS_DAYS, as_of,
+                                    _MAX_SECTOR_ARTICLES)
         )
 
     gathered = await asyncio.gather(*tasks, return_exceptions=True)

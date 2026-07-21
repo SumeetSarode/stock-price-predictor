@@ -54,12 +54,21 @@ def _stub_index(monkeypatch):
 
 @pytest.fixture
 def happy_fetchers(monkeypatch):
-    """Wire all four fetchers to succeed. Records calls for assertions."""
-    calls = {"news": [], "filings": [], "estimates": [], "prices": [],
-             "snapshot": []}
+    """Wire all fetchers to succeed. Records calls for assertions.
+
+    Company news flows through fetch_news_relevant (exact-phrase India
+    ladder); sector news flows through fetch_news directly (loose, no
+    country bias). We patch both and record them separately.
+    """
+    calls = {"news": [], "sector": [], "filings": [], "estimates": [],
+             "prices": [], "snapshot": []}
 
     async def fake_news(query, start, end):
         calls["news"].append((query, start, end))
+        return _news_df([f"{query} headline"])
+
+    async def fake_sector_news(query, start, end, *, exact_phrase, source_country):
+        calls["sector"].append((query, exact_phrase, source_country))
         return _news_df([f"{query} headline"])
 
     async def fake_filings(sym, start, end):
@@ -75,6 +84,7 @@ def happy_fetchers(monkeypatch):
         return {"status": "success", "last_close": 100.0}
 
     monkeypatch.setattr(g, "fetch_news_relevant", fake_news)
+    monkeypatch.setattr(g, "fetch_news", fake_sector_news)
     monkeypatch.setattr(g, "fetch_filings", fake_filings)
     monkeypatch.setattr(g, "fetch_estimates", fake_estimates)
     monkeypatch.setattr(g, "fetch_prices_tool", fake_prices)
@@ -103,8 +113,17 @@ class TestHappyPath:
     @pytest.mark.asyncio
     async def test_sector_news_uses_sector_phrase(self, happy_fetchers):
         await g.gather_news_impact_inputs("INFY.NS")
-        queries = [c[0] for c in happy_fetchers["news"]]
-        assert "Indian IT sector" in queries
+        sector_queries = [c[0] for c in happy_fetchers["sector"]]
+        assert "Technology sector" in sector_queries
+
+    @pytest.mark.asyncio
+    async def test_sector_news_is_loose_and_unbiased(self, happy_fetchers):
+        """Sector queries must be loose-token (exact_phrase=False) with no
+        country bias so global coverage surfaces naturally."""
+        await g.gather_news_impact_inputs("INFY.NS")
+        _, exact_phrase, country = happy_fetchers["sector"][0]
+        assert exact_phrase is False
+        assert country is None
 
     @pytest.mark.asyncio
     async def test_filings_use_bare_symbol(self, happy_fetchers):
@@ -130,8 +149,9 @@ class TestSectorHandling:
         out = await g.gather_news_impact_inputs("X.NS")
         assert out.sector is None
         assert out.sector_news == []
-        # only company news fetched (one news call)
+        # company news fetched once; sector news never fetched
         assert len(happy_fetchers["news"]) == 1
+        assert happy_fetchers["sector"] == []
 
 
 # ── soft-fail isolation ─────────────────────────────────────────────
@@ -159,6 +179,7 @@ class TestSoftFail:
             raise RuntimeError("down")
 
         monkeypatch.setattr(g, "fetch_news_relevant", boom)
+        monkeypatch.setattr(g, "fetch_news", boom)
         monkeypatch.setattr(g, "fetch_filings", boom)
         monkeypatch.setattr(g, "fetch_estimates", boom)
         monkeypatch.setattr(g, "fetch_prices_tool", boom_sync)
@@ -180,16 +201,21 @@ class TestLookAhead:
         snap_calls = []
 
         class FakeSnap:
-            async def get_or_fetch(self, query, as_of, days):
-                snap_calls.append((query, as_of, days))
+            async def get_or_fetch(self, query, as_of, days, *, exact_phrase=True):
+                snap_calls.append((query, as_of, days, exact_phrase))
                 return _news_df([f"snap {query}"])
 
         monkeypatch.setattr(g, "get_news_snapshot", lambda: FakeSnap())
         out = await g.gather_news_impact_inputs("INFY.NS", as_of=date(2025, 1, 1))
         # snapshot used for BOTH company and sector news
         assert len(snap_calls) == 2
+        # company = exact phrase; sector = loose
+        exacts = {q: ep for q, _, _, ep in snap_calls}
+        assert exacts["Infosys"] is True
+        assert exacts["Technology sector"] is False
         # live fetch NOT called
         assert happy_fetchers["news"] == []
+        assert happy_fetchers["sector"] == []
         assert out.company_news
 
     @pytest.mark.asyncio

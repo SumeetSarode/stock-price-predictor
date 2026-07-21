@@ -89,15 +89,23 @@ def _safe_lang(lang: str) -> str:
     return cleaned or "unk"
 
 
-def _hash_key(query: str, lang: str, lookback_days: int) -> str:
+def _hash_key(
+    query: str, lang: str, lookback_days: int, *, exact_phrase: bool = True,
+) -> str:
     """Deterministic short key for a (query, lang, lookback) tuple.
 
     The triple uniquely identifies a logical fetch. Two backtest runs
     asking for the same logical thing on the same as_of must hit the
     same file -- otherwise we re-fetch needlessly and lose
     reproducibility.
+
+    `exact_phrase` distinguishes an exact-phrase company fetch from a
+    loose-token sector fetch of the *same* string. It's only mixed into
+    the key when False, so existing exact-phrase snapshots keep their
+    original hashes (no cache invalidation).
     """
-    payload = f"{lang}|{lookback_days}|{query}".encode("utf-8")
+    suffix = "" if exact_phrase else "|loose"
+    payload = f"{lang}|{lookback_days}|{query}{suffix}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:_KEY_LEN]
 
 
@@ -134,6 +142,7 @@ class NewsSnapshot:
         lookback_days: int,
         *,
         lang: str = "eng",
+        exact_phrase: bool = True,
     ) -> Path:
         """Where this (query, as_of, lookback, lang) tuple lives on disk.
 
@@ -141,7 +150,7 @@ class NewsSnapshot:
         before triggering a fetch.
         """
         safe_lang = _safe_lang(lang)
-        key = _hash_key(query, safe_lang, lookback_days)
+        key = _hash_key(query, safe_lang, lookback_days, exact_phrase=exact_phrase)
         return self._day_dir(as_of) / f"{key}_{safe_lang}_{lookback_days}d.json"
 
     # ─────────────────────────────────────────────────────────
@@ -233,6 +242,7 @@ class NewsSnapshot:
         lookback_days: int,
         *,
         lang: str = "eng",
+        exact_phrase: bool = True,
     ) -> pd.DataFrame:
         """Return articles for (query, as_of, lookback). Cache-or-fetch.
 
@@ -259,7 +269,8 @@ class NewsSnapshot:
             NewsFetchError:    cache miss AND the live fetch failed.
                                Caller decides whether to degrade.
         """
-        path = self.path_for(query, as_of, lookback_days, lang=lang)
+        path = self.path_for(query, as_of, lookback_days, lang=lang,
+                              exact_phrase=exact_phrase)
         if path.exists():
             logger.debug(f"news snapshot HIT: {path}")
             return self._load(path)
@@ -274,6 +285,7 @@ class NewsSnapshot:
         try:
             df = await fetch_news(
                 query, start.isoformat(), end.isoformat(), lang=lang,
+                exact_phrase=exact_phrase,
             )
         except (ValueError, NewsFetchError):
             # Don't poison the cache with a failed fetch -- let the
