@@ -11,6 +11,7 @@ Why a script (instead of hand-editing a CSV):
 Run:
     python scripts/build_search_index.py             # curated ~200 names
     python scripts/build_search_index.py --fetch-nse  # + every NSE stock
+    python scripts/build_search_index.py --backfill-sectors  # real sectors
 
 The --fetch-nse flag downloads NSE's official EQUITY_L.csv (the full
 listed-equity master, ~2000 symbols) and MERGES it in: Nifty 50 and the
@@ -34,10 +35,20 @@ import json
 import sys
 from pathlib import Path
 
+# Make src/ importable so we can reuse the tested sector-backfill module
+# rather than re-implementing yfinance plumbing here (DRY).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from price_predictor.data.sector_lookup import (  # noqa: E402
+    backfill_sectors,
+)
+
 # Repo root = parent of this script's parent (scripts/).
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KB_STOCKS_JSON = REPO_ROOT / "data" / "kb" / "stocks.json"
 OUTPUT_CSV = REPO_ROOT / "frontend" / "data" / "nifty500.csv"
+# Persistent, resumable ticker→sector cache. Survives rate-limit
+# interruptions so reruns only retry the stragglers.
+SECTOR_CACHE = REPO_ROOT / "data" / "cache" / "yf_sectors.json"
 
 # ── NSE full equity master (used only with --fetch-nse) ─────────────
 # EQUITY_L.csv is NSE's authoritative list of every listed equity. It is
@@ -448,6 +459,77 @@ def build(fetch_nse: bool = False) -> None:
         )
 
 
+def _rel(path: Path) -> Path:
+    """Path relative to the repo root for display, or the path itself if it
+    lives elsewhere (e.g. a tmp dir under test). Never raises."""
+    try:
+        return path.relative_to(REPO_ROOT)
+    except ValueError:
+        return path
+
+
+def backfill_csv_sectors() -> None:
+    """Overwrite every row's sector in the existing CSV with its real
+    yfinance sector, resuming from the on-disk cache.
+
+    Reads OUTPUT_CSV, resolves a real sector for each ticker (yfinance),
+    and rewrites the file in place - rows, names and nifty50 flags are
+    left untouched; only the sector column changes. Per the project
+    decision, yfinance labels are used for ALL stocks (curated included)
+    so the whole index shares one consistent taxonomy.
+
+    Safe to re-run: cached tickers are skipped, and tickers that hit a
+    transient rate-limit are retried on the next run. Rows yfinance has
+    no sector for keep the neutral 'NSE Listed' label.
+    """
+    if not OUTPUT_CSV.exists():
+        raise RuntimeError(
+            f"{OUTPUT_CSV} not found - build the base index first "
+            "(python scripts/build_search_index.py [--fetch-nse])."
+        )
+
+    with OUTPUT_CSV.open(encoding="utf-8", newline="") as fp:
+        rows = list(csv.DictReader(fp))
+    tickers = [r["ticker"] for r in rows]
+    print(f"Backfilling sectors for {len(tickers)} tickers via yfinance...")
+    print(f"   cache: {_rel(SECTOR_CACHE)} (resumable)")
+
+    def _progress(done: int, total: int, failed: int) -> None:
+        print(f"\r   resolved {done}/{total}  (failed/retry: {failed})",
+              end="", flush=True)
+
+    cache = backfill_sectors(
+        tickers, cache_path=SECTOR_CACHE, progress=_progress,
+    )
+    print()  # newline after the progress line
+
+    resolved = 0
+    still_unknown = 0
+    for r in rows:
+        sector = cache.get(r["ticker"])
+        if sector is None:
+            # Never resolved (all attempts rate-limited). Keep existing.
+            still_unknown += 1
+            continue
+        if sector == "NSE Listed":
+            still_unknown += 1
+        else:
+            resolved += 1
+        r["sector"] = sector
+
+    with OUTPUT_CSV.open("w", newline="", encoding="utf-8") as fp:
+        writer = csv.DictWriter(
+            fp, fieldnames=["ticker", "name", "sector", "nifty50"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Wrote {_rel(OUTPUT_CSV)}")
+    print(f"   {resolved} real sectors, {still_unknown} still unresolved.")
+    if still_unknown:
+        print("   Re-run --backfill-sectors to retry the stragglers.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -456,9 +538,18 @@ def main() -> None:
         help="Download NSE's full equity master and merge in every listed "
              "stock (run OFF the corporate VPN).",
     )
+    parser.add_argument(
+        "--backfill-sectors",
+        action="store_true",
+        help="Enrich the existing CSV with real yfinance sectors "
+             "(resumable; run OFF the corporate VPN).",
+    )
     args = parser.parse_args()
     try:
-        build(fetch_nse=args.fetch_nse)
+        if args.backfill_sectors:
+            backfill_csv_sectors()
+        else:
+            build(fetch_nse=args.fetch_nse)
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
