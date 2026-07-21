@@ -1,1214 +1,1214 @@
 ticker,name,sector,nifty50
-ADANIENT.NS,Adani Enterprises,Metals & Mining,true
-ADANIPORTS.NS,Adani Ports & SEZ,Services,true
+ADANIENT.NS,Adani Enterprises,Energy,true
+ADANIPORTS.NS,Adani Ports & SEZ,Industrials,true
 APOLLOHOSP.NS,Apollo Hospitals,Healthcare,true
-ASIANPAINT.NS,Asian Paints,Consumer Durables,true
+ASIANPAINT.NS,Asian Paints,Basic Materials,true
 AXISBANK.NS,Axis Bank,Financial Services,true
-BAJAJ-AUTO.NS,Bajaj Auto,Automobile and Auto Components,true
+BAJAJ-AUTO.NS,Bajaj Auto,Consumer Cyclical,true
 BAJAJFINSV.NS,Bajaj Finserv,Financial Services,true
 BAJFINANCE.NS,Bajaj Finance,Financial Services,true
-BEL.NS,Bharat Electronics,Capital Goods,true
-BHARTIARTL.NS,Bharti Airtel,Telecommunication,true
+BEL.NS,Bharat Electronics,Industrials,true
+BHARTIARTL.NS,Bharti Airtel,Communication Services,true
 CIPLA.NS,Cipla,Healthcare,true
-COALINDIA.NS,Coal India,"Oil, Gas & Consumable Fuels",true
+COALINDIA.NS,Coal India,Energy,true
 DRREDDY.NS,Dr. Reddy's Laboratories,Healthcare,true
-EICHERMOT.NS,Eicher Motors,Automobile and Auto Components,true
-ETERNAL.NS,Eternal (formerly Zomato),Consumer Services,true
-GRASIM.NS,Grasim Industries,Construction Materials,true
-HCLTECH.NS,HCLTech,Information Technology,true
+EICHERMOT.NS,Eicher Motors,Consumer Cyclical,true
+ETERNAL.NS,Eternal (formerly Zomato),Consumer Cyclical,true
+GRASIM.NS,Grasim Industries,Basic Materials,true
+HCLTECH.NS,HCLTech,Technology,true
 HDFCBANK.NS,HDFC Bank,Financial Services,true
 HDFCLIFE.NS,HDFC Life,Financial Services,true
-HINDALCO.NS,Hindalco Industries,Metals & Mining,true
-HINDUNILVR.NS,Hindustan Unilever,Fast Moving Consumer Goods,true
+HINDALCO.NS,Hindalco Industries,Basic Materials,true
+HINDUNILVR.NS,Hindustan Unilever,Consumer Defensive,true
 ICICIBANK.NS,ICICI Bank,Financial Services,true
-INDIGO.NS,IndiGo,Services,true
-INFY.NS,Infosys,Information Technology,true
-ITC.NS,ITC,Fast Moving Consumer Goods,true
+INDIGO.NS,IndiGo,Industrials,true
+INFY.NS,Infosys,Technology,true
+ITC.NS,ITC,Consumer Defensive,true
 JIOFIN.NS,Jio Financial Services,Financial Services,true
-JSWSTEEL.NS,JSW Steel,Metals & Mining,true
+JSWSTEEL.NS,JSW Steel,Basic Materials,true
 KOTAKBANK.NS,Kotak Mahindra Bank,Financial Services,true
-LT.NS,Larsen & Toubro,Construction,true
-M&M.NS,Mahindra & Mahindra,Automobile and Auto Components,true
-MARUTI.NS,Maruti Suzuki,Automobile and Auto Components,true
+LT.NS,Larsen & Toubro,Industrials,true
+M&M.NS,Mahindra & Mahindra,Consumer Cyclical,true
+MARUTI.NS,Maruti Suzuki,Consumer Cyclical,true
 MAXHEALTH.NS,Max Healthcare,Healthcare,true
-NESTLEIND.NS,Nestlé India,Fast Moving Consumer Goods,true
-NTPC.NS,NTPC,Power,true
-ONGC.NS,Oil and Natural Gas Corporation,"Oil, Gas & Consumable Fuels",true
-POWERGRID.NS,Power Grid,Power,true
-RELIANCE.NS,Reliance Industries,"Oil, Gas & Consumable Fuels",true
+NESTLEIND.NS,Nestlé India,Consumer Defensive,true
+NTPC.NS,NTPC,Utilities,true
+ONGC.NS,Oil and Natural Gas Corporation,Energy,true
+POWERGRID.NS,Power Grid,Utilities,true
+RELIANCE.NS,Reliance Industries,Energy,true
 SBILIFE.NS,SBI Life Insurance Company,Financial Services,true
 SBIN.NS,State Bank of India,Financial Services,true
 SHRIRAMFIN.NS,Shriram Finance,Financial Services,true
 SUNPHARMA.NS,Sun Pharma,Healthcare,true
-TATACONSUM.NS,Tata Consumer Products,Fast Moving Consumer Goods,true
-TATASTEEL.NS,Tata Steel,Metals & Mining,true
-TCS.NS,Tata Consultancy Services,Information Technology,true
-TECHM.NS,Tech Mahindra,Information Technology,true
-TITAN.NS,Titan Company,Consumer Durables,true
-TMPV.NS,Tata Motors Passenger Vehicles (TaMo),Automobile and Auto Components,true
-TRENT.NS,Trent,Consumer Services,true
-ULTRACEMCO.NS,UltraTech Cement,Construction Materials,true
-WIPRO.NS,Wipro,Information Technology,true
-AARTIIND.NS,Aarti Industries,Chemicals,false
-ABB.NS,ABB India,Capital Goods,false
+TATACONSUM.NS,Tata Consumer Products,Consumer Defensive,true
+TATASTEEL.NS,Tata Steel,Basic Materials,true
+TCS.NS,Tata Consultancy Services,Technology,true
+TECHM.NS,Tech Mahindra,Technology,true
+TITAN.NS,Titan Company,Consumer Cyclical,true
+TMPV.NS,Tata Motors Passenger Vehicles (TaMo),Consumer Cyclical,true
+TRENT.NS,Trent,Consumer Cyclical,true
+ULTRACEMCO.NS,UltraTech Cement,Basic Materials,true
+WIPRO.NS,Wipro,Technology,true
+AARTIIND.NS,Aarti Industries,Basic Materials,false
+ABB.NS,ABB India,Industrials,false
 ABBOTINDIA.NS,Abbott India,Healthcare,false
-ABFRL.NS,Aditya Birla Fashion & Retail,Consumer Services,false
-ACC.NS,ACC,Construction Materials,false
-ADANIENSOL.NS,Adani Energy Solutions,Power,false
-ADANIGREEN.NS,Adani Green Energy,Power,false
-ADANIPOWER.NS,Adani Power,Power,false
+ABFRL.NS,Aditya Birla Fashion & Retail,Consumer Cyclical,false
+ACC.NS,ACC,Basic Materials,false
+ADANIENSOL.NS,Adani Energy Solutions,Utilities,false
+ADANIGREEN.NS,Adani Green Energy,Utilities,false
+ADANIPOWER.NS,Adani Power,Utilities,false
 ALKEM.NS,Alkem Laboratories,Healthcare,false
-AMBUJACEM.NS,Ambuja Cements,Construction Materials,false
+AMBUJACEM.NS,Ambuja Cements,Basic Materials,false
 ANGELONE.NS,Angel One,Financial Services,false
-APOLLOTYRE.NS,Apollo Tyres,Automobile and Auto Components,false
-ASHOKLEY.NS,Ashok Leyland,Automobile and Auto Components,false
-ATGL.NS,Adani Total Gas,"Oil, Gas & Consumable Fuels",false
+APOLLOTYRE.NS,Apollo Tyres,Consumer Cyclical,false
+ASHOKLEY.NS,Ashok Leyland,Industrials,false
+ATGL.NS,Adani Total Gas,Utilities,false
 AUBANK.NS,AU Small Finance Bank,Financial Services,false
 AUROPHARMA.NS,Aurobindo Pharma,Healthcare,false
-BALKRISIND.NS,Balkrishna Industries,Automobile and Auto Components,false
+BALKRISIND.NS,Balkrishna Industries,Consumer Cyclical,false
 BANDHANBNK.NS,Bandhan Bank,Financial Services,false
 BANKBARODA.NS,Bank of Baroda,Financial Services,false
-BDL.NS,Bharat Dynamics,Capital Goods,false
-BERGEPAINT.NS,Berger Paints,Consumer Durables,false
-BHARATFORG.NS,Bharat Forge,Automobile and Auto Components,false
-BHEL.NS,BHEL,Capital Goods,false
+BDL.NS,Bharat Dynamics,Industrials,false
+BERGEPAINT.NS,Berger Paints,Basic Materials,false
+BHARATFORG.NS,Bharat Forge,Consumer Cyclical,false
+BHEL.NS,BHEL,Industrials,false
 BIOCON.NS,Biocon,Healthcare,false
-BOSCHLTD.NS,Bosch,Automobile and Auto Components,false
-BPCL.NS,Bharat Petroleum,"Oil, Gas & Consumable Fuels",false
-BRIGADE.NS,Brigade Enterprises,Realty,false
-BRITANNIA.NS,Britannia Industries,Fast Moving Consumer Goods,false
+BOSCHLTD.NS,Bosch,Consumer Cyclical,false
+BPCL.NS,Bharat Petroleum,Energy,false
+BRIGADE.NS,Brigade Enterprises,Real Estate,false
+BRITANNIA.NS,Britannia Industries,Consumer Defensive,false
 BSE.NS,BSE Limited,Financial Services,false
 CANBK.NS,Canara Bank,Financial Services,false
 CDSL.NS,Central Depository Services,Financial Services,false
-CESC.NS,CESC,Power,false
+CESC.NS,CESC,Utilities,false
 CHOLAFIN.NS,Cholamandalam Investment,Financial Services,false
-COCHINSHIP.NS,Cochin Shipyard,Capital Goods,false
-COFORGE.NS,Coforge,Information Technology,false
-COLPAL.NS,Colgate-Palmolive (India),Fast Moving Consumer Goods,false
-CROMPTON.NS,Crompton Greaves Consumer,Consumer Durables,false
-CUMMINSIND.NS,Cummins India,Capital Goods,false
-DABUR.NS,Dabur India,Fast Moving Consumer Goods,false
-DALBHARAT.NS,Dalmia Bharat,Construction Materials,false
-DEEPAKNTR.NS,Deepak Nitrite,Chemicals,false
-DEVYANI.NS,Devyani International,Consumer Services,false
+COCHINSHIP.NS,Cochin Shipyard,Industrials,false
+COFORGE.NS,Coforge,Technology,false
+COLPAL.NS,Colgate-Palmolive (India),Consumer Defensive,false
+CROMPTON.NS,Crompton Greaves Consumer,Consumer Cyclical,false
+CUMMINSIND.NS,Cummins India,Industrials,false
+DABUR.NS,Dabur India,Consumer Defensive,false
+DALBHARAT.NS,Dalmia Bharat,Basic Materials,false
+DEEPAKNTR.NS,Deepak Nitrite,Basic Materials,false
+DEVYANI.NS,Devyani International,Consumer Cyclical,false
 DIVISLAB.NS,Divi's Laboratories,Healthcare,false
-DIXON.NS,Dixon Technologies,Consumer Durables,false
-DLF.NS,DLF,Realty,false
-DMART.NS,Avenue Supermarts (DMart),Consumer Services,false
-ENGINERSIN.NS,Engineers India,Construction,false
-ESCORTS.NS,Escorts Kubota,Automobile and Auto Components,false
-EXIDEIND.NS,Exide Industries,Automobile and Auto Components,false
+DIXON.NS,Dixon Technologies,Technology,false
+DLF.NS,DLF,Real Estate,false
+DMART.NS,Avenue Supermarts (DMart),Consumer Defensive,false
+ENGINERSIN.NS,Engineers India,Industrials,false
+ESCORTS.NS,Escorts Kubota,Industrials,false
+EXIDEIND.NS,Exide Industries,Consumer Cyclical,false
 FEDERALBNK.NS,Federal Bank,Financial Services,false
-FINOLEXIND.NS,Finolex Industries,Capital Goods,false
+FINOLEXIND.NS,Finolex Industries,NSE Listed,false
 FORTIS.NS,Fortis Healthcare,Healthcare,false
-GAIL.NS,GAIL (India),"Oil, Gas & Consumable Fuels",false
+GAIL.NS,GAIL (India),Utilities,false
 GLENMARK.NS,Glenmark Pharmaceuticals,Healthcare,false
-GODREJCP.NS,Godrej Consumer Products,Fast Moving Consumer Goods,false
-GODREJPROP.NS,Godrej Properties,Realty,false
-GRSE.NS,Garden Reach Shipbuilders,Capital Goods,false
-HAL.NS,Hindustan Aeronautics,Capital Goods,false
-HAVELLS.NS,Havells India,Consumer Durables,false
+GODREJCP.NS,Godrej Consumer Products,Consumer Defensive,false
+GODREJPROP.NS,Godrej Properties,Real Estate,false
+GRSE.NS,Garden Reach Shipbuilders,Industrials,false
+HAL.NS,Hindustan Aeronautics,Industrials,false
+HAVELLS.NS,Havells India,Industrials,false
 HDFCAMC.NS,HDFC Asset Management,Financial Services,false
-HEROMOTOCO.NS,Hero MotoCorp,Automobile and Auto Components,false
-HINDCOPPER.NS,Hindustan Copper,Metals & Mining,false
-HINDPETRO.NS,Hindustan Petroleum,"Oil, Gas & Consumable Fuels",false
+HEROMOTOCO.NS,Hero MotoCorp,Consumer Cyclical,false
+HINDCOPPER.NS,Hindustan Copper,Basic Materials,false
+HINDPETRO.NS,Hindustan Petroleum,Energy,false
 ICICIGI.NS,ICICI Lombard General Insurance,Financial Services,false
 ICICIPRULI.NS,ICICI Prudential Life,Financial Services,false
-IDEA.NS,Vodafone Idea,Telecommunication,false
+IDEA.NS,Vodafone Idea,Communication Services,false
 IDFCFIRSTB.NS,IDFC First Bank,Financial Services,false
 INDIANB.NS,Indian Bank,Financial Services,false
 INDUSINDBK.NS,IndusInd Bank,Financial Services,false
-INDUSTOWER.NS,Indus Towers,Telecommunication,false
+INDUSTOWER.NS,Indus Towers,Communication Services,false
 IOB.NS,Indian Overseas Bank,Financial Services,false
-IOC.NS,Indian Oil Corporation,"Oil, Gas & Consumable Fuels",false
+IOC.NS,Indian Oil Corporation,Energy,false
 IPCALAB.NS,IPCA Laboratories,Healthcare,false
-IRCON.NS,Ircon International,Construction,false
-IRCTC.NS,IRCTC,Consumer Services,false
+IRCON.NS,Ircon International,Industrials,false
+IRCTC.NS,IRCTC,Consumer Cyclical,false
 IREDA.NS,Indian Renewable Energy Dev,Financial Services,false
 IRFC.NS,Indian Railway Finance Corp,Financial Services,false
-JINDALSTEL.NS,Jindal Steel & Power,Metals & Mining,false
-JKCEMENT.NS,JK Cement,Construction Materials,false
-JUBLFOOD.NS,Jubilant FoodWorks,Consumer Services,false
-KANSAINER.NS,Kansai Nerolac Paints,Consumer Durables,false
-KEC.NS,KEC International,Construction,false
-KEI.NS,KEI Industries,Capital Goods,false
-KPITTECH.NS,KPIT Technologies,Information Technology,false
+JINDALSTEL.NS,Jindal Steel & Power,Basic Materials,false
+JKCEMENT.NS,JK Cement,Basic Materials,false
+JUBLFOOD.NS,Jubilant FoodWorks,Consumer Cyclical,false
+KANSAINER.NS,Kansai Nerolac Paints,Basic Materials,false
+KEC.NS,KEC International,Industrials,false
+KEI.NS,KEI Industries,Industrials,false
+KPITTECH.NS,KPIT Technologies,Technology,false
 LICI.NS,Life Insurance Corporation,Financial Services,false
-LODHA.NS,Macrotech Developers (Lodha),Realty,false
+LODHA.NS,Macrotech Developers (Lodha),Real Estate,false
 LTIM.NS,LTIMindtree,Information Technology,false
-LTTS.NS,L&T Technology Services,Information Technology,false
+LTTS.NS,L&T Technology Services,Technology,false
 LUPIN.NS,Lupin,Healthcare,false
 MANKIND.NS,Mankind Pharma,Healthcare,false
-MARICO.NS,Marico,Fast Moving Consumer Goods,false
-MAZDOCK.NS,Mazagon Dock Shipbuilders,Capital Goods,false
+MARICO.NS,Marico,Consumer Defensive,false
+MAZDOCK.NS,Mazagon Dock Shipbuilders,Industrials,false
 MCX.NS,Multi Commodity Exchange,Financial Services,false
 MFSL.NS,Max Financial Services,Financial Services,false
-MOIL.NS,MOIL,Metals & Mining,false
-MOTHERSON.NS,Samvardhana Motherson Intl,Automobile and Auto Components,false
-MPHASIS.NS,Mphasis,Information Technology,false
-MRF.NS,MRF,Automobile and Auto Components,false
+MOIL.NS,MOIL,Basic Materials,false
+MOTHERSON.NS,Samvardhana Motherson Intl,Consumer Cyclical,false
+MPHASIS.NS,Mphasis,Technology,false
+MRF.NS,MRF,Consumer Cyclical,false
 MUTHOOTFIN.NS,Muthoot Finance,Financial Services,false
 NALCO.NS,National Aluminium,Metals & Mining,false
-NAVINFLUOR.NS,Navin Fluorine,Chemicals,false
-NBCC.NS,NBCC (India),Construction,false
-NCC.NS,NCC Limited,Construction,false
-NHPC.NS,NHPC,Power,false
+NAVINFLUOR.NS,Navin Fluorine,Basic Materials,false
+NBCC.NS,NBCC (India),Industrials,false
+NCC.NS,NCC Limited,Industrials,false
+NHPC.NS,NHPC,Utilities,false
 NIPPONLIFE.NS,Nippon Life India AMC,Financial Services,false
-NMDC.NS,NMDC,Metals & Mining,false
-NYKAA.NS,FSN E-Commerce (Nykaa),Consumer Services,false
-OBEROIRLTY.NS,Oberoi Realty,Realty,false
-OFSS.NS,Oracle Financial Services,Information Technology,false
-OIL.NS,Oil India,"Oil, Gas & Consumable Fuels",false
-PAGEIND.NS,Page Industries,Consumer Services,false
-PAYTM.NS,One 97 Communications (Paytm),Financial Services,false
-PERSISTENT.NS,Persistent Systems,Information Technology,false
-PETRONET.NS,Petronet LNG,"Oil, Gas & Consumable Fuels",false
+NMDC.NS,NMDC,Basic Materials,false
+NYKAA.NS,FSN E-Commerce (Nykaa),Consumer Cyclical,false
+OBEROIRLTY.NS,Oberoi Realty,Real Estate,false
+OFSS.NS,Oracle Financial Services,Technology,false
+OIL.NS,Oil India,Energy,false
+PAGEIND.NS,Page Industries,Consumer Cyclical,false
+PAYTM.NS,One 97 Communications (Paytm),Technology,false
+PERSISTENT.NS,Persistent Systems,Technology,false
+PETRONET.NS,Petronet LNG,Energy,false
 PFC.NS,Power Finance Corporation,Financial Services,false
-PHOENIXLTD.NS,Phoenix Mills,Realty,false
-PIDILITIND.NS,Pidilite Industries,Chemicals,false
-PIIND.NS,PI Industries,Chemicals,false
+PHOENIXLTD.NS,Phoenix Mills,Real Estate,false
+PIDILITIND.NS,Pidilite Industries,Basic Materials,false
+PIIND.NS,PI Industries,Basic Materials,false
 PNB.NS,Punjab National Bank,Financial Services,false
 POLICYBZR.NS,PB Fintech (Policybazaar),Financial Services,false
-POLYCAB.NS,Polycab India,Capital Goods,false
-PRESTIGE.NS,Prestige Estates,Realty,false
-RADICO.NS,Radico Khaitan,Fast Moving Consumer Goods,false
-RAMCOCEM.NS,Ramco Cements,Construction Materials,false
-RATNAMANI.NS,Ratnamani Metals & Tubes,Metals & Mining,false
+POLYCAB.NS,Polycab India,Industrials,false
+PRESTIGE.NS,Prestige Estates,Real Estate,false
+RADICO.NS,Radico Khaitan,Consumer Defensive,false
+RAMCOCEM.NS,Ramco Cements,Basic Materials,false
+RATNAMANI.NS,Ratnamani Metals & Tubes,Basic Materials,false
 RECLTD.NS,REC Limited,Financial Services,false
-RVNL.NS,Rail Vikas Nigam,Construction,false
-SAIL.NS,Steel Authority of India,Metals & Mining,false
-SIEMENS.NS,Siemens,Capital Goods,false
-SJVN.NS,SJVN,Power,false
-SRF.NS,SRF,Chemicals,false
-TATACOMM.NS,Tata Communications,Telecommunication,false
-TATAELXSI.NS,Tata Elxsi,Information Technology,false
-TATAPOWER.NS,Tata Power,Power,false
-THERMAX.NS,Thermax,Capital Goods,false
+RVNL.NS,Rail Vikas Nigam,Industrials,false
+SAIL.NS,Steel Authority of India,Basic Materials,false
+SIEMENS.NS,Siemens,Industrials,false
+SJVN.NS,SJVN,Utilities,false
+SRF.NS,SRF,Industrials,false
+TATACOMM.NS,Tata Communications,Communication Services,false
+TATAELXSI.NS,Tata Elxsi,Technology,false
+TATAPOWER.NS,Tata Power,Utilities,false
+THERMAX.NS,Thermax,Industrials,false
 TORNTPHARM.NS,Torrent Pharmaceuticals,Healthcare,false
-TORNTPOWER.NS,Torrent Power,Power,false
-TVSMOTOR.NS,TVS Motor Company,Automobile and Auto Components,false
+TORNTPOWER.NS,Torrent Power,Utilities,false
+TVSMOTOR.NS,TVS Motor Company,Consumer Cyclical,false
 UNIONBANK.NS,Union Bank of India,Financial Services,false
-UNITDSPR.NS,United Spirits,Fast Moving Consumer Goods,false
-UPL.NS,UPL,Chemicals,false
-VBL.NS,Varun Beverages,Fast Moving Consumer Goods,false
-VEDL.NS,Vedanta,Metals & Mining,false
-VOLTAS.NS,Voltas,Consumer Durables,false
-WHIRLPOOL.NS,Whirlpool of India,Consumer Durables,false
+UNITDSPR.NS,United Spirits,Consumer Defensive,false
+UPL.NS,UPL,Basic Materials,false
+VBL.NS,Varun Beverages,Consumer Defensive,false
+VEDL.NS,Vedanta,Basic Materials,false
+VOLTAS.NS,Voltas,Consumer Cyclical,false
+WHIRLPOOL.NS,Whirlpool of India,Consumer Cyclical,false
 YESBANK.NS,Yes Bank,Financial Services,false
 ZYDUSLIFE.NS,Zydus Lifesciences,Healthcare,false
-20MICRONS.NS,20 Microns Limited,NSE Listed,false
-21STCENMGM.NS,21st Century Management Services Limited,NSE Listed,false
-360ONE.NS,360 ONE WAM LIMITED,NSE Listed,false
+20MICRONS.NS,20 Microns Limited,Basic Materials,false
+21STCENMGM.NS,21st Century Management Services Limited,Financial Services,false
+360ONE.NS,360 ONE WAM LIMITED,Financial Services,false
 3BBLACKBIO.NS,3B Blackbio Dx Limited,NSE Listed,false
-3IINFOLTD.NS,3i Infotech Limited,NSE Listed,false
-3MINDIA.NS,3M India Limited,NSE Listed,false
+3IINFOLTD.NS,3i Infotech Limited,Technology,false
+3MINDIA.NS,3M India Limited,Industrials,false
 3PLAND.NS,3P Land Holdings Limited,NSE Listed,false
-5PAISA.NS,5Paisa Capital Limited,NSE Listed,false
-63MOONS.NS,63 moons technologies limited,NSE Listed,false
-A2ZINFRA.NS,A2Z Infra Engineering Limited,NSE Listed,false
-AAATECH.NS,AAA Technologies Limited,NSE Listed,false
-AADHARHFC.NS,Aadhar Housing Finance Limited,NSE Listed,false
-AAKASH.NS,Aakash Exploration Services Limited,NSE Listed,false
-AAREYDRUGS.NS,Aarey Drugs & Pharmaceuticals Limited,NSE Listed,false
+5PAISA.NS,5Paisa Capital Limited,Financial Services,false
+63MOONS.NS,63 moons technologies limited,Technology,false
+A2ZINFRA.NS,A2Z Infra Engineering Limited,Industrials,false
+AAATECH.NS,AAA Technologies Limited,Technology,false
+AADHARHFC.NS,Aadhar Housing Finance Limited,Financial Services,false
+AAKASH.NS,Aakash Exploration Services Limited,Energy,false
+AAREYDRUGS.NS,Aarey Drugs & Pharmaceuticals Limited,Healthcare,false
 AARNAV.NS,Aarnav Fashions Limited,NSE Listed,false
-AARON.NS,Aaron Industries Limited,NSE Listed,false
-AARTECH.NS,Aartech Solonics Limited,NSE Listed,false
-AARTIDRUGS.NS,Aarti Drugs Limited,NSE Listed,false
-AARTIPHARM.NS,Aarti Pharmalabs Limited,NSE Listed,false
-AARTISURF.NS,Aarti Surfactants Limited,NSE Listed,false
-AARVI.NS,Aarvi Encon Limited,NSE Listed,false
-AASTHA.NS,Aastha Spintex Limited,NSE Listed,false
-AAVAS.NS,Aavas Financiers Limited,NSE Listed,false
-ABAN.NS,Aban Offshore Limited,NSE Listed,false
+AARON.NS,Aaron Industries Limited,Industrials,false
+AARTECH.NS,Aartech Solonics Limited,Industrials,false
+AARTIDRUGS.NS,Aarti Drugs Limited,Healthcare,false
+AARTIPHARM.NS,Aarti Pharmalabs Limited,Healthcare,false
+AARTISURF.NS,Aarti Surfactants Limited,Basic Materials,false
+AARVI.NS,Aarvi Encon Limited,Industrials,false
+AASTHA.NS,Aastha Spintex Limited,Consumer Cyclical,false
+AAVAS.NS,Aavas Financiers Limited,Financial Services,false
+ABAN.NS,Aban Offshore Limited,Energy,false
 ABANSENT.NS,Abans Enterprises Limited,NSE Listed,false
-ABCAPITAL.NS,Aditya Birla Capital Limited,NSE Listed,false
-ABCOTS.NS,A B Cotspin India Limited,NSE Listed,false
-ABDL.NS,Allied Blenders and Distillers Limited,NSE Listed,false
-ABINFRA.NS,A B Infrabuild Limited,NSE Listed,false
-ABLBL.NS,Aditya Birla Lifestyle Brands Limited,NSE Listed,false
-ABMINTLLTD.NS,ABM International Limited,NSE Listed,false
+ABCAPITAL.NS,Aditya Birla Capital Limited,Financial Services,false
+ABCOTS.NS,A B Cotspin India Limited,Consumer Cyclical,false
+ABDL.NS,Allied Blenders and Distillers Limited,Consumer Defensive,false
+ABINFRA.NS,A B Infrabuild Limited,Industrials,false
+ABLBL.NS,Aditya Birla Lifestyle Brands Limited,Consumer Cyclical,false
+ABMINTLLTD.NS,ABM International Limited,Basic Materials,false
 ABMKNO.NS,ABM Knowledgeware Limited,NSE Listed,false
-ABREL.NS,Aditya Birla Real Estate Limited,NSE Listed,false
-ABSLAMC.NS,Aditya Birla Sun Life AMC Limited,NSE Listed,false
-ACCELYA.NS,Accelya Solutions India Limited,NSE Listed,false
-ACCURACY.NS,Accuracy Shipping Limited,NSE Listed,false
-ACE.NS,Action Construction Equipment Limited,NSE Listed,false
-ACEINTEG.NS,Ace Integrated Solutions Limited,NSE Listed,false
-ACI.NS,Archean Chemical Industries Limited,NSE Listed,false
-ACL.NS,Andhra Cements Limited,NSE Listed,false
-ACMESOLAR.NS,Acme Solar Holdings Limited,NSE Listed,false
+ABREL.NS,Aditya Birla Real Estate Limited,Real Estate,false
+ABSLAMC.NS,Aditya Birla Sun Life AMC Limited,Financial Services,false
+ACCELYA.NS,Accelya Solutions India Limited,Technology,false
+ACCURACY.NS,Accuracy Shipping Limited,Industrials,false
+ACE.NS,Action Construction Equipment Limited,Industrials,false
+ACEINTEG.NS,Ace Integrated Solutions Limited,Industrials,false
+ACI.NS,Archean Chemical Industries Limited,Basic Materials,false
+ACL.NS,Andhra Cements Limited,Basic Materials,false
+ACMESOLAR.NS,Acme Solar Holdings Limited,Utilities,false
 ACSTECH.NS,ACS Technologies Limited,NSE Listed,false
-ACUTAAS.NS,Acutaas Chemicals Limited,NSE Listed,false
-ADFFOODS.NS,ADF Foods Limited,NSE Listed,false
-ADL.NS,Archidply Decor Limited,NSE Listed,false
-ADOR.NS,Ador Welding Limited,NSE Listed,false
-ADROITINFO.NS,Adroit Infotech Limited,NSE Listed,false
-ADSL.NS,Allied Digital Services Limited,NSE Listed,false
-ADVAIT.NS,Advait Energy Transitions Limited,NSE Listed,false
-ADVANCE.NS,Advance Agrolife Limited,NSE Listed,false
-ADVANIHOTR.NS,Advani Hotels & Resorts (India) Limited,NSE Listed,false
-ADVENTHTL.NS,Advent Hotels International Limited,NSE Listed,false
-ADVENZYMES.NS,Advanced Enzyme Technologies Limited,NSE Listed,false
-AEGISLOG.NS,Aegis Logistics Limited,NSE Listed,false
-AEGISVOPAK.NS,Aegis Vopak Terminals Limited,NSE Listed,false
-AEPL.NS,Artemis Electricals and Projects Limited,NSE Listed,false
-AEQUS.NS,Aequs Limited,NSE Listed,false
-AEROENTER.NS,Aeroflex Enterprises Limited,NSE Listed,false
-AEROFLEX.NS,Aeroflex Industries Limited,NSE Listed,false
-AERONEU.NS,Aeroflex Neu Limited,NSE Listed,false
-AEROPLANE.NS,Amir Chand Jagdish Kumar (Exports) Limited,NSE Listed,false
-AETHER.NS,Aether Industries Limited,NSE Listed,false
-AFCONS.NS,Afcons Infrastructure Limited,NSE Listed,false
-AFFLE.NS,Affle 3i Limited,NSE Listed,false
-AFFORDABLE.NS,Affordable Robotic & Automation Limited,NSE Listed,false
-AFIL.NS,Akme Fintrade (India) Limited,NSE Listed,false
-AFSL.NS,Abans Financial Services Limited,NSE Listed,false
-AGARIND.NS,Agarwal Industrial Corporation Limited,NSE Listed,false
-AGARWALEYE.NS,Dr. Agarwal's Health Care Limited,NSE Listed,false
-AGI.NS,AGI Greenpac Limited,NSE Listed,false
-AGIIL.NS,Agi Infra Limited,NSE Listed,false
-AGL.NS,Allcargo Global Limited,NSE Listed,false
-AGRITECH.NS,Agri-Tech (India) Limited,NSE Listed,false
-AGROPHOS.NS,Agro Phos India Limited,NSE Listed,false
-AHCL.NS,Anlon Healthcare Limited,NSE Listed,false
-AHLADA.NS,Ahlada Engineers Limited,NSE Listed,false
-AHLEAST.NS,Asian Hotels (East) Limited,NSE Listed,false
-AHLUCONT.NS,Ahluwalia Contracts (India) Limited,NSE Listed,false
-AHLWEST.NS,Asian Hotels (West) Limited,NSE Listed,false
-AIAENG.NS,AIA Engineering Limited,NSE Listed,false
-AIIL.NS,Authum Investment & Infrastructure Limited,NSE Listed,false
-AIRAN.NS,Airan Limited,NSE Listed,false
-AIROLAM.NS,Airo Lam limited,NSE Listed,false
-AJANTPHARM.NS,Ajanta Pharma Limited,NSE Listed,false
-AJAXENGG.NS,Ajax Engineering Limited,NSE Listed,false
-AJMERA.NS,Ajmera Realty & Infra India Limited,NSE Listed,false
-AJOONI.NS,Ajooni Biotech Limited,NSE Listed,false
-AKASH.NS,Akash Infra-Projects Limited,NSE Listed,false
+ACUTAAS.NS,Acutaas Chemicals Limited,Basic Materials,false
+ADFFOODS.NS,ADF Foods Limited,Consumer Defensive,false
+ADL.NS,Archidply Decor Limited,Consumer Cyclical,false
+ADOR.NS,Ador Welding Limited,Industrials,false
+ADROITINFO.NS,Adroit Infotech Limited,Technology,false
+ADSL.NS,Allied Digital Services Limited,Technology,false
+ADVAIT.NS,Advait Energy Transitions Limited,Industrials,false
+ADVANCE.NS,Advance Agrolife Limited,Basic Materials,false
+ADVANIHOTR.NS,Advani Hotels & Resorts (India) Limited,Consumer Cyclical,false
+ADVENTHTL.NS,Advent Hotels International Limited,Consumer Cyclical,false
+ADVENZYMES.NS,Advanced Enzyme Technologies Limited,Basic Materials,false
+AEGISLOG.NS,Aegis Logistics Limited,Energy,false
+AEGISVOPAK.NS,Aegis Vopak Terminals Limited,Energy,false
+AEPL.NS,Artemis Electricals and Projects Limited,Industrials,false
+AEQUS.NS,Aequs Limited,Industrials,false
+AEROENTER.NS,Aeroflex Enterprises Limited,Basic Materials,false
+AEROFLEX.NS,Aeroflex Industries Limited,Industrials,false
+AERONEU.NS,Aeroflex Neu Limited,Consumer Cyclical,false
+AEROPLANE.NS,Amir Chand Jagdish Kumar (Exports) Limited,Consumer Defensive,false
+AETHER.NS,Aether Industries Limited,Basic Materials,false
+AFCONS.NS,Afcons Infrastructure Limited,Industrials,false
+AFFLE.NS,Affle 3i Limited,Communication Services,false
+AFFORDABLE.NS,Affordable Robotic & Automation Limited,Industrials,false
+AFIL.NS,Akme Fintrade (India) Limited,Financial Services,false
+AFSL.NS,Abans Financial Services Limited,Financial Services,false
+AGARIND.NS,Agarwal Industrial Corporation Limited,Basic Materials,false
+AGARWALEYE.NS,Dr. Agarwal's Health Care Limited,Healthcare,false
+AGI.NS,AGI Greenpac Limited,Consumer Cyclical,false
+AGIIL.NS,Agi Infra Limited,Real Estate,false
+AGL.NS,Allcargo Global Limited,Industrials,false
+AGRITECH.NS,Agri-Tech (India) Limited,Consumer Defensive,false
+AGROPHOS.NS,Agro Phos India Limited,Basic Materials,false
+AHCL.NS,Anlon Healthcare Limited,Healthcare,false
+AHLADA.NS,Ahlada Engineers Limited,Industrials,false
+AHLEAST.NS,Asian Hotels (East) Limited,Consumer Cyclical,false
+AHLUCONT.NS,Ahluwalia Contracts (India) Limited,Industrials,false
+AHLWEST.NS,Asian Hotels (West) Limited,Consumer Cyclical,false
+AIAENG.NS,AIA Engineering Limited,Industrials,false
+AIIL.NS,Authum Investment & Infrastructure Limited,Financial Services,false
+AIRAN.NS,Airan Limited,Technology,false
+AIROLAM.NS,Airo Lam limited,Consumer Cyclical,false
+AJANTPHARM.NS,Ajanta Pharma Limited,Healthcare,false
+AJAXENGG.NS,Ajax Engineering Limited,Industrials,false
+AJMERA.NS,Ajmera Realty & Infra India Limited,Real Estate,false
+AJOONI.NS,Ajooni Biotech Limited,Consumer Defensive,false
+AKASH.NS,Akash Infra-Projects Limited,Industrials,false
 AKCAPIT.NS,AK Capital Services Limited,NSE Listed,false
-AKG.NS,Akg Exim Limited,NSE Listed,false
-AKI.NS,AKI India Limited,NSE Listed,false
-AKSHAR.NS,Akshar Spintex Limited,NSE Listed,false
-AKSHARCHEM.NS,AksharChem India Limited,NSE Listed,false
-AKSHOPTFBR.NS,Aksh Optifibre Limited,NSE Listed,false
-AKUMS.NS,Akums Drugs and Pharmaceuticals Limited,NSE Listed,false
-ALANKIT.NS,Alankit Limited,NSE Listed,false
-ALBERTDAVD.NS,Albert David Limited,NSE Listed,false
-ALEMBICLTD.NS,Alembic Limited,NSE Listed,false
-ALGOQUANT.NS,Algoquant Fintech Limited,NSE Listed,false
-ALICON.NS,Alicon Castalloy Limited,NSE Listed,false
-ALIVUS.NS,Alivus Life Sciences Limited,NSE Listed,false
-ALKALI.NS,Alkali Metals Limited,NSE Listed,false
-ALKYLAMINE.NS,Alkyl Amines Chemicals Limited,NSE Listed,false
-ALLCARGO.NS,Allcargo Logistics Limited,NSE Listed,false
-ALLDIGI.NS,Alldigi Tech Limited,NSE Listed,false
-ALLTIME.NS,All Time Plastics Limited,NSE Listed,false
-ALMONDZ.NS,Almondz Global Securities Limited,NSE Listed,false
-ALOKINDS.NS,Alok Industries Limited,NSE Listed,false
-ALPA.NS,Alpa Laboratories Limited,NSE Listed,false
-ALPHAGEO.NS,Alphageo (India) Limited,NSE Listed,false
+AKG.NS,Akg Exim Limited,Industrials,false
+AKI.NS,AKI India Limited,Consumer Cyclical,false
+AKSHAR.NS,Akshar Spintex Limited,Consumer Cyclical,false
+AKSHARCHEM.NS,AksharChem India Limited,Basic Materials,false
+AKSHOPTFBR.NS,Aksh Optifibre Limited,Technology,false
+AKUMS.NS,Akums Drugs and Pharmaceuticals Limited,Healthcare,false
+ALANKIT.NS,Alankit Limited,Technology,false
+ALBERTDAVD.NS,Albert David Limited,Healthcare,false
+ALEMBICLTD.NS,Alembic Limited,Real Estate,false
+ALGOQUANT.NS,Algoquant Fintech Limited,Financial Services,false
+ALICON.NS,Alicon Castalloy Limited,Industrials,false
+ALIVUS.NS,Alivus Life Sciences Limited,Healthcare,false
+ALKALI.NS,Alkali Metals Limited,Basic Materials,false
+ALKYLAMINE.NS,Alkyl Amines Chemicals Limited,Basic Materials,false
+ALLCARGO.NS,Allcargo Logistics Limited,Industrials,false
+ALLDIGI.NS,Alldigi Tech Limited,Industrials,false
+ALLTIME.NS,All Time Plastics Limited,Consumer Defensive,false
+ALMONDZ.NS,Almondz Global Securities Limited,Financial Services,false
+ALOKINDS.NS,Alok Industries Limited,Consumer Cyclical,false
+ALPA.NS,Alpa Laboratories Limited,Healthcare,false
+ALPHAGEO.NS,Alphageo (India) Limited,Energy,false
 ALPINETEX.NS,Alpine Texworld Limited,NSE Listed,false
-AMAGI.NS,Amagi Media Labs Limited,NSE Listed,false
-AMANTA.NS,Amanta Healthcare Limited,NSE Listed,false
-AMBALALSA.NS,Ambalal Sarabhai Enterprises Limited,NSE Listed,false
-AMBER.NS,Amber Enterprises India Limited,NSE Listed,false
-AMBICAAGAR.NS,Ambica Agarbathies & Aroma industries Limited,NSE Listed,false
-AMBIKCO.NS,Ambika Cotton Mills Limited,NSE Listed,false
-AMDIND.NS,AMD Industries Limited,NSE Listed,false
-AMJLAND.NS,Amj Land Holdings Limited,NSE Listed,false
-AMNPLST.NS,Amines & Plasticizers Limited,NSE Listed,false
-AMRUTANJAN.NS,Amrutanjan Health Care Limited,NSE Listed,false
-ANANDRATHI.NS,Anand Rathi Wealth Limited,NSE Listed,false
-ANANTRAJ.NS,Anant Raj Limited,NSE Listed,false
-ANDHRAPAP.NS,ANDHRA PAPER LIMITED,NSE Listed,false
-ANDHRSUGAR.NS,The Andhra Sugars Limited,NSE Listed,false
-ANIKINDS.NS,Anik Industries Limited,NSE Listed,false
-ANMOL.NS,Anmol India Limited,NSE Listed,false
-ANTELOPUS.NS,Antelopus Selan Energy Limited,NSE Listed,false
-ANTGRAPHIC.NS,Antarctica Limited,NSE Listed,false
-ANTHEM.NS,Anthem Biosciences Limited,NSE Listed,false
-ANUHPHR.NS,Anuh Pharma Limited,NSE Listed,false
-ANUP.NS,The Anup Engineering Limited,NSE Listed,false
-ANURAS.NS,Anupam Rasayan India Limited,NSE Listed,false
-APARINDS.NS,Apar Industries Limited,NSE Listed,false
-APCL.NS,Anjani Portland Cement Limited,NSE Listed,false
-APCOTEXIND.NS,Apcotex Industries Limited,NSE Listed,false
-APEX.NS,Apex Frozen Foods Limited,NSE Listed,false
-APLAPOLLO.NS,APL Apollo Tubes Limited,NSE Listed,false
-APLLTD.NS,Alembic Pharmaceuticals Limited,NSE Listed,false
-APOLLO.NS,Apollo Micro Systems Limited,NSE Listed,false
-APOLLOPIPE.NS,Apollo Pipes Limited,NSE Listed,false
-APOLSINHOT.NS,Apollo Sindoori Hotels Limited,NSE Listed,false
-APTECHT.NS,Aptech Limited,NSE Listed,false
-APTUS.NS,Aptus Value Housing Finance India Limited,NSE Listed,false
-AQYLON.NS,Aqylon Nexus Limited,NSE Listed,false
-ARCHIDPLY.NS,Archidply Industries Limited,NSE Listed,false
-ARCHIES.NS,Archies Limited,NSE Listed,false
-ARE&M.NS,Amara Raja Energy & Mobility Limited,NSE Listed,false
-ARENTERP.NS,Rajdarshan Industries Limited,NSE Listed,false
-ARFIN.NS,Arfin India Limited,NSE Listed,false
-ARIES.NS,Aries Agro Limited,NSE Listed,false
-ARIHANT.NS,Arihant Foundations & Housing Limited,NSE Listed,false
-ARIHANTCAP.NS,Arihant Capital Markets Limited,NSE Listed,false
-ARIHANTSUP.NS,Arihant Superstructures Limited,NSE Listed,false
-ARIS.NS,Arisinfra Solutions Limited,NSE Listed,false
-ARKADE.NS,Arkade Developers Limited,NSE Listed,false
-ARMANFIN.NS,Arman Financial Services Limited,NSE Listed,false
-AROGRANITE.NS,Aro Granite Industries Limited,NSE Listed,false
-ARROWGREEN.NS,Arrow Greentech Limited,NSE Listed,false
-ARSSBL.NS,Anand Rathi Share and Stock Brokers Limited,NSE Listed,false
+AMAGI.NS,Amagi Media Labs Limited,Technology,false
+AMANTA.NS,Amanta Healthcare Limited,Healthcare,false
+AMBALALSA.NS,Ambalal Sarabhai Enterprises Limited,Healthcare,false
+AMBER.NS,Amber Enterprises India Limited,Consumer Cyclical,false
+AMBICAAGAR.NS,Ambica Agarbathies & Aroma industries Limited,Consumer Defensive,false
+AMBIKCO.NS,Ambika Cotton Mills Limited,Consumer Cyclical,false
+AMDIND.NS,AMD Industries Limited,Consumer Cyclical,false
+AMJLAND.NS,Amj Land Holdings Limited,Real Estate,false
+AMNPLST.NS,Amines & Plasticizers Limited,Basic Materials,false
+AMRUTANJAN.NS,Amrutanjan Health Care Limited,Healthcare,false
+ANANDRATHI.NS,Anand Rathi Wealth Limited,Financial Services,false
+ANANTRAJ.NS,Anant Raj Limited,Real Estate,false
+ANDHRAPAP.NS,ANDHRA PAPER LIMITED,Basic Materials,false
+ANDHRSUGAR.NS,The Andhra Sugars Limited,Basic Materials,false
+ANIKINDS.NS,Anik Industries Limited,Consumer Defensive,false
+ANMOL.NS,Anmol India Limited,Energy,false
+ANTELOPUS.NS,Antelopus Selan Energy Limited,Energy,false
+ANTGRAPHIC.NS,Antarctica Limited,Consumer Cyclical,false
+ANTHEM.NS,Anthem Biosciences Limited,Healthcare,false
+ANUHPHR.NS,Anuh Pharma Limited,Healthcare,false
+ANUP.NS,The Anup Engineering Limited,Industrials,false
+ANURAS.NS,Anupam Rasayan India Limited,Basic Materials,false
+APARINDS.NS,Apar Industries Limited,Industrials,false
+APCL.NS,Anjani Portland Cement Limited,Basic Materials,false
+APCOTEXIND.NS,Apcotex Industries Limited,Basic Materials,false
+APEX.NS,Apex Frozen Foods Limited,Consumer Defensive,false
+APLAPOLLO.NS,APL Apollo Tubes Limited,Basic Materials,false
+APLLTD.NS,Alembic Pharmaceuticals Limited,Healthcare,false
+APOLLO.NS,Apollo Micro Systems Limited,Industrials,false
+APOLLOPIPE.NS,Apollo Pipes Limited,Industrials,false
+APOLSINHOT.NS,Apollo Sindoori Hotels Limited,Industrials,false
+APTECHT.NS,Aptech Limited,Consumer Defensive,false
+APTUS.NS,Aptus Value Housing Finance India Limited,Financial Services,false
+AQYLON.NS,Aqylon Nexus Limited,Communication Services,false
+ARCHIDPLY.NS,Archidply Industries Limited,Basic Materials,false
+ARCHIES.NS,Archies Limited,Consumer Cyclical,false
+ARE&M.NS,Amara Raja Energy & Mobility Limited,Industrials,false
+ARENTERP.NS,Rajdarshan Industries Limited,Basic Materials,false
+ARFIN.NS,Arfin India Limited,Basic Materials,false
+ARIES.NS,Aries Agro Limited,Basic Materials,false
+ARIHANT.NS,Arihant Foundations & Housing Limited,Real Estate,false
+ARIHANTCAP.NS,Arihant Capital Markets Limited,Financial Services,false
+ARIHANTSUP.NS,Arihant Superstructures Limited,Real Estate,false
+ARIS.NS,Arisinfra Solutions Limited,Industrials,false
+ARKADE.NS,Arkade Developers Limited,Real Estate,false
+ARMANFIN.NS,Arman Financial Services Limited,Financial Services,false
+AROGRANITE.NS,Aro Granite Industries Limited,Industrials,false
+ARROWGREEN.NS,Arrow Greentech Limited,Consumer Cyclical,false
+ARSSBL.NS,Anand Rathi Share and Stock Brokers Limited,Financial Services,false
 ARTEMISMED.NS,Artemis Medicare Services Limited,NSE Listed,false
-ARTNIRMAN.NS,Art Nirman Limited,NSE Listed,false
-ARVEE.NS,Arvee Laboratories (India) Limited,NSE Listed,false
-ARVIND.NS,Arvind Limited,NSE Listed,false
-ARVINDFASN.NS,Arvind Fashions Limited,NSE Listed,false
-ARVSMART.NS,Arvind SmartSpaces Limited,NSE Listed,false
-ASAHIINDIA.NS,Asahi India Glass Limited,NSE Listed,false
-ASAHISONG.NS,Asahi Songwon Colors Limited,NSE Listed,false
-ASAL.NS,Automotive Stampings and Assemblies Limited,NSE Listed,false
-ASALCBR.NS,Associated Alcohols & Breweries Ltd.,NSE Listed,false
-ASHAPURMIN.NS,Ashapura Minechem Limited,NSE Listed,false
-ASHIANA.NS,Ashiana Housing Limited,NSE Listed,false
+ARTNIRMAN.NS,Art Nirman Limited,Real Estate,false
+ARVEE.NS,Arvee Laboratories (India) Limited,Basic Materials,false
+ARVIND.NS,Arvind Limited,Consumer Cyclical,false
+ARVINDFASN.NS,Arvind Fashions Limited,Consumer Cyclical,false
+ARVSMART.NS,Arvind SmartSpaces Limited,Real Estate,false
+ASAHIINDIA.NS,Asahi India Glass Limited,Consumer Cyclical,false
+ASAHISONG.NS,Asahi Songwon Colors Limited,Basic Materials,false
+ASAL.NS,Automotive Stampings and Assemblies Limited,Consumer Cyclical,false
+ASALCBR.NS,Associated Alcohols & Breweries Ltd.,Consumer Defensive,false
+ASHAPURMIN.NS,Ashapura Minechem Limited,Basic Materials,false
+ASHIANA.NS,Ashiana Housing Limited,Real Estate,false
 ASHIKA.NS,Ashika Credit Capital Limited,NSE Listed,false
-ASHIMASYN.NS,Ashima Limited,NSE Listed,false
-ASHOKA.NS,Ashoka Buildcon Limited,NSE Listed,false
-ASHOKAMET.NS,Ashoka Metcast Limited,NSE Listed,false
-ASIANENE.NS,Asian Energy Services Limited,NSE Listed,false
-ASIANHOTNR.NS,Asian Hotels (North) Limited,NSE Listed,false
-ASIANTILES.NS,Asian Granito India Limited,NSE Listed,false
-ASKAUTOLTD.NS,ASK Automotive Limited,NSE Listed,false
-ASMS.NS,Avio Smart Market Stack Limited,NSE Listed,false
-ASPINWALL.NS,Aspinwall and Company Limited,NSE Listed,false
+ASHIMASYN.NS,Ashima Limited,Real Estate,false
+ASHOKA.NS,Ashoka Buildcon Limited,Industrials,false
+ASHOKAMET.NS,Ashoka Metcast Limited,Basic Materials,false
+ASIANENE.NS,Asian Energy Services Limited,Energy,false
+ASIANHOTNR.NS,Asian Hotels (North) Limited,Consumer Cyclical,false
+ASIANTILES.NS,Asian Granito India Limited,Industrials,false
+ASKAUTOLTD.NS,ASK Automotive Limited,Consumer Cyclical,false
+ASMS.NS,Avio Smart Market Stack Limited,Technology,false
+ASPINWALL.NS,Aspinwall and Company Limited,Consumer Defensive,false
 ASTAR.NS,Asian Star Company Limited,NSE Listed,false
-ASTEC.NS,Astec LifeSciences Limited,NSE Listed,false
-ASTERDM.NS,Aster DM Healthcare Limited,NSE Listed,false
-ASTRAL.NS,Astral Limited,NSE Listed,false
-ASTRAMICRO.NS,Astra Microwave Products Limited,NSE Listed,false
-ASTRAZEN.NS,AstraZeneca Pharma India Limited,NSE Listed,false
-ASTRON.NS,Astron Paper & Board Mill Limited,NSE Listed,false
-ATALREAL.NS,Atal Realtech Limited,NSE Listed,false
-ATAM.NS,Atam Valves Limited,NSE Listed,false
-ATHERENERG.NS,Ather Energy Limited,NSE Listed,false
-ATL.NS,Allcargo Terminals Limited,NSE Listed,false
-ATLANTAA.NS,ATLANTAA LIMITED,NSE Listed,false
-ATLANTAELE.NS,Atlanta Electricals Limited,NSE Listed,false
-ATLASCYCLE.NS,Atlas Cycles (Haryana) Limited,NSE Listed,false
-ATUL.NS,Atul Limited,NSE Listed,false
-ATULAUTO.NS,Atul Auto Limited,NSE Listed,false
-AURIONPRO.NS,Aurionpro Solutions Limited,NSE Listed,false
-AURUM.NS,Aurum PropTech Limited,NSE Listed,false
-AURUS.NS,AURUS GEM CORPORATION LIMITED,NSE Listed,false
-AUSOMENT.NS,Ausom Enterprise Limited,NSE Listed,false
-AUTOAXLES.NS,Automotive Axles Limited,NSE Listed,false
-AUTOIND.NS,Autoline Industries Limited,NSE Listed,false
-AVADHSUGAR.NS,Avadh Sugar & Energy Limited,NSE Listed,false
-AVALON.NS,Avalon Technologies Limited,NSE Listed,false
-AVANTEL.NS,Avantel Limited,NSE Listed,false
-AVANTIFEED.NS,Avanti Feeds Limited,NSE Listed,false
-AVG.NS,AVG Logistics Limited,NSE Listed,false
-AVL.NS,Aditya Vision Limited,NSE Listed,false
-AVONMORE.NS,Avonmore Capital & Management Services Limited,NSE Listed,false
-AVROIND.NS,AVRO INDIA LIMITED,NSE Listed,false
-AVTNPL.NS,AVT Natural Products Limited,NSE Listed,false
-AWFIS.NS,Awfis Space Solutions Limited,NSE Listed,false
-AWHCL.NS,Antony Waste Handling Cell Limited,NSE Listed,false
-AWL.NS,AWL Agri Business Limited,NSE Listed,false
-AXISCADES.NS,AXISCADES Technologies Limited,NSE Listed,false
-AXITA.NS,Axita Cotton Limited,NSE Listed,false
-AYE.NS,Aye Finance Limited,NSE Listed,false
-AYMSYNTEX.NS,AYM Syntex Limited,NSE Listed,false
-AZAD.NS,Azad Engineering Limited,NSE Listed,false
-BAFNAPH.NS,Bafna Pharmaceuticals Limited,NSE Listed,false
-BAGFILMS.NS,B.A.G Films and Media Limited,NSE Listed,false
-BAIDFIN.NS,Baid Finserv Limited,NSE Listed,false
-BAJAJCON.NS,Bajaj Consumer Care Limited,NSE Listed,false
-BAJAJELEC.NS,Bajaj Electricals Limited,NSE Listed,false
-BAJAJHCARE.NS,Bajaj Healthcare Limited,NSE Listed,false
-BAJAJHFL.NS,Bajaj Housing Finance Limited,NSE Listed,false
-BAJAJHIND.NS,Bajaj Hindusthan Sugar Limited,NSE Listed,false
-BAJAJHLDNG.NS,Bajaj Holdings & Investment Limited,NSE Listed,false
-BAJAJINDEF.NS,Indef Manufacturing Limited,NSE Listed,false
+ASTEC.NS,Astec LifeSciences Limited,Basic Materials,false
+ASTERDM.NS,Aster DM Healthcare Limited,Healthcare,false
+ASTRAL.NS,Astral Limited,Industrials,false
+ASTRAMICRO.NS,Astra Microwave Products Limited,Technology,false
+ASTRAZEN.NS,AstraZeneca Pharma India Limited,Healthcare,false
+ASTRON.NS,Astron Paper & Board Mill Limited,Basic Materials,false
+ATALREAL.NS,Atal Realtech Limited,Industrials,false
+ATAM.NS,Atam Valves Limited,Industrials,false
+ATHERENERG.NS,Ather Energy Limited,Consumer Cyclical,false
+ATL.NS,Allcargo Terminals Limited,Industrials,false
+ATLANTAA.NS,ATLANTAA LIMITED,Industrials,false
+ATLANTAELE.NS,Atlanta Electricals Limited,Industrials,false
+ATLASCYCLE.NS,Atlas Cycles (Haryana) Limited,Consumer Cyclical,false
+ATUL.NS,Atul Limited,Basic Materials,false
+ATULAUTO.NS,Atul Auto Limited,Consumer Cyclical,false
+AURIONPRO.NS,Aurionpro Solutions Limited,Technology,false
+AURUM.NS,Aurum PropTech Limited,Real Estate,false
+AURUS.NS,AURUS GEM CORPORATION LIMITED,Consumer Cyclical,false
+AUSOMENT.NS,Ausom Enterprise Limited,Financial Services,false
+AUTOAXLES.NS,Automotive Axles Limited,Consumer Cyclical,false
+AUTOIND.NS,Autoline Industries Limited,Consumer Cyclical,false
+AVADHSUGAR.NS,Avadh Sugar & Energy Limited,Consumer Defensive,false
+AVALON.NS,Avalon Technologies Limited,Technology,false
+AVANTEL.NS,Avantel Limited,Technology,false
+AVANTIFEED.NS,Avanti Feeds Limited,Consumer Defensive,false
+AVG.NS,AVG Logistics Limited,Industrials,false
+AVL.NS,Aditya Vision Limited,Consumer Cyclical,false
+AVONMORE.NS,Avonmore Capital & Management Services Limited,Financial Services,false
+AVROIND.NS,AVRO INDIA LIMITED,Consumer Cyclical,false
+AVTNPL.NS,AVT Natural Products Limited,Basic Materials,false
+AWFIS.NS,Awfis Space Solutions Limited,Industrials,false
+AWHCL.NS,Antony Waste Handling Cell Limited,Industrials,false
+AWL.NS,AWL Agri Business Limited,Consumer Defensive,false
+AXISCADES.NS,AXISCADES Technologies Limited,Industrials,false
+AXITA.NS,Axita Cotton Limited,Consumer Cyclical,false
+AYE.NS,Aye Finance Limited,Financial Services,false
+AYMSYNTEX.NS,AYM Syntex Limited,Consumer Cyclical,false
+AZAD.NS,Azad Engineering Limited,Industrials,false
+BAFNAPH.NS,Bafna Pharmaceuticals Limited,Healthcare,false
+BAGFILMS.NS,B.A.G Films and Media Limited,Communication Services,false
+BAIDFIN.NS,Baid Finserv Limited,Financial Services,false
+BAJAJCON.NS,Bajaj Consumer Care Limited,Consumer Defensive,false
+BAJAJELEC.NS,Bajaj Electricals Limited,Consumer Cyclical,false
+BAJAJHCARE.NS,Bajaj Healthcare Limited,Healthcare,false
+BAJAJHFL.NS,Bajaj Housing Finance Limited,Financial Services,false
+BAJAJHIND.NS,Bajaj Hindusthan Sugar Limited,Consumer Defensive,false
+BAJAJHLDNG.NS,Bajaj Holdings & Investment Limited,Financial Services,false
+BAJAJINDEF.NS,Indef Manufacturing Limited,Industrials,false
 BAJAJST.NS,Bajaj Steel Industries Limited,NSE Listed,false
-BAJEL.NS,Bajel Projects Limited,NSE Listed,false
-BALAJEE.NS,Shree Tirupati Balajee Agro Trading Company Limited,NSE Listed,false
-BALAJITELE.NS,Balaji Telefilms Limited,NSE Listed,false
-BALAMINES.NS,Balaji Amines Limited,NSE Listed,false
-BALAXI.NS,BALAXI PHARMACEUTICALS LIMITED,NSE Listed,false
-BALKRISHNA.NS,Balkrishna Paper Mills Limited,NSE Listed,false
-BALMLAWRIE.NS,Balmer Lawrie & Company Limited,NSE Listed,false
-BALPHARMA.NS,Bal Pharma Limited,NSE Listed,false
-BALRAMCHIN.NS,Balrampur Chini Mills Limited,NSE Listed,false
-BALUFORGE.NS,Balu Forge Industries Limited,NSE Listed,false
-BANARBEADS.NS,Banaras Beads Limited,NSE Listed,false
-BANARISUG.NS,Bannari Amman Sugars Limited,NSE Listed,false
-BANCOINDIA.NS,Banco Products (I) Limited,NSE Listed,false
-BANG.NS,Bang Overseas Limited,NSE Listed,false
-BANKA.NS,Banka BioLoo Limited,NSE Listed,false
-BANKINDIA.NS,Bank of India,NSE Listed,false
-BANSALWIRE.NS,Bansal Wire Industries Limited,NSE Listed,false
-BANSWRAS.NS,Banswara Syntex Limited,NSE Listed,false
-BASF.NS,BASF India Limited,NSE Listed,false
-BASML.NS,Bannari Amman Spinning Mills Limited,NSE Listed,false
-BATAINDIA.NS,Bata India Limited,NSE Listed,false
-BATLIBOI.NS,Batliboi Limited,NSE Listed,false
-BAYERCROP.NS,Bayer Cropscience Limited,NSE Listed,false
-BBL.NS,Bharat Bijlee Limited,NSE Listed,false
-BBOX.NS,Black Box Limited,NSE Listed,false
-BBTC.NS,The Bombay Burmah Trading Corporation Limited,NSE Listed,false
-BBTCL.NS,B&B Triplewall Containers Limited,NSE Listed,false
-BCG.NS,Brightcom Group Limited,NSE Listed,false
-BCLIND.NS,Bcl Industries Limited,NSE Listed,false
-BCONCEPTS.NS,Brand Concepts Limited,NSE Listed,false
-BCPL.NS,BCPL Railway Infrastructure Limited,NSE Listed,false
-BEARDSELL.NS,Beardsell Limited,NSE Listed,false
-BECTORFOOD.NS,Mrs. Bectors Food Specialities Limited,NSE Listed,false
-BEDMUTHA.NS,Bedmutha Industries Limited,NSE Listed,false
+BAJEL.NS,Bajel Projects Limited,Utilities,false
+BALAJEE.NS,Shree Tirupati Balajee Agro Trading Company Limited,Consumer Cyclical,false
+BALAJITELE.NS,Balaji Telefilms Limited,Communication Services,false
+BALAMINES.NS,Balaji Amines Limited,Basic Materials,false
+BALAXI.NS,BALAXI PHARMACEUTICALS LIMITED,Healthcare,false
+BALKRISHNA.NS,Balkrishna Paper Mills Limited,Consumer Cyclical,false
+BALMLAWRIE.NS,Balmer Lawrie & Company Limited,Industrials,false
+BALPHARMA.NS,Bal Pharma Limited,Healthcare,false
+BALRAMCHIN.NS,Balrampur Chini Mills Limited,Consumer Defensive,false
+BALUFORGE.NS,Balu Forge Industries Limited,Industrials,false
+BANARBEADS.NS,Banaras Beads Limited,Consumer Cyclical,false
+BANARISUG.NS,Bannari Amman Sugars Limited,Consumer Defensive,false
+BANCOINDIA.NS,Banco Products (I) Limited,Consumer Cyclical,false
+BANG.NS,Bang Overseas Limited,Consumer Cyclical,false
+BANKA.NS,Banka BioLoo Limited,Industrials,false
+BANKINDIA.NS,Bank of India,Financial Services,false
+BANSALWIRE.NS,Bansal Wire Industries Limited,Basic Materials,false
+BANSWRAS.NS,Banswara Syntex Limited,Consumer Cyclical,false
+BASF.NS,BASF India Limited,Basic Materials,false
+BASML.NS,Bannari Amman Spinning Mills Limited,Consumer Cyclical,false
+BATAINDIA.NS,Bata India Limited,Consumer Cyclical,false
+BATLIBOI.NS,Batliboi Limited,Industrials,false
+BAYERCROP.NS,Bayer Cropscience Limited,Basic Materials,false
+BBL.NS,Bharat Bijlee Limited,Industrials,false
+BBOX.NS,Black Box Limited,Technology,false
+BBTC.NS,The Bombay Burmah Trading Corporation Limited,Consumer Defensive,false
+BBTCL.NS,B&B Triplewall Containers Limited,Consumer Cyclical,false
+BCG.NS,Brightcom Group Limited,Communication Services,false
+BCLIND.NS,Bcl Industries Limited,Consumer Defensive,false
+BCONCEPTS.NS,Brand Concepts Limited,Consumer Cyclical,false
+BCPL.NS,BCPL Railway Infrastructure Limited,Industrials,false
+BEARDSELL.NS,Beardsell Limited,Industrials,false
+BECTORFOOD.NS,Mrs. Bectors Food Specialities Limited,Consumer Defensive,false
+BEDMUTHA.NS,Bedmutha Industries Limited,Basic Materials,false
 BEEKAY.NS,Beekay Steel Industries Limited,NSE Listed,false
-BELLACASA.NS,Bella Casa Fashion & Retail Limited,NSE Listed,false
-BELRISE.NS,Belrise Industries Limited,NSE Listed,false
-BEML.NS,BEML Limited,NSE Listed,false
+BELLACASA.NS,Bella Casa Fashion & Retail Limited,Consumer Cyclical,false
+BELRISE.NS,Belrise Industries Limited,Consumer Cyclical,false
+BEML.NS,BEML Limited,Industrials,false
 BENGALASM.NS,Bengal & Assam Company Limited,NSE Listed,false
-BEPL.NS,Bhansali Engineering Polymers Limited,NSE Listed,false
-BESTAGRO.NS,Best Agrolife Limited,NSE Listed,false
-BETA.NS,Beta Drugs Limited,NSE Listed,false
-BFINVEST.NS,BF Investment Limited,NSE Listed,false
-BFUTILITIE.NS,BF Utilities Limited,NSE Listed,false
-BGRENERGY.NS,BGR Energy Systems Limited,NSE Listed,false
-BHAGCHEM.NS,Bhagiradha Chemicals & Industries Limited,NSE Listed,false
-BHAGERIA.NS,Bhageria Industries Limited,NSE Listed,false
-BHAGYANGR.NS,Bhagyanagar India Limited,NSE Listed,false
-BHANDARI.NS,Bhandari Hosiery Exports Limited,NSE Listed,false
-BHARATCOAL.NS,Bharat Coking Coal Limited,NSE Listed,false
-BHARATGEAR.NS,Bharat Gears Limited,NSE Listed,false
-BHARATRAS.NS,Bharat Rasayan Limited,NSE Listed,false
-BHARATSE.NS,Bharat Seats Limited,NSE Listed,false
-BHARATWIRE.NS,Bharat Wire Ropes Limited,NSE Listed,false
-BHARTIHEXA.NS,Bharti Hexacom Limited,NSE Listed,false
+BEPL.NS,Bhansali Engineering Polymers Limited,Basic Materials,false
+BESTAGRO.NS,Best Agrolife Limited,Basic Materials,false
+BETA.NS,Beta Drugs Limited,Healthcare,false
+BFINVEST.NS,BF Investment Limited,Financial Services,false
+BFUTILITIE.NS,BF Utilities Limited,Industrials,false
+BGRENERGY.NS,BGR Energy Systems Limited,Industrials,false
+BHAGCHEM.NS,Bhagiradha Chemicals & Industries Limited,Basic Materials,false
+BHAGERIA.NS,Bhageria Industries Limited,Basic Materials,false
+BHAGYANGR.NS,Bhagyanagar India Limited,Basic Materials,false
+BHANDARI.NS,Bhandari Hosiery Exports Limited,Consumer Cyclical,false
+BHARATCOAL.NS,Bharat Coking Coal Limited,Basic Materials,false
+BHARATGEAR.NS,Bharat Gears Limited,Consumer Cyclical,false
+BHARATRAS.NS,Bharat Rasayan Limited,Basic Materials,false
+BHARATSE.NS,Bharat Seats Limited,Consumer Cyclical,false
+BHARATWIRE.NS,Bharat Wire Ropes Limited,Basic Materials,false
+BHARTIHEXA.NS,Bharti Hexacom Limited,Communication Services,false
 BI.NS,Bilcare Limited,NSE Listed,false
-BIGBLOC.NS,Bigbloc Construction Limited,NSE Listed,false
-BIKAJI.NS,Bikaji Foods International Limited,NSE Listed,false
-BIL.NS,Bhartiya International Limited,NSE Listed,false
-BILVYAPAR.NS,BIL VYAPAR LIMITED,NSE Listed,false
-BIMETAL.NS,Bimetal Bearings Limited,NSE Listed,false
-BIOFILCHEM.NS,Biofil Chemicals & Pharmaceuticals Limited,NSE Listed,false
-BIRLACABLE.NS,Birla Cable Limited,NSE Listed,false
-BIRLACORPN.NS,Birla Corporation Limited,NSE Listed,false
-BIRLAMONEY.NS,Aditya Birla Money Limited,NSE Listed,false
-BIRLANU.NS,BirlaNu Limited,NSE Listed,false
+BIGBLOC.NS,Bigbloc Construction Limited,Industrials,false
+BIKAJI.NS,Bikaji Foods International Limited,Consumer Defensive,false
+BIL.NS,Bhartiya International Limited,Consumer Cyclical,false
+BILVYAPAR.NS,BIL VYAPAR LIMITED,Basic Materials,false
+BIMETAL.NS,Bimetal Bearings Limited,Consumer Cyclical,false
+BIOFILCHEM.NS,Biofil Chemicals & Pharmaceuticals Limited,Healthcare,false
+BIRLACABLE.NS,Birla Cable Limited,Technology,false
+BIRLACORPN.NS,Birla Corporation Limited,Basic Materials,false
+BIRLAMONEY.NS,Aditya Birla Money Limited,Financial Services,false
+BIRLANU.NS,BirlaNu Limited,Industrials,false
 BIRLAPREC.NS,Birla Precision Technologies Limited,NSE Listed,false
-BLACKBUCK.NS,BLACKBUCK LIMITED,NSE Listed,false
+BLACKBUCK.NS,BLACKBUCK LIMITED,Technology,false
 BLACKROSE.NS,Black Rose Inds. Limited,NSE Listed,false
-BLAL.NS,BEML Land Assets Limited,NSE Listed,false
-BLBLIMITED.NS,BLB Limited,NSE Listed,false
+BLAL.NS,BEML Land Assets Limited,Financial Services,false
+BLBLIMITED.NS,BLB Limited,Financial Services,false
 BLIL.NS,Balmer Lawrie Investments Limited,NSE Listed,false
-BLISSGVS.NS,Bliss GVS Pharma Limited,NSE Listed,false
-BLKASHYAP.NS,B. L. Kashyap and Sons Limited,NSE Listed,false
-BLS.NS,BLS International Services Limited,NSE Listed,false
-BLSE.NS,BLS E-Services Limited,NSE Listed,false
-BLUECHIP.NS,Blue Chip India Limited,NSE Listed,false
-BLUECOAST.NS,Blue Coast Hotels Limited,NSE Listed,false
-BLUEDART.NS,Blue Dart Express Limited,NSE Listed,false
-BLUEJET.NS,Blue Jet Healthcare Limited,NSE Listed,false
-BLUESTARCO.NS,Blue Star Limited,NSE Listed,false
-BLUESTONE.NS,BlueStone Jewellery and Lifestyle Limited,NSE Listed,false
-BLUSPRING.NS,Bluspring Enterprises Limited,NSE Listed,false
-BMWVENTLTD.NS,BMW Ventures Limited,NSE Listed,false
+BLISSGVS.NS,Bliss GVS Pharma Limited,Healthcare,false
+BLKASHYAP.NS,B. L. Kashyap and Sons Limited,Industrials,false
+BLS.NS,BLS International Services Limited,Industrials,false
+BLSE.NS,BLS E-Services Limited,Industrials,false
+BLUECHIP.NS,Blue Chip India Limited,Financial Services,false
+BLUECOAST.NS,Blue Coast Hotels Limited,Consumer Cyclical,false
+BLUEDART.NS,Blue Dart Express Limited,Industrials,false
+BLUEJET.NS,Blue Jet Healthcare Limited,Healthcare,false
+BLUESTARCO.NS,Blue Star Limited,Industrials,false
+BLUESTONE.NS,BlueStone Jewellery and Lifestyle Limited,Consumer Cyclical,false
+BLUSPRING.NS,Bluspring Enterprises Limited,Industrials,false
+BMWVENTLTD.NS,BMW Ventures Limited,Basic Materials,false
 BNAGROCHEM.NS,BN Agrochem Limited,NSE Listed,false
 BNALTD.NS,B & A Limited,NSE Listed,false
-BODALCHEM.NS,Bodal Chemicals Limited,NSE Listed,false
-BOHRAIND.NS,Bohra Industries Limited,NSE Listed,false
-BOMDYEING.NS,Bombay Dyeing & Mfg Company Limited,NSE Listed,false
-BONLON.NS,Bonlon Industries Limited,NSE Listed,false
-BORANA.NS,Borana Weaves Limited,NSE Listed,false
-BOROLTD.NS,Borosil Limited,NSE Listed,false
-BORORENEW.NS,BOROSIL RENEWABLES LIMITED,NSE Listed,false
-BOROSCI.NS,Borosil Scientific Limited,NSE Listed,false
-BOSCH-HCIL.NS,BOSCH HOME COMFORT INDIA LIMITED,NSE Listed,false
-BPL.NS,BPL Limited,NSE Listed,false
-BRIGHOTEL.NS,Brigade Hotel Ventures Limited,NSE Listed,false
-BRNL.NS,Bharat Road Network Limited,NSE Listed,false
-BROOKS.NS,Brooks Laboratories Limited,NSE Listed,false
-BSHSL.NS,Bombay Super Hybrid Seeds Limited,NSE Listed,false
-BSL.NS,BSL Limited,NSE Listed,false
-BSOFT.NS,BIRLASOFT LIMITED,NSE Listed,false
-BTML.NS,Bodhi Tree Multimedia Limited,NSE Listed,false
-BTTL.NS,Bhilwara Technical Textiles Limited,NSE Listed,false
-BUILDPRO.NS,Shankara Buildpro Limited,NSE Listed,false
-BUTTERFLY.NS,Butterfly Gandhimathi Appliances Limited,NSE Listed,false
-BVCL.NS,Barak Valley Cements Limited,NSE Listed,false
-BYKE.NS,The Byke Hospitality Ltd,NSE Listed,false
-CALSOFT.NS,California Software Company Limited,NSE Listed,false
-CAMLINFINE.NS,Camlin Fine Sciences Limited,NSE Listed,false
-CAMPUS.NS,Campus Activewear Limited,NSE Listed,false
-CAMS.NS,Computer Age Management Services Limited,NSE Listed,false
-CANFINHOME.NS,Can Fin Homes Limited,NSE Listed,false
-CANHLIFE.NS,Canara HSBC Life Insurance Company Limited,NSE Listed,false
-CANTABIL.NS,Cantabil Retail India Limited,NSE Listed,false
-CAPACITE.NS,Capacit'e Infraprojects Limited,NSE Listed,false
-CAPILLARY.NS,Capillary Technologies India Limited,NSE Listed,false
-CAPITALSFB.NS,Capital Small Finance Bank Limited,NSE Listed,false
-CAPLIPOINT.NS,Caplin Point Laboratories Limited,NSE Listed,false
-CAPTRUST.NS,Capital Trust Limited,NSE Listed,false
-CARBORUNIV.NS,Carborundum Universal Limited,NSE Listed,false
-CARERATING.NS,CARE Ratings Limited,NSE Listed,false
-CARRARO.NS,Carraro India Limited,NSE Listed,false
-CARTRADE.NS,Cartrade Tech Limited,NSE Listed,false
-CARYSIL.NS,CARYSIL LIMITED,NSE Listed,false
-CASTROLIND.NS,Castrol India Limited,NSE Listed,false
-CCAVENUE.NS,AvenuesAI Limited,NSE Listed,false
-CCCL.NS,Consolidated Construction Consortium Limited,NSE Listed,false
-CCHHL.NS,Country Club Hospitality & Holidays Limited,NSE Listed,false
-CCL.NS,CCL Products (India) Limited,NSE Listed,false
-CEATLTD.NS,CEAT Limited,NSE Listed,false
-CEIGALL.NS,Ceigall India Limited,NSE Listed,false
-CEINSYS.NS,Ceinsys Tech Limited,NSE Listed,false
-CELEBRITY.NS,Celebrity Fashions Limited,NSE Listed,false
-CELLO.NS,Cello World Limited,NSE Listed,false
-CEMPRO.NS,Cemindia Projects Limited,NSE Listed,false
-CENTENKA.NS,Century Enka Limited,NSE Listed,false
-CENTEXT.NS,Century Extrusions Limited,NSE Listed,false
-CENTRALBK.NS,Central Bank of India,NSE Listed,false
-CENTRUM.NS,Centrum Capital Limited,NSE Listed,false
-CENTUM.NS,Centum Electronics Limited,NSE Listed,false
-CENTURYPLY.NS,Century Plyboards (India) Limited,NSE Listed,false
-CERA.NS,Cera Sanitaryware Limited,NSE Listed,false
-CEWATER.NS,Concord Enviro Systems Limited,NSE Listed,false
-CGCL.NS,Capri Global Capital Limited,NSE Listed,false
-CGPOWER.NS,CG Power and Industrial Solutions Limited,NSE Listed,false
-CHALET.NS,Chalet Hotels Limited,NSE Listed,false
-CHAMBLFERT.NS,Chambal Fertilizers & Chemicals Limited,NSE Listed,false
-CHEMBOND.NS,Chembond Material Technologies Limited,NSE Listed,false
-CHEMBONDCH.NS,Chembond Chemicals Limited,NSE Listed,false
-CHEMCON.NS,Chemcon Speciality Chemicals Limited,NSE Listed,false
-CHEMFAB.NS,Chemfab Alkalis Limited,NSE Listed,false
-CHEMPLASTS.NS,Chemplast Sanmar Limited,NSE Listed,false
-CHENNPETRO.NS,Chennai Petroleum Corporation Limited,NSE Listed,false
-CHEVIOT.NS,Cheviot Company Limited,NSE Listed,false
-CHOICEIN.NS,Choice International Limited,NSE Listed,false
-CHOLAHLDNG.NS,Cholamandalam Financial Holdings Limited,NSE Listed,false
-CIEINDIA.NS,CIE Automotive India Limited,NSE Listed,false
-CIFL.NS,Capital India Finance Limited,NSE Listed,false
-CINELINE.NS,Cineline India Limited,NSE Listed,false
-CINEVISTA.NS,Cinevista Limited,NSE Listed,false
-CLEAN.NS,Clean Science and Technology Limited,NSE Listed,false
-CLEANMAX.NS,Clean Max Enviro Energy Solutions Limited,NSE Listed,false
-CLEDUCATE.NS,CL Educate Limited,NSE Listed,false
-CLSEL.NS,Chaman Lal Setia Exports Limited,NSE Listed,false
-CMPDI.NS,Central Mine Planning & Design Institute Limited,NSE Listed,false
-CMRGREEN.NS,CMR Green Technologies Limited,NSE Listed,false
-CMSINFO.NS,CMS Info Systems Limited,NSE Listed,false
-CNL.NS,Creative Newtech Limited,NSE Listed,false
-COASTCORP.NS,Coastal Corporation Limited,NSE Listed,false
-COCKERILL.NS,John Cockerill India Limited,NSE Listed,false
-COFFEEDAY.NS,Coffee Day Enterprises Limited,NSE Listed,false
-COHANCE.NS,Cohance Lifesciences Limited,NSE Listed,false
+BODALCHEM.NS,Bodal Chemicals Limited,Basic Materials,false
+BOHRAIND.NS,Bohra Industries Limited,Basic Materials,false
+BOMDYEING.NS,Bombay Dyeing & Mfg Company Limited,Consumer Cyclical,false
+BONLON.NS,Bonlon Industries Limited,Basic Materials,false
+BORANA.NS,Borana Weaves Limited,Consumer Cyclical,false
+BOROLTD.NS,Borosil Limited,Consumer Cyclical,false
+BORORENEW.NS,BOROSIL RENEWABLES LIMITED,Technology,false
+BOROSCI.NS,Borosil Scientific Limited,Consumer Cyclical,false
+BOSCH-HCIL.NS,BOSCH HOME COMFORT INDIA LIMITED,Consumer Cyclical,false
+BPL.NS,BPL Limited,Technology,false
+BRIGHOTEL.NS,Brigade Hotel Ventures Limited,Consumer Cyclical,false
+BRNL.NS,Bharat Road Network Limited,Industrials,false
+BROOKS.NS,Brooks Laboratories Limited,Healthcare,false
+BSHSL.NS,Bombay Super Hybrid Seeds Limited,Basic Materials,false
+BSL.NS,BSL Limited,Consumer Cyclical,false
+BSOFT.NS,BIRLASOFT LIMITED,Technology,false
+BTML.NS,Bodhi Tree Multimedia Limited,Communication Services,false
+BTTL.NS,Bhilwara Technical Textiles Limited,Consumer Cyclical,false
+BUILDPRO.NS,Shankara Buildpro Limited,Consumer Cyclical,false
+BUTTERFLY.NS,Butterfly Gandhimathi Appliances Limited,Consumer Cyclical,false
+BVCL.NS,Barak Valley Cements Limited,Basic Materials,false
+BYKE.NS,The Byke Hospitality Ltd,Consumer Cyclical,false
+CALSOFT.NS,California Software Company Limited,Technology,false
+CAMLINFINE.NS,Camlin Fine Sciences Limited,Basic Materials,false
+CAMPUS.NS,Campus Activewear Limited,Consumer Cyclical,false
+CAMS.NS,Computer Age Management Services Limited,Technology,false
+CANFINHOME.NS,Can Fin Homes Limited,Financial Services,false
+CANHLIFE.NS,Canara HSBC Life Insurance Company Limited,Financial Services,false
+CANTABIL.NS,Cantabil Retail India Limited,Consumer Cyclical,false
+CAPACITE.NS,Capacit'e Infraprojects Limited,Industrials,false
+CAPILLARY.NS,Capillary Technologies India Limited,Technology,false
+CAPITALSFB.NS,Capital Small Finance Bank Limited,Financial Services,false
+CAPLIPOINT.NS,Caplin Point Laboratories Limited,Healthcare,false
+CAPTRUST.NS,Capital Trust Limited,Financial Services,false
+CARBORUNIV.NS,Carborundum Universal Limited,Industrials,false
+CARERATING.NS,CARE Ratings Limited,Financial Services,false
+CARRARO.NS,Carraro India Limited,Consumer Cyclical,false
+CARTRADE.NS,Cartrade Tech Limited,Consumer Cyclical,false
+CARYSIL.NS,CARYSIL LIMITED,Consumer Cyclical,false
+CASTROLIND.NS,Castrol India Limited,Energy,false
+CCAVENUE.NS,AvenuesAI Limited,Technology,false
+CCCL.NS,Consolidated Construction Consortium Limited,Industrials,false
+CCHHL.NS,Country Club Hospitality & Holidays Limited,Consumer Cyclical,false
+CCL.NS,CCL Products (India) Limited,Consumer Defensive,false
+CEATLTD.NS,CEAT Limited,Consumer Cyclical,false
+CEIGALL.NS,Ceigall India Limited,Industrials,false
+CEINSYS.NS,Ceinsys Tech Limited,Industrials,false
+CELEBRITY.NS,Celebrity Fashions Limited,Consumer Cyclical,false
+CELLO.NS,Cello World Limited,Consumer Cyclical,false
+CEMPRO.NS,Cemindia Projects Limited,Industrials,false
+CENTENKA.NS,Century Enka Limited,Consumer Cyclical,false
+CENTEXT.NS,Century Extrusions Limited,Basic Materials,false
+CENTRALBK.NS,Central Bank of India,Financial Services,false
+CENTRUM.NS,Centrum Capital Limited,Financial Services,false
+CENTUM.NS,Centum Electronics Limited,Technology,false
+CENTURYPLY.NS,Century Plyboards (India) Limited,Basic Materials,false
+CERA.NS,Cera Sanitaryware Limited,Industrials,false
+CEWATER.NS,Concord Enviro Systems Limited,Utilities,false
+CGCL.NS,Capri Global Capital Limited,Financial Services,false
+CGPOWER.NS,CG Power and Industrial Solutions Limited,Industrials,false
+CHALET.NS,Chalet Hotels Limited,Consumer Cyclical,false
+CHAMBLFERT.NS,Chambal Fertilizers & Chemicals Limited,Basic Materials,false
+CHEMBOND.NS,Chembond Material Technologies Limited,Basic Materials,false
+CHEMBONDCH.NS,Chembond Chemicals Limited,Basic Materials,false
+CHEMCON.NS,Chemcon Speciality Chemicals Limited,Basic Materials,false
+CHEMFAB.NS,Chemfab Alkalis Limited,Basic Materials,false
+CHEMPLASTS.NS,Chemplast Sanmar Limited,Basic Materials,false
+CHENNPETRO.NS,Chennai Petroleum Corporation Limited,Energy,false
+CHEVIOT.NS,Cheviot Company Limited,Consumer Cyclical,false
+CHOICEIN.NS,Choice International Limited,Financial Services,false
+CHOLAHLDNG.NS,Cholamandalam Financial Holdings Limited,Financial Services,false
+CIEINDIA.NS,CIE Automotive India Limited,Consumer Cyclical,false
+CIFL.NS,Capital India Finance Limited,Financial Services,false
+CINELINE.NS,Cineline India Limited,Communication Services,false
+CINEVISTA.NS,Cinevista Limited,Communication Services,false
+CLEAN.NS,Clean Science and Technology Limited,Basic Materials,false
+CLEANMAX.NS,Clean Max Enviro Energy Solutions Limited,Utilities,false
+CLEDUCATE.NS,CL Educate Limited,Consumer Defensive,false
+CLSEL.NS,Chaman Lal Setia Exports Limited,Consumer Defensive,false
+CMPDI.NS,Central Mine Planning & Design Institute Limited,Basic Materials,false
+CMRGREEN.NS,CMR Green Technologies Limited,Basic Materials,false
+CMSINFO.NS,CMS Info Systems Limited,Industrials,false
+CNL.NS,Creative Newtech Limited,Technology,false
+COASTCORP.NS,Coastal Corporation Limited,Consumer Defensive,false
+COCKERILL.NS,John Cockerill India Limited,Industrials,false
+COFFEEDAY.NS,Coffee Day Enterprises Limited,Consumer Cyclical,false
+COHANCE.NS,Cohance Lifesciences Limited,Healthcare,false
 COMFINTE.NS,Comfort Intech Limited,NSE Listed,false
-COMPUSOFT.NS,Compucom Software Limited,NSE Listed,false
-COMSYN.NS,Commercial Syn Bags Limited,NSE Listed,false
-CONCOR.NS,Container Corporation of India Limited,NSE Listed,false
-CONCORDBIO.NS,Concord Biotech Limited,NSE Listed,false
-CONFIPET.NS,Confidence Petroleum India Limited,NSE Listed,false
-CONSOFINVT.NS,Consolidated Finvest & Holdings Limited,NSE Listed,false
-CONTROLPR.NS,Control Print Limited,NSE Listed,false
-CORALFINAC.NS,Coral India Finance & Housing Limited,NSE Listed,false
-CORDELIA.NS,Waterways Leisure Tourism Limited,NSE Listed,false
-CORDSCABLE.NS,Cords Cable Industries Limited,NSE Listed,false
-COROMANDEL.NS,Coromandel International Limited,NSE Listed,false
-CORONA.NS,CORONA Remedies Limited,NSE Listed,false
-COSMOFIRST.NS,COSMO FIRST LIMITED,NSE Listed,false
-COUNCODOS.NS,Country Condo's Limited,NSE Listed,false
-CPCAP.NS,CP Capital Limited,NSE Listed,false
-CPEDU.NS,Career Point Edutech Limited,NSE Listed,false
-CPPLUS.NS,Aditya Infotech Limited,NSE Listed,false
-CRAFTSMAN.NS,Craftsman Automation Limited,NSE Listed,false
-CRAMC.NS,Canara Robeco Asset Management Company Limited,NSE Listed,false
-CREATIVEYE.NS,Creative Eye Limited,NSE Listed,false
-CREDITACC.NS,CREDITACCESS GRAMEEN LIMITED,NSE Listed,false
-CREST.NS,Crest Ventures Limited,NSE Listed,false
-CRISIL.NS,Crisil Limited,NSE Listed,false
-CRIZAC.NS,Crizac Limited,NSE Listed,false
-CROWN.NS,Crown Lifters Limited,NSE Listed,false
-CSBBANK.NS,CSB Bank Limited,NSE Listed,false
-CSLFINANCE.NS,CSL Finance Limited,NSE Listed,false
-CSM.NS,CSM Technologies Limited,NSE Listed,false
-CTE.NS,Cambridge Technology Enterprises Limited,NSE Listed,false
-CUB.NS,City Union Bank Limited,NSE Listed,false
-CUBEXTUB.NS,Cubex Tubings Limited,NSE Listed,false
-CUPID.NS,Cupid Limited,NSE Listed,false
-CURAA.NS,Cura Technologies Limited,NSE Listed,false
-CYBERMEDIA.NS,Cyber Media (India) Limited,NSE Listed,false
-CYBERTECH.NS,Cybertech Systems And Software Limited,NSE Listed,false
-CYIENT.NS,Cyient Limited,NSE Listed,false
-CYIENTDLM.NS,Cyient DLM Limited,NSE Listed,false
+COMPUSOFT.NS,Compucom Software Limited,Consumer Defensive,false
+COMSYN.NS,Commercial Syn Bags Limited,Consumer Cyclical,false
+CONCOR.NS,Container Corporation of India Limited,Industrials,false
+CONCORDBIO.NS,Concord Biotech Limited,Healthcare,false
+CONFIPET.NS,Confidence Petroleum India Limited,Energy,false
+CONSOFINVT.NS,Consolidated Finvest & Holdings Limited,Financial Services,false
+CONTROLPR.NS,Control Print Limited,Industrials,false
+CORALFINAC.NS,Coral India Finance & Housing Limited,Real Estate,false
+CORDELIA.NS,Waterways Leisure Tourism Limited,Industrials,false
+CORDSCABLE.NS,Cords Cable Industries Limited,Industrials,false
+COROMANDEL.NS,Coromandel International Limited,Basic Materials,false
+CORONA.NS,CORONA Remedies Limited,Healthcare,false
+COSMOFIRST.NS,COSMO FIRST LIMITED,Consumer Cyclical,false
+COUNCODOS.NS,Country Condo's Limited,Real Estate,false
+CPCAP.NS,CP Capital Limited,Financial Services,false
+CPEDU.NS,Career Point Edutech Limited,Consumer Defensive,false
+CPPLUS.NS,Aditya Infotech Limited,Industrials,false
+CRAFTSMAN.NS,Craftsman Automation Limited,Consumer Cyclical,false
+CRAMC.NS,Canara Robeco Asset Management Company Limited,Financial Services,false
+CREATIVEYE.NS,Creative Eye Limited,Communication Services,false
+CREDITACC.NS,CREDITACCESS GRAMEEN LIMITED,Financial Services,false
+CREST.NS,Crest Ventures Limited,Financial Services,false
+CRISIL.NS,Crisil Limited,Financial Services,false
+CRIZAC.NS,Crizac Limited,Consumer Defensive,false
+CROWN.NS,Crown Lifters Limited,Industrials,false
+CSBBANK.NS,CSB Bank Limited,Financial Services,false
+CSLFINANCE.NS,CSL Finance Limited,Financial Services,false
+CSM.NS,CSM Technologies Limited,Technology,false
+CTE.NS,Cambridge Technology Enterprises Limited,Technology,false
+CUB.NS,City Union Bank Limited,Financial Services,false
+CUBEXTUB.NS,Cubex Tubings Limited,Basic Materials,false
+CUPID.NS,Cupid Limited,Consumer Defensive,false
+CURAA.NS,Cura Technologies Limited,Technology,false
+CYBERMEDIA.NS,Cyber Media (India) Limited,Communication Services,false
+CYBERTECH.NS,Cybertech Systems And Software Limited,Technology,false
+CYIENT.NS,Cyient Limited,Industrials,false
+CYIENTDLM.NS,Cyient DLM Limited,Industrials,false
 DAICHI.NS,Dai-Ichi Karkaria Limited,NSE Listed,false
-DALMIASUG.NS,Dalmia Bharat Sugar and Industries Limited,NSE Listed,false
-DAMCAPITAL.NS,Dam Capital Advisors Limited,NSE Listed,false
-DAMODARIND.NS,Damodar Industries Limited,NSE Listed,false
-DANGEE.NS,Dangee Dums Limited,NSE Listed,false
-DATAMATICS.NS,Datamatics Global Services Limited,NSE Listed,false
-DATAPATTNS.NS,Data Patterns (India) Limited,NSE Listed,false
-DAVANGERE.NS,Davangere Sugar Company Limited,NSE Listed,false
-DBCORP.NS,D.B.Corp Limited,NSE Listed,false
-DBEIL.NS,Deepak Builders & Engineers India Limited,NSE Listed,false
-DBL.NS,Dilip Buildcon Limited,NSE Listed,false
-DBOL.NS,Dhampur Bio Organics Limited,NSE Listed,false
-DBREALTY.NS,Valor Estate Limited,NSE Listed,false
-DBSTOCKBRO.NS,DB (International) Stock Brokers Limited,NSE Listed,false
-DCAL.NS,Dishman Carbogen Amcis Limited,NSE Listed,false
-DCBBANK.NS,DCB Bank Limited,NSE Listed,false
-DCI.NS,Dc Infotech And Communication Limited,NSE Listed,false
-DCM.NS,DCM  Limited,NSE Listed,false
-DCMFINSERV.NS,DCM Financial Services Limited,NSE Listed,false
-DCMNVL.NS,DCM Nouvelle Limited,NSE Listed,false
-DCMSHRIRAM.NS,DCM Shriram Limited,NSE Listed,false
-DCMSIL.NS,DCM Shriram International Limited,NSE Listed,false
-DCMSRIND.NS,DCM Shriram Industries Limited,NSE Listed,false
-DCW.NS,DCW Limited,NSE Listed,false
-DCXINDIA.NS,DCX Systems Limited,NSE Listed,false
-DDEVPLSTIK.NS,Ddev Plastiks Industries Limited,NSE Listed,false
-DECCANCE.NS,Deccan Cements Limited,NSE Listed,false
+DALMIASUG.NS,Dalmia Bharat Sugar and Industries Limited,Consumer Defensive,false
+DAMCAPITAL.NS,Dam Capital Advisors Limited,Financial Services,false
+DAMODARIND.NS,Damodar Industries Limited,Consumer Cyclical,false
+DANGEE.NS,Dangee Dums Limited,Consumer Cyclical,false
+DATAMATICS.NS,Datamatics Global Services Limited,Technology,false
+DATAPATTNS.NS,Data Patterns (India) Limited,Industrials,false
+DAVANGERE.NS,Davangere Sugar Company Limited,Consumer Defensive,false
+DBCORP.NS,D.B.Corp Limited,Communication Services,false
+DBEIL.NS,Deepak Builders & Engineers India Limited,Industrials,false
+DBL.NS,Dilip Buildcon Limited,Industrials,false
+DBOL.NS,Dhampur Bio Organics Limited,Consumer Defensive,false
+DBREALTY.NS,Valor Estate Limited,Real Estate,false
+DBSTOCKBRO.NS,DB (International) Stock Brokers Limited,Financial Services,false
+DCAL.NS,Dishman Carbogen Amcis Limited,Healthcare,false
+DCBBANK.NS,DCB Bank Limited,Financial Services,false
+DCI.NS,Dc Infotech And Communication Limited,Technology,false
+DCM.NS,DCM  Limited,Industrials,false
+DCMFINSERV.NS,DCM Financial Services Limited,Financial Services,false
+DCMNVL.NS,DCM Nouvelle Limited,Consumer Cyclical,false
+DCMSHRIRAM.NS,DCM Shriram Limited,Industrials,false
+DCMSIL.NS,DCM Shriram International Limited,Industrials,false
+DCMSRIND.NS,DCM Shriram Industries Limited,Consumer Defensive,false
+DCW.NS,DCW Limited,Basic Materials,false
+DCXINDIA.NS,DCX Systems Limited,Industrials,false
+DDEVPLSTIK.NS,Ddev Plastiks Industries Limited,Basic Materials,false
+DECCANCE.NS,Deccan Cements Limited,Basic Materials,false
 DECNGOLD.NS,Deccan Gold Mines Limited,NSE Listed,false
-DEEDEV.NS,DEE Development Engineers Limited,NSE Listed,false
-DEEPAKFERT.NS,Deepak Fertilizers and Petrochemicals Corporation Limited,NSE Listed,false
-DEEPINDS.NS,Deep Industries Limited,NSE Listed,false
-DELHIVERY.NS,Delhivery Limited,NSE Listed,false
-DELPHIFX.NS,DELPHI WORLD MONEY LIMITED,NSE Listed,false
-DELTACORP.NS,Delta Corp Limited,NSE Listed,false
-DELTAMAGNT.NS,Delta Manufacturing Limited,NSE Listed,false
-DEN.NS,Den Networks Limited,NSE Listed,false
-DENORA.NS,De Nora India Limited,NSE Listed,false
-DENTA.NS,Denta Water and Infra Solutions Limited,NSE Listed,false
-DEVIT.NS,Dev Information Technology Limited,NSE Listed,false
-DEVX.NS,Dev Accelerator Limited,NSE Listed,false
-DGCONTENT.NS,Digicontent Limited,NSE Listed,false
-DHAMPURSUG.NS,Dhampur Sugar Mills Limited,NSE Listed,false
-DHANBANK.NS,Dhanlaxmi Bank Limited,NSE Listed,false
-DHANUKA.NS,Dhanuka Agritech Limited,NSE Listed,false
-DHARMAJ.NS,Dharmaj Crop Guard Limited,NSE Listed,false
-DHRUV.NS,Dhruv Consultancy Services Limited,NSE Listed,false
-DHUNINV.NS,Dhunseri Investments Limited,NSE Listed,false
-DIACABS.NS,Diamond Power Infrastructure Limited,NSE Listed,false
-DIAMINESQ.NS,Diamines & Chemicals Limited,NSE Listed,false
-DIAMONDYD.NS,Prataap Snacks Limited,NSE Listed,false
-DICIND.NS,DIC India Limited,NSE Listed,false
-DIFFNKG.NS,Diffusion Engineers Limited,NSE Listed,false
-DIGIDRIVE.NS,Digidrive Distributors Limited,NSE Listed,false
-DIGISPICE.NS,DiGiSPICE Technologies Limited,NSE Listed,false
-DIGITIDE.NS,Digitide Solutions Limited,NSE Listed,false
-DIGJAMLMTD.NS,Digjam Limited,NSE Listed,false
+DEEDEV.NS,DEE Development Engineers Limited,Industrials,false
+DEEPAKFERT.NS,Deepak Fertilizers and Petrochemicals Corporation Limited,Basic Materials,false
+DEEPINDS.NS,Deep Industries Limited,Energy,false
+DELHIVERY.NS,Delhivery Limited,Industrials,false
+DELPHIFX.NS,DELPHI WORLD MONEY LIMITED,Financial Services,false
+DELTACORP.NS,Delta Corp Limited,Consumer Cyclical,false
+DELTAMAGNT.NS,Delta Manufacturing Limited,Consumer Cyclical,false
+DEN.NS,Den Networks Limited,Communication Services,false
+DENORA.NS,De Nora India Limited,Industrials,false
+DENTA.NS,Denta Water and Infra Solutions Limited,Industrials,false
+DEVIT.NS,Dev Information Technology Limited,Technology,false
+DEVX.NS,Dev Accelerator Limited,Real Estate,false
+DGCONTENT.NS,Digicontent Limited,Communication Services,false
+DHAMPURSUG.NS,Dhampur Sugar Mills Limited,Consumer Defensive,false
+DHANBANK.NS,Dhanlaxmi Bank Limited,Financial Services,false
+DHANUKA.NS,Dhanuka Agritech Limited,Basic Materials,false
+DHARMAJ.NS,Dharmaj Crop Guard Limited,Basic Materials,false
+DHRUV.NS,Dhruv Consultancy Services Limited,Industrials,false
+DHUNINV.NS,Dhunseri Investments Limited,Financial Services,false
+DIACABS.NS,Diamond Power Infrastructure Limited,Industrials,false
+DIAMINESQ.NS,Diamines & Chemicals Limited,Basic Materials,false
+DIAMONDYD.NS,Prataap Snacks Limited,Consumer Defensive,false
+DICIND.NS,DIC India Limited,Basic Materials,false
+DIFFNKG.NS,Diffusion Engineers Limited,Industrials,false
+DIGIDRIVE.NS,Digidrive Distributors Limited,Consumer Cyclical,false
+DIGISPICE.NS,DiGiSPICE Technologies Limited,Financial Services,false
+DIGITIDE.NS,Digitide Solutions Limited,Industrials,false
+DIGJAMLMTD.NS,Digjam Limited,Consumer Cyclical,false
 DISAQ.NS,Disa India Limited,NSE Listed,false
-DISHTV.NS,Dish TV India Limited,NSE Listed,false
-DIVGIITTS.NS,Divgi Torqtransfer Systems Limited,NSE Listed,false
-DJML.NS,DJ Mediaprint & Logistics Limited,NSE Listed,false
-DLINKINDIA.NS,D-Link (India) Limited,NSE Listed,false
-DMCC.NS,DMCC SPECIALITY CHEMICALS LIMITED,NSE Listed,false
-DNAMEDIA.NS,Diligent Media Corporation Limited,NSE Listed,false
-DODLA.NS,Dodla Dairy Limited,NSE Listed,false
-DOLATALGO.NS,Dolat Algotech Limited,NSE Listed,false
-DOLLAR.NS,Dollar Industries Limited,NSE Listed,false
-DOLPHIN.NS,Dolphin Offshore Enterprises (India) Limited,NSE Listed,false
-DOMS.NS,DOMS Industries Limited,NSE Listed,false
-DONEAR.NS,Donear Industries Limited,NSE Listed,false
-DPABHUSHAN.NS,D. P. Abhushan Limited,NSE Listed,false
-DPSCLTD.NS,DPSC Limited,NSE Listed,false
-DPWIRES.NS,D P Wires Limited,NSE Listed,false
+DISHTV.NS,Dish TV India Limited,Communication Services,false
+DIVGIITTS.NS,Divgi Torqtransfer Systems Limited,Consumer Cyclical,false
+DJML.NS,DJ Mediaprint & Logistics Limited,Industrials,false
+DLINKINDIA.NS,D-Link (India) Limited,Technology,false
+DMCC.NS,DMCC SPECIALITY CHEMICALS LIMITED,Basic Materials,false
+DNAMEDIA.NS,Diligent Media Corporation Limited,Communication Services,false
+DODLA.NS,Dodla Dairy Limited,Consumer Defensive,false
+DOLATALGO.NS,Dolat Algotech Limited,Financial Services,false
+DOLLAR.NS,Dollar Industries Limited,Consumer Cyclical,false
+DOLPHIN.NS,Dolphin Offshore Enterprises (India) Limited,Energy,false
+DOMS.NS,DOMS Industries Limited,Industrials,false
+DONEAR.NS,Donear Industries Limited,Consumer Cyclical,false
+DPABHUSHAN.NS,D. P. Abhushan Limited,Consumer Cyclical,false
+DPSCLTD.NS,DPSC Limited,Utilities,false
+DPWIRES.NS,D P Wires Limited,Industrials,false
 DRAGARWQ.NS,Dr Agarwals Eye Hospital Limited,NSE Listed,false
-DRCSYSTEMS.NS,DRC Systems India Limited,NSE Listed,false
-DREAMFOLKS.NS,Dreamfolks Services Limited,NSE Listed,false
-DREDGECORP.NS,Dredging Corporation of India Limited,NSE Listed,false
-DSFCL.NS,DCM Shriram Fine Chemicals Limited,NSE Listed,false
-DSSL.NS,Dynacons Systems & Solutions Limited,NSE Listed,false
-DTIL.NS,Dhunseri Tea & Industries Limited,NSE Listed,false
-DUCON.NS,Ducon Infratechnologies Limited,NSE Listed,false
-DVL.NS,Dhunseri Ventures Limited,NSE Listed,false
-DWARKESH.NS,Dwarikesh Sugar Industries Limited,NSE Listed,false
-DYCL.NS,Dynamic Cables Limited,NSE Listed,false
-DYNAMATECH.NS,Dynamatic Technologies Limited,NSE Listed,false
-DYNPRO.NS,Dynemic Products Limited,NSE Listed,false
-E2E.NS,E2E Networks Limited,NSE Listed,false
-EASEMYTRIP.NS,Easy Trip Planners Limited,NSE Listed,false
-EASTSILK.NS,Eastern Silk Industries Limited,NSE Listed,false
-EBGNG.NS,GNG Electronics Limited,NSE Listed,false
-ECLERX.NS,eClerx Services Limited,NSE Listed,false
-ECOSMOBLTY.NS,Ecos (India) Mobility & Hospitality Limited,NSE Listed,false
-EDELWEISS.NS,Edelweiss Financial Services Limited,NSE Listed,false
-EFCIL.NS,EFC (I) Limited,NSE Listed,false
-EIDPARRY.NS,EID Parry India Limited,NSE Listed,false
-EIEL.NS,Enviro Infra Engineers Limited,NSE Listed,false
-EIFFL.NS,Euro India Fresh Foods Limited,NSE Listed,false
-EIHAHOTELS.NS,EIH Associated Hotels Limited,NSE Listed,false
-EIHOTEL.NS,EIH Limited,NSE Listed,false
-EIMCOELECO.NS,Eimco Elecon (India) Limited,NSE Listed,false
-EKC.NS,Everest Kanto Cylinder Limited,NSE Listed,false
-ELANTAS.NS,Elantas Beck India Limited,NSE Listed,false
+DRCSYSTEMS.NS,DRC Systems India Limited,Technology,false
+DREAMFOLKS.NS,Dreamfolks Services Limited,Industrials,false
+DREDGECORP.NS,Dredging Corporation of India Limited,Industrials,false
+DSFCL.NS,DCM Shriram Fine Chemicals Limited,Basic Materials,false
+DSSL.NS,Dynacons Systems & Solutions Limited,Technology,false
+DTIL.NS,Dhunseri Tea & Industries Limited,Consumer Defensive,false
+DUCON.NS,Ducon Infratechnologies Limited,Industrials,false
+DVL.NS,Dhunseri Ventures Limited,Financial Services,false
+DWARKESH.NS,Dwarikesh Sugar Industries Limited,Consumer Defensive,false
+DYCL.NS,Dynamic Cables Limited,Industrials,false
+DYNAMATECH.NS,Dynamatic Technologies Limited,Consumer Cyclical,false
+DYNPRO.NS,Dynemic Products Limited,Basic Materials,false
+E2E.NS,E2E Networks Limited,Technology,false
+EASEMYTRIP.NS,Easy Trip Planners Limited,Consumer Cyclical,false
+EASTSILK.NS,Eastern Silk Industries Limited,Consumer Cyclical,false
+EBGNG.NS,GNG Electronics Limited,Technology,false
+ECLERX.NS,eClerx Services Limited,Technology,false
+ECOSMOBLTY.NS,Ecos (India) Mobility & Hospitality Limited,Industrials,false
+EDELWEISS.NS,Edelweiss Financial Services Limited,Financial Services,false
+EFCIL.NS,EFC (I) Limited,Real Estate,false
+EIDPARRY.NS,EID Parry India Limited,Basic Materials,false
+EIEL.NS,Enviro Infra Engineers Limited,Industrials,false
+EIFFL.NS,Euro India Fresh Foods Limited,Consumer Defensive,false
+EIHAHOTELS.NS,EIH Associated Hotels Limited,Consumer Cyclical,false
+EIHOTEL.NS,EIH Limited,Consumer Cyclical,false
+EIMCOELECO.NS,Eimco Elecon (India) Limited,Industrials,false
+EKC.NS,Everest Kanto Cylinder Limited,Industrials,false
+ELANTAS.NS,Elantas Beck India Limited,Basic Materials,false
 ELCIDIN.NS,EL CID Investments Limited,NSE Listed,false
-ELDEHSG.NS,Eldeco Housing And Industries Limited,NSE Listed,false
-ELECON.NS,Elecon Engineering Company Limited,NSE Listed,false
-ELECTCAST.NS,Electrosteel Castings Limited,NSE Listed,false
-ELECTHERM.NS,Electrotherm (India) Limited,NSE Listed,false
-ELGIEQUIP.NS,Elgi Equipments Limited,NSE Listed,false
-ELGIRUBCO.NS,Elgi Rubber Company Limited,NSE Listed,false
-ELIN.NS,Elin Electronics Limited,NSE Listed,false
+ELDEHSG.NS,Eldeco Housing And Industries Limited,Real Estate,false
+ELECON.NS,Elecon Engineering Company Limited,Industrials,false
+ELECTCAST.NS,Electrosteel Castings Limited,Industrials,false
+ELECTHERM.NS,Electrotherm (India) Limited,Basic Materials,false
+ELGIEQUIP.NS,Elgi Equipments Limited,Industrials,false
+ELGIRUBCO.NS,Elgi Rubber Company Limited,Consumer Cyclical,false
+ELIN.NS,Elin Electronics Limited,Industrials,false
 ELITECON.NS,Elitecon International Limited,NSE Listed,false
-ELLEN.NS,Ellenbarrie Industrial Gases Limited,NSE Listed,false
+ELLEN.NS,Ellenbarrie Industrial Gases Limited,Basic Materials,false
 ELPROINTL.NS,Elpro International Limited,NSE Listed,false
-EMAMILTD.NS,Emami Limited,NSE Listed,false
-EMAMIPAP.NS,Emami Paper Mills Limited,NSE Listed,false
-EMAMIREAL.NS,Emami Realty Limited,NSE Listed,false
-EMBDL.NS,Embassy Developments Limited,NSE Listed,false
-EMCURE.NS,Emcure Pharmaceuticals Limited,NSE Listed,false
-EMIL.NS,Electronics Mart India Limited,NSE Listed,false
-EMKAY.NS,Emkay Global Financial Services Limited,NSE Listed,false
-EMMBI.NS,Emmbi Industries Limited,NSE Listed,false
-EMMVEE.NS,Emmvee Photovoltaic Power Limited,NSE Listed,false
+EMAMILTD.NS,Emami Limited,Consumer Defensive,false
+EMAMIPAP.NS,Emami Paper Mills Limited,Basic Materials,false
+EMAMIREAL.NS,Emami Realty Limited,Real Estate,false
+EMBDL.NS,Embassy Developments Limited,Real Estate,false
+EMCURE.NS,Emcure Pharmaceuticals Limited,Healthcare,false
+EMIL.NS,Electronics Mart India Limited,Consumer Cyclical,false
+EMKAY.NS,Emkay Global Financial Services Limited,Financial Services,false
+EMMBI.NS,Emmbi Industries Limited,Consumer Cyclical,false
+EMMVEE.NS,Emmvee Photovoltaic Power Limited,Technology,false
 EMPOWER.NS,Empower India Limited,NSE Listed,false
-EMSLIMITED.NS,EMS Limited,NSE Listed,false
-EMUDHRA.NS,eMudhra Limited,NSE Listed,false
-ENDURANCE.NS,Endurance Technologies Limited,NSE Listed,false
-ENERGYDEV.NS,Energy Development Company Limited,NSE Listed,false
-ENIL.NS,Entertainment Network (India) Limited,NSE Listed,false
-ENRIN.NS,Siemens Energy India Limited,NSE Listed,false
-ENTERO.NS,Entero Healthcare Solutions Limited,NSE Listed,false
-EPACK.NS,EPACK Durable Limited,NSE Listed,false
-EPACKPEB.NS,EPack Prefab Technologies Limited,NSE Listed,false
-EPIGRAL.NS,Epigral Limited,NSE Listed,false
-EPL.NS,EPL Limited,NSE Listed,false
-EQUIPPP.NS,Equippp Social Impact Technologies Limited,NSE Listed,false
-EQUITASBNK.NS,Equitas Small Finance Bank Limited,NSE Listed,false
-ERIS.NS,Eris Lifesciences Limited,NSE Listed,false
-ESABINDIA.NS,Esab India Limited,NSE Listed,false
-ESAFSFB.NS,ESAF Small Finance Bank Limited,NSE Listed,false
-ESSARSHPNG.NS,Essar Shipping Limited,NSE Listed,false
-ESSENTIA.NS,Integra Essentia Limited,NSE Listed,false
-ESTER.NS,Ester Industries Limited,NSE Listed,false
-ETHOSLTD.NS,Ethos Limited,NSE Listed,false
-EUREKAFORB.NS,Eureka Forbes Limited,NSE Listed,false
-EUROBOND.NS,Euro Panel Products Limited,NSE Listed,false
-EUROPRATIK.NS,Euro Pratik Sales Limited,NSE Listed,false
-EUROTEXIND.NS,Eurotex Industries and Exports Limited,NSE Listed,false
-EVEREADY.NS,Eveready Industries India Limited,NSE Listed,false
-EVERESTIND.NS,Everest Industries Limited,NSE Listed,false
-EXCELINDUS.NS,Excel Industries Limited,NSE Listed,false
-EXCELSOFT.NS,Excelsoft Technologies Limited,NSE Listed,false
-EXICOM.NS,Exicom Tele-Systems Limited,NSE Listed,false
-EXPLEOSOL.NS,Expleo Solutions Limited,NSE Listed,false
-EXXARO.NS,Exxaro Tiles Limited,NSE Listed,false
-FABTECH.NS,Fabtech Technologies Limited,NSE Listed,false
-FACT.NS,Fertilizers and Chemicals Travancore Limited,NSE Listed,false
-FAIRCHEMOR.NS,Fairchem Organics Limited,NSE Listed,false
-FAZE3Q.NS,Faze Three Limited,NSE Listed,false
-FCL.NS,Fineotex Chemical Limited,NSE Listed,false
-FCSSOFT.NS,FCS Software Solutions Limited,NSE Listed,false
-FDC.NS,FDC Limited,NSE Listed,false
+EMSLIMITED.NS,EMS Limited,Industrials,false
+EMUDHRA.NS,eMudhra Limited,Technology,false
+ENDURANCE.NS,Endurance Technologies Limited,Consumer Cyclical,false
+ENERGYDEV.NS,Energy Development Company Limited,Utilities,false
+ENIL.NS,Entertainment Network (India) Limited,Communication Services,false
+ENRIN.NS,Siemens Energy India Limited,Utilities,false
+ENTERO.NS,Entero Healthcare Solutions Limited,Healthcare,false
+EPACK.NS,EPACK Durable Limited,Consumer Cyclical,false
+EPACKPEB.NS,EPack Prefab Technologies Limited,Industrials,false
+EPIGRAL.NS,Epigral Limited,Basic Materials,false
+EPL.NS,EPL Limited,Consumer Cyclical,false
+EQUIPPP.NS,Equippp Social Impact Technologies Limited,Technology,false
+EQUITASBNK.NS,Equitas Small Finance Bank Limited,Financial Services,false
+ERIS.NS,Eris Lifesciences Limited,Healthcare,false
+ESABINDIA.NS,Esab India Limited,Industrials,false
+ESAFSFB.NS,ESAF Small Finance Bank Limited,Financial Services,false
+ESSARSHPNG.NS,Essar Shipping Limited,Industrials,false
+ESSENTIA.NS,Integra Essentia Limited,Consumer Defensive,false
+ESTER.NS,Ester Industries Limited,Basic Materials,false
+ETHOSLTD.NS,Ethos Limited,Consumer Cyclical,false
+EUREKAFORB.NS,Eureka Forbes Limited,Consumer Cyclical,false
+EUROBOND.NS,Euro Panel Products Limited,Industrials,false
+EUROPRATIK.NS,Euro Pratik Sales Limited,Basic Materials,false
+EUROTEXIND.NS,Eurotex Industries and Exports Limited,Real Estate,false
+EVEREADY.NS,Eveready Industries India Limited,Industrials,false
+EVERESTIND.NS,Everest Industries Limited,Industrials,false
+EXCELINDUS.NS,Excel Industries Limited,Basic Materials,false
+EXCELSOFT.NS,Excelsoft Technologies Limited,Technology,false
+EXICOM.NS,Exicom Tele-Systems Limited,Industrials,false
+EXPLEOSOL.NS,Expleo Solutions Limited,Technology,false
+EXXARO.NS,Exxaro Tiles Limited,Industrials,false
+FABTECH.NS,Fabtech Technologies Limited,Healthcare,false
+FACT.NS,Fertilizers and Chemicals Travancore Limited,Basic Materials,false
+FAIRCHEMOR.NS,Fairchem Organics Limited,Basic Materials,false
+FAZE3Q.NS,Faze Three Limited,Consumer Cyclical,false
+FCL.NS,Fineotex Chemical Limited,Basic Materials,false
+FCSSOFT.NS,FCS Software Solutions Limited,Technology,false
+FDC.NS,FDC Limited,Healthcare,false
 FEDDERSHOL.NS,Fedders Holding Limited,NSE Listed,false
-FEDFINA.NS,Fedbank Financial Services Limited,NSE Listed,false
+FEDFINA.NS,Fedbank Financial Services Limited,Financial Services,false
 FERMENTA.NS,Fermenta Biotech Limited,NSE Listed,false
-FIBERWEB.NS,Fiberweb (India) Limited,NSE Listed,false
-FIEMIND.NS,Fiem Industries Limited,NSE Listed,false
-FILATEX.NS,Filatex India Limited,NSE Listed,false
-FILATFASH.NS,Filatex Fashions Limited,NSE Listed,false
-FINCABLES.NS,Finolex Cables Limited,NSE Listed,false
-FINEORG.NS,Fine Organic Industries Limited,NSE Listed,false
-FINKURVE.NS,Finkurve Financial Services Limited,NSE Listed,false
-FINOPB.NS,Fino Payments Bank Limited,NSE Listed,false
-FINPIPE.NS,Finolex Industries Limited,NSE Listed,false
-FIRSTCRY.NS,Brainbees Solutions Limited,NSE Listed,false
-FISCHER.NS,Fischer Medical Ventures Limited,NSE Listed,false
-FIVESTAR.NS,Five-Star Business Finance Limited,NSE Listed,false
-FLAIR.NS,Flair Writing Industries Limited,NSE Listed,false
-FLEXITUFF.NS,Flexituff Ventures International Limited,NSE Listed,false
-FLUOROCHEM.NS,Gujarat Fluorochemicals Limited,NSE Listed,false
-FMGOETZE.NS,Federal-Mogul Goetze (India) Limited.,NSE Listed,false
-FMNL.NS,Future Market Networks Limited,NSE Listed,false
-FOCUS.NS,Focus Lighting and Fixtures Limited,NSE Listed,false
-FOODSIN.NS,Foods & Inns Limited,NSE Listed,false
-FORCEMOT.NS,FORCE MOTORS LTD,NSE Listed,false
-FOSECOIND.NS,Foseco India Limited,NSE Listed,false
-FRACTAL.NS,Fractal Analytics Limited,NSE Listed,false
+FIBERWEB.NS,Fiberweb (India) Limited,Consumer Cyclical,false
+FIEMIND.NS,Fiem Industries Limited,Consumer Cyclical,false
+FILATEX.NS,Filatex India Limited,Consumer Cyclical,false
+FILATFASH.NS,Filatex Fashions Limited,Consumer Cyclical,false
+FINCABLES.NS,Finolex Cables Limited,Industrials,false
+FINEORG.NS,Fine Organic Industries Limited,Basic Materials,false
+FINKURVE.NS,Finkurve Financial Services Limited,Financial Services,false
+FINOPB.NS,Fino Payments Bank Limited,Financial Services,false
+FINPIPE.NS,Finolex Industries Limited,Industrials,false
+FIRSTCRY.NS,Brainbees Solutions Limited,Consumer Cyclical,false
+FISCHER.NS,Fischer Medical Ventures Limited,Healthcare,false
+FIVESTAR.NS,Five-Star Business Finance Limited,Financial Services,false
+FLAIR.NS,Flair Writing Industries Limited,Industrials,false
+FLEXITUFF.NS,Flexituff Ventures International Limited,Consumer Cyclical,false
+FLUOROCHEM.NS,Gujarat Fluorochemicals Limited,Basic Materials,false
+FMGOETZE.NS,Federal-Mogul Goetze (India) Limited.,Consumer Cyclical,false
+FMNL.NS,Future Market Networks Limited,Real Estate,false
+FOCUS.NS,Focus Lighting and Fixtures Limited,Consumer Cyclical,false
+FOODSIN.NS,Foods & Inns Limited,Consumer Defensive,false
+FORCEMOT.NS,FORCE MOTORS LTD,Consumer Cyclical,false
+FOSECOIND.NS,Foseco India Limited,Basic Materials,false
+FRACTAL.NS,Fractal Analytics Limited,Technology,false
 FRONTSP.NS,Frontier Springs Limited,NSE Listed,false
-FSL.NS,Firstsource Solutions Limited,NSE Listed,false
-FUSION.NS,Fusion Finance Limited,NSE Listed,false
-GABRIEL.NS,Gabriel India Limited,NSE Listed,false
-GAEL.NS,Gujarat Ambuja Exports Limited,NSE Listed,false
-GALAPREC.NS,Gala Precision Engineering Limited,NSE Listed,false
-GALAXYSURF.NS,Galaxy Surfactants Limited,NSE Listed,false
-GALLANTT.NS,Gallantt Ispat Limited,NSE Listed,false
-GANDHAR.NS,Gandhar Oil Refinery (India) Limited,NSE Listed,false
-GANDHITUBE.NS,Gandhi Special Tubes Limited,NSE Listed,false
-GANECOS.NS,Ganesha Ecosphere Limited,NSE Listed,false
-GANESHBE.NS,Ganesh Benzoplast Limited,NSE Listed,false
-GANESHCP.NS,Ganesh Consumer Products Limited,NSE Listed,false
-GANESHHOU.NS,GANESH HOUSING LIMITED,NSE Listed,false
-GANGAFORGE.NS,Ganga Forging Limited,NSE Listed,false
-GANGESSECU.NS,Ganges Securities Limited,NSE Listed,false
-GARFIBRES.NS,Garware Technical Fibres Limited,NSE Listed,false
-GARUDA.NS,Garuda Construction and Engineering Limited,NSE Listed,false
-GATECH.NS,GACM Technologies Limited,NSE Listed,false
-GATECHDVR.NS,GACM Technologies Limited,NSE Listed,false
-GATEWAY.NS,Gateway Distriparks Limited,NSE Listed,false
-GAUDIUMIVF.NS,Gaudium IVF and Women Health Limited,NSE Listed,false
-GAYAHWS.NS,Gayatri Highways Limited,NSE Listed,false
-GAYAPROJ.NS,Gayatri Projects Limited,NSE Listed,false
-GCSL.NS,Gretex Corporate Services Limited,NSE Listed,false
-GEECEE.NS,GeeCee Ventures Limited,NSE Listed,false
-GEEKAYWIRE.NS,Geekay Wires Limited,NSE Listed,false
-GEMAROMA.NS,Gem Aromatics Limited,NSE Listed,false
-GENCON.NS,Generic Engineering Construction and Projects Limited,NSE Listed,false
-GENESYS.NS,Genesys International Corporation Limited,NSE Listed,false
-GENUSPAPER.NS,Genus Paper & Boards Limited,NSE Listed,false
-GENUSPOWER.NS,Genus Power Infrastructures Limited,NSE Listed,false
-GEOJITFSL.NS,Geojit Financial Services Limited,NSE Listed,false
-GESHIP.NS,The Great Eastern Shipping Company Limited,NSE Listed,false
-GFLLIMITED.NS,GFL Limited,NSE Listed,false
-GHCL.NS,GHCL Limited,NSE Listed,false
-GHCLTEXTIL.NS,GHCL Textiles Limited,NSE Listed,false
-GICHSGFIN.NS,GIC Housing Finance Limited,NSE Listed,false
-GICL.NS,Globe International Carriers Limited,NSE Listed,false
-GICRE.NS,General Insurance Corporation of India,NSE Listed,false
-GILLANDERS.NS,Gillanders Arbuthnot & Company Limited,NSE Listed,false
-GILLETTE.NS,Gillette India Limited,NSE Listed,false
-GINNIFILA.NS,Ginni Filaments Limited,NSE Listed,false
-GIPCL.NS,Gujarat Industries Power Company Limited,NSE Listed,false
-GKENERGY.NS,GK Energy Limited,NSE Listed,false
-GKSL.NS,Gujarat Kidney And Super Speciality Limited,NSE Listed,false
-GKWLIMITED.NS,GKW Limited,NSE Listed,false
-GLAND.NS,Gland Pharma Limited,NSE Listed,false
-GLAXO.NS,GlaxoSmithKline Pharmaceuticals Limited,NSE Listed,false
-GLFL.NS,Gujarat Lease Financing Limited,NSE Listed,false
-GLOBAL.NS,Global Education Limited,NSE Listed,false
-GLOBALE.NS,Globale Tessile Limited,NSE Listed,false
-GLOBALVECT.NS,Global Vectra Helicorp Limited,NSE Listed,false
-GLOBE.NS,GLOBE ENTERPRISES (INDIA) LIMITED,NSE Listed,false
-GLOBECIVIL.NS,Globe Civil Projects Limited,NSE Listed,false
-GLOBUSSPR.NS,Globus Spirits Limited,NSE Listed,false
-GLOSTERLTD.NS,Gloster Limited,NSE Listed,false
-GLOTTIS.NS,Glottis Limited,NSE Listed,false
-GMBREW.NS,GM Breweries Limited,NSE Listed,false
-GMDCLTD.NS,Gujarat Mineral Development Corporation Limited,NSE Listed,false
-GMMPFAUDLR.NS,GMM Pfaudler Limited,NSE Listed,false
-GMRAIRPORT.NS,GMR AIRPORTS LIMITED,NSE Listed,false
-GMRP&UI.NS,GMR Power and Urban Infra Limited,NSE Listed,false
-GNA.NS,GNA Axles Limited,NSE Listed,false
-GNFC.NS,Gujarat Narmada Valley Fertilizers and Chemicals Limited,NSE Listed,false
+FSL.NS,Firstsource Solutions Limited,Technology,false
+FUSION.NS,Fusion Finance Limited,Financial Services,false
+GABRIEL.NS,Gabriel India Limited,Consumer Cyclical,false
+GAEL.NS,Gujarat Ambuja Exports Limited,Consumer Defensive,false
+GALAPREC.NS,Gala Precision Engineering Limited,Industrials,false
+GALAXYSURF.NS,Galaxy Surfactants Limited,Basic Materials,false
+GALLANTT.NS,Gallantt Ispat Limited,Basic Materials,false
+GANDHAR.NS,Gandhar Oil Refinery (India) Limited,Energy,false
+GANDHITUBE.NS,Gandhi Special Tubes Limited,Industrials,false
+GANECOS.NS,Ganesha Ecosphere Limited,Consumer Cyclical,false
+GANESHBE.NS,Ganesh Benzoplast Limited,Basic Materials,false
+GANESHCP.NS,Ganesh Consumer Products Limited,Consumer Defensive,false
+GANESHHOU.NS,GANESH HOUSING LIMITED,Real Estate,false
+GANGAFORGE.NS,Ganga Forging Limited,Industrials,false
+GANGESSECU.NS,Ganges Securities Limited,Consumer Defensive,false
+GARFIBRES.NS,Garware Technical Fibres Limited,Consumer Cyclical,false
+GARUDA.NS,Garuda Construction and Engineering Limited,Industrials,false
+GATECH.NS,GACM Technologies Limited,Financial Services,false
+GATECHDVR.NS,GACM Technologies Limited,Financial Services,false
+GATEWAY.NS,Gateway Distriparks Limited,Industrials,false
+GAUDIUMIVF.NS,Gaudium IVF and Women Health Limited,Healthcare,false
+GAYAHWS.NS,Gayatri Highways Limited,Industrials,false
+GAYAPROJ.NS,Gayatri Projects Limited,Industrials,false
+GCSL.NS,Gretex Corporate Services Limited,Financial Services,false
+GEECEE.NS,GeeCee Ventures Limited,Real Estate,false
+GEEKAYWIRE.NS,Geekay Wires Limited,Industrials,false
+GEMAROMA.NS,Gem Aromatics Limited,Basic Materials,false
+GENCON.NS,Generic Engineering Construction and Projects Limited,Industrials,false
+GENESYS.NS,Genesys International Corporation Limited,Technology,false
+GENUSPAPER.NS,Genus Paper & Boards Limited,Basic Materials,false
+GENUSPOWER.NS,Genus Power Infrastructures Limited,Industrials,false
+GEOJITFSL.NS,Geojit Financial Services Limited,Financial Services,false
+GESHIP.NS,The Great Eastern Shipping Company Limited,Industrials,false
+GFLLIMITED.NS,GFL Limited,Financial Services,false
+GHCL.NS,GHCL Limited,Basic Materials,false
+GHCLTEXTIL.NS,GHCL Textiles Limited,Consumer Cyclical,false
+GICHSGFIN.NS,GIC Housing Finance Limited,Financial Services,false
+GICL.NS,Globe International Carriers Limited,Industrials,false
+GICRE.NS,General Insurance Corporation of India,Financial Services,false
+GILLANDERS.NS,Gillanders Arbuthnot & Company Limited,Consumer Defensive,false
+GILLETTE.NS,Gillette India Limited,Consumer Defensive,false
+GINNIFILA.NS,Ginni Filaments Limited,Consumer Cyclical,false
+GIPCL.NS,Gujarat Industries Power Company Limited,Utilities,false
+GKENERGY.NS,GK Energy Limited,Utilities,false
+GKSL.NS,Gujarat Kidney And Super Speciality Limited,Healthcare,false
+GKWLIMITED.NS,GKW Limited,Industrials,false
+GLAND.NS,Gland Pharma Limited,Healthcare,false
+GLAXO.NS,GlaxoSmithKline Pharmaceuticals Limited,Healthcare,false
+GLFL.NS,Gujarat Lease Financing Limited,Financial Services,false
+GLOBAL.NS,Global Education Limited,Consumer Defensive,false
+GLOBALE.NS,Globale Tessile Limited,Consumer Cyclical,false
+GLOBALVECT.NS,Global Vectra Helicorp Limited,Industrials,false
+GLOBE.NS,GLOBE ENTERPRISES (INDIA) LIMITED,Consumer Cyclical,false
+GLOBECIVIL.NS,Globe Civil Projects Limited,Industrials,false
+GLOBUSSPR.NS,Globus Spirits Limited,Consumer Defensive,false
+GLOSTERLTD.NS,Gloster Limited,Consumer Cyclical,false
+GLOTTIS.NS,Glottis Limited,Industrials,false
+GMBREW.NS,GM Breweries Limited,Consumer Defensive,false
+GMDCLTD.NS,Gujarat Mineral Development Corporation Limited,Energy,false
+GMMPFAUDLR.NS,GMM Pfaudler Limited,Industrials,false
+GMRAIRPORT.NS,GMR AIRPORTS LIMITED,Industrials,false
+GMRP&UI.NS,GMR Power and Urban Infra Limited,Energy,false
+GNA.NS,GNA Axles Limited,Consumer Cyclical,false
+GNFC.NS,Gujarat Narmada Valley Fertilizers and Chemicals Limited,Basic Materials,false
 GNRL.NS,Gujarat Natural Resources Limited,NSE Listed,false
-GOACARBON.NS,Goa Carbon Limited,NSE Listed,false
-GOCLCORP.NS,GOCL Corporation Limited,NSE Listed,false
-GOCOLORS.NS,Go Fashion (India) Limited,NSE Listed,false
-GODAVARIB.NS,Godavari Biorefineries Limited,NSE Listed,false
-GODFRYPHLP.NS,Godfrey Phillips India Limited,NSE Listed,false
-GODIGIT.NS,Go Digit General Insurance Limited,NSE Listed,false
-GODREJAGRO.NS,Godrej Agrovet Limited,NSE Listed,false
-GODREJIND.NS,Godrej Industries Limited,NSE Listed,false
-GOKEX.NS,Gokaldas Exports Limited,NSE Listed,false
-GOKUL.NS,Gokul Refoils and Solvent Limited,NSE Listed,false
-GOKULAGRO.NS,Gokul Agro Resources Limited,NSE Listed,false
-GOLDIAM.NS,Goldiam International Limited,NSE Listed,false
-GOLDTECH.NS,AION-TECH SOLUTIONS LIMITED,NSE Listed,false
-GOODLUCK.NS,Goodluck India Limited,NSE Listed,false
-GOODYEAR.NS,Goodyear India Limited,NSE Listed,false
-GOPAL.NS,Gopal Snacks Limited,NSE Listed,false
-GOYALALUM.NS,Goyal Aluminiums Limited,NSE Listed,false
-GPIL.NS,Godawari Power And Ispat limited,NSE Listed,false
-GPPL.NS,Gujarat Pipavav Port Limited,NSE Listed,false
-GPTHEALTH.NS,GPT Healthcare Limited,NSE Listed,false
-GPTINFRA.NS,GPT Infraprojects Limited,NSE Listed,false
-GRADIENTE.NS,Gradiente Infotainment Limited,NSE Listed,false
+GOACARBON.NS,Goa Carbon Limited,Basic Materials,false
+GOCLCORP.NS,GOCL Corporation Limited,Basic Materials,false
+GOCOLORS.NS,Go Fashion (India) Limited,Consumer Cyclical,false
+GODAVARIB.NS,Godavari Biorefineries Limited,Basic Materials,false
+GODFRYPHLP.NS,Godfrey Phillips India Limited,Consumer Defensive,false
+GODIGIT.NS,Go Digit General Insurance Limited,Financial Services,false
+GODREJAGRO.NS,Godrej Agrovet Limited,Consumer Defensive,false
+GODREJIND.NS,Godrej Industries Limited,Industrials,false
+GOKEX.NS,Gokaldas Exports Limited,Consumer Cyclical,false
+GOKUL.NS,Gokul Refoils and Solvent Limited,Consumer Defensive,false
+GOKULAGRO.NS,Gokul Agro Resources Limited,Consumer Defensive,false
+GOLDIAM.NS,Goldiam International Limited,Consumer Cyclical,false
+GOLDTECH.NS,AION-TECH SOLUTIONS LIMITED,Technology,false
+GOODLUCK.NS,Goodluck India Limited,Basic Materials,false
+GOODYEAR.NS,Goodyear India Limited,Consumer Cyclical,false
+GOPAL.NS,Gopal Snacks Limited,Consumer Defensive,false
+GOYALALUM.NS,Goyal Aluminiums Limited,Basic Materials,false
+GPIL.NS,Godawari Power And Ispat limited,Basic Materials,false
+GPPL.NS,Gujarat Pipavav Port Limited,Industrials,false
+GPTHEALTH.NS,GPT Healthcare Limited,Healthcare,false
+GPTINFRA.NS,GPT Infraprojects Limited,Industrials,false
+GRADIENTE.NS,Gradiente Infotainment Limited,Communication Services,false
 GRANDOAK.NS,Grand Oak Canyons Distillery Limited,NSE Listed,false
-GRANULES.NS,Granules India Limited,NSE Listed,false
-GRAPHITE.NS,Graphite India Limited,NSE Listed,false
-GRAUWEIL.NS,Grauer & Weil India Limited,NSE Listed,false
+GRANULES.NS,Granules India Limited,Healthcare,false
+GRAPHITE.NS,Graphite India Limited,Industrials,false
+GRAUWEIL.NS,Grauer & Weil India Limited,Basic Materials,false
 GRAVISSHO.NS,Graviss Hospitality Limited,NSE Listed,false
-GRAVITA.NS,Gravita India Limited,NSE Listed,false
-GREAVESCOT.NS,Greaves Cotton Limited,NSE Listed,false
-GREENLAM.NS,Greenlam Industries Limited,NSE Listed,false
-GREENPANEL.NS,Greenpanel Industries Limited,NSE Listed,false
-GREENPLY.NS,Greenply Industries Limited,NSE Listed,false
-GREENPOWER.NS,Orient Green Power Company Limited,NSE Listed,false
-GRINDWELL.NS,Grindwell Norton Limited,NSE Listed,false
-GRINFRA.NS,G R Infraprojects Limited,NSE Listed,false
-GRMOVER.NS,GRM Overseas Limited,NSE Listed,false
-GROBTEA.NS,The Grob Tea Company Limited,NSE Listed,false
-GROWW.NS,Billionbrains Garage Ventures Limited,NSE Listed,false
-GRPLTD.NS,GRP Limited,NSE Listed,false
-GRWRHITECH.NS,Garware Hi-Tech Films Limited,NSE Listed,false
-GSFC.NS,Gujarat State Fertilizers & Chemicals Limited,NSE Listed,false
-GSLSU.NS,Global Surfaces Limited,NSE Listed,false
-GSPCROP.NS,GSP Crop Science Limited,NSE Listed,false
-GSS.NS,GSS Infotech Limited,NSE Listed,false
-GTECJAINX.NS,G-TEC JAINX EDUCATION LIMITED,NSE Listed,false
-GTL.NS,GTL Limited,NSE Listed,false
-GTLINFRA.NS,GTL Infrastructure Limited,NSE Listed,false
-GTPL.NS,GTPL Hathway Limited,NSE Listed,false
-GUFICBIO.NS,Gufic Biosciences Limited,NSE Listed,false
-GUJALKALI.NS,Gujarat Alkalies and Chemicals Limited,NSE Listed,false
-GUJAPOLLO.NS,Gujarat Apollo Industries Limited,NSE Listed,false
-GUJENERGY.NS,GUJARAT ENERGY LIMITED,NSE Listed,false
+GRAVITA.NS,Gravita India Limited,Industrials,false
+GREAVESCOT.NS,Greaves Cotton Limited,Industrials,false
+GREENLAM.NS,Greenlam Industries Limited,Consumer Cyclical,false
+GREENPANEL.NS,Greenpanel Industries Limited,Basic Materials,false
+GREENPLY.NS,Greenply Industries Limited,Basic Materials,false
+GREENPOWER.NS,Orient Green Power Company Limited,Utilities,false
+GRINDWELL.NS,Grindwell Norton Limited,Industrials,false
+GRINFRA.NS,G R Infraprojects Limited,Industrials,false
+GRMOVER.NS,GRM Overseas Limited,Consumer Defensive,false
+GROBTEA.NS,The Grob Tea Company Limited,Consumer Defensive,false
+GROWW.NS,Billionbrains Garage Ventures Limited,Financial Services,false
+GRPLTD.NS,GRP Limited,Consumer Cyclical,false
+GRWRHITECH.NS,Garware Hi-Tech Films Limited,Basic Materials,false
+GSFC.NS,Gujarat State Fertilizers & Chemicals Limited,Basic Materials,false
+GSLSU.NS,Global Surfaces Limited,Basic Materials,false
+GSPCROP.NS,GSP Crop Science Limited,Basic Materials,false
+GSS.NS,GSS Infotech Limited,Technology,false
+GTECJAINX.NS,G-TEC JAINX EDUCATION LIMITED,Consumer Defensive,false
+GTL.NS,GTL Limited,Communication Services,false
+GTLINFRA.NS,GTL Infrastructure Limited,Technology,false
+GTPL.NS,GTPL Hathway Limited,Communication Services,false
+GUFICBIO.NS,Gufic Biosciences Limited,Healthcare,false
+GUJALKALI.NS,Gujarat Alkalies and Chemicals Limited,Basic Materials,false
+GUJAPOLLO.NS,Gujarat Apollo Industries Limited,Industrials,false
+GUJENERGY.NS,GUJARAT ENERGY LIMITED,Utilities,false
 GUJRAFFIA.NS,Gujarat Raffia Industries Limited,NSE Listed,false
-GUJTHEM.NS,Gujarat Themis Biosyn Limited,NSE Listed,false
-GULFOILLUB.NS,Gulf Oil Lubricants India Limited,NSE Listed,false
-GULFPETRO.NS,GP Petroleums Limited,NSE Listed,false
-GULPOLY.NS,Gulshan Polyols Limited,NSE Listed,false
-GVKPIL.NS,GVK Power & Infrastructure Limited,NSE Listed,false
-GVPIL.NS,GE Power India Limited,NSE Listed,false
-GVPTECH.NS,GVP Infotech Limited,NSE Listed,false
-GVT&D.NS,GE Vernova T&D India Limited,NSE Listed,false
-GYFTR.NS,Gyftr Limited,NSE Listed,false
-HALDER.NS,Halder Venture Limited,NSE Listed,false
+GUJTHEM.NS,Gujarat Themis Biosyn Limited,Healthcare,false
+GULFOILLUB.NS,Gulf Oil Lubricants India Limited,Basic Materials,false
+GULFPETRO.NS,GP Petroleums Limited,Energy,false
+GULPOLY.NS,Gulshan Polyols Limited,Basic Materials,false
+GVKPIL.NS,GVK Power & Infrastructure Limited,Utilities,false
+GVPIL.NS,GE Power India Limited,Industrials,false
+GVPTECH.NS,GVP Infotech Limited,Technology,false
+GVT&D.NS,GE Vernova T&D India Limited,Industrials,false
+GYFTR.NS,Gyftr Limited,Industrials,false
+HALDER.NS,Halder Venture Limited,Consumer Defensive,false
 HALDYNGL.NS,Haldyn Glass Limited,NSE Listed,false
-HALEOSLABS.NS,HALEOS LABS LIMITED,NSE Listed,false
-HAPPSTMNDS.NS,Happiest Minds Technologies Limited,NSE Listed,false
-HAPPYFORGE.NS,Happy Forgings Limited,NSE Listed,false
-HARDWYN.NS,Hardwyn India Limited,NSE Listed,false
-HARIOMPIPE.NS,Hariom Pipe Industries Limited,NSE Listed,false
-HARRMALAYA.NS,Harrisons  Malayalam Limited,NSE Listed,false
-HARSHA.NS,Harsha Engineers International Limited,NSE Listed,false
-HATHWAY.NS,Hathway Cable & Datacom Limited,NSE Listed,false
-HATSUN.NS,Hatsun Agro Product Limited,NSE Listed,false
-HAVISHA.NS,Sri Havisha Hospitality and Infrastructure Limited,NSE Listed,false
-HAWKINCOOK.NS,Hawkins Cookers Limited,NSE Listed,false
+HALEOSLABS.NS,HALEOS LABS LIMITED,Healthcare,false
+HAPPSTMNDS.NS,Happiest Minds Technologies Limited,Technology,false
+HAPPYFORGE.NS,Happy Forgings Limited,Industrials,false
+HARDWYN.NS,Hardwyn India Limited,Industrials,false
+HARIOMPIPE.NS,Hariom Pipe Industries Limited,Basic Materials,false
+HARRMALAYA.NS,Harrisons  Malayalam Limited,Consumer Defensive,false
+HARSHA.NS,Harsha Engineers International Limited,Industrials,false
+HATHWAY.NS,Hathway Cable & Datacom Limited,Communication Services,false
+HATSUN.NS,Hatsun Agro Product Limited,Consumer Defensive,false
+HAVISHA.NS,Sri Havisha Hospitality and Infrastructure Limited,Consumer Cyclical,false
+HAWKINCOOK.NS,Hawkins Cookers Limited,Consumer Cyclical,false
 HBESD.NS,HB Estate Developers Limited,NSE Listed,false
-HBLENGINE.NS,HBL Engineering Limited,NSE Listed,false
-HBSL.NS,HB Stockholdings Limited,NSE Listed,false
-HCC.NS,Hindustan Construction Company Limited,NSE Listed,false
-HCG.NS,Healthcare Global Enterprises Limited,NSE Listed,false
-HCL-INSYS.NS,HCL Infosystems Limited,NSE Listed,false
-HDBFS.NS,HDB Financial Services Limited,NSE Listed,false
-HEADSUP.NS,Heads UP Ventures Limited,NSE Listed,false
-HEALTHX.NS,Health X Platform Limited,NSE Listed,false
-HECPROJECT.NS,HEC Infra Projects Limited,NSE Listed,false
-HEG.NS,HEG Limited,NSE Listed,false
-HEIDELBERG.NS,HeidelbergCement India Limited,NSE Listed,false
-HEMIPROP.NS,Hemisphere Properties India Limited,NSE Listed,false
-HERANBA.NS,Heranba Industries Limited,NSE Listed,false
-HERITGFOOD.NS,Heritage Foods Limited,NSE Listed,false
-HESTERBIO.NS,Hester Biosciences Limited,NSE Listed,false
-HEXAGON.NS,Hexagon Nutrition Limited,NSE Listed,false
-HEXATRADEX.NS,Hexa Tradex Limited,NSE Listed,false
-HEXT.NS,Hexaware Technologies Limited,NSE Listed,false
-HFCL.NS,HFCL Limited,NSE Listed,false
-HGINFRA.NS,H.G. Infra Engineering Limited,NSE Listed,false
-HGM.NS,HandsOn Global Management (HGM) Limited,NSE Listed,false
-HGS.NS,Hinduja Global Solutions Limited,NSE Listed,false
-HIKAL.NS,Hikal Limited,NSE Listed,false
-HILINFRA.NS,Highway Infrastructure Limited,NSE Listed,false
-HILTON.NS,Hilton Metal Forging Limited,NSE Listed,false
-HIMATSEIDE.NS,Himatsingka Seide Limited,NSE Listed,false
-HINDCOMPOS.NS,Hindustan Composites Limited,NSE Listed,false
-HINDCON.NS,Hindcon Chemicals Limited,NSE Listed,false
-HINDOILEXP.NS,Hindustan Oil Exploration Company Limited,NSE Listed,false
-HINDWAREAP.NS,Hindware Home Innovation Limited,NSE Listed,false
-HINDZINC.NS,Hindustan Zinc Limited,NSE Listed,false
-HIRECT.NS,Hind Rectifiers Limited,NSE Listed,false
-HISARMETAL.NS,Hisar Metal Industries Limited,NSE Listed,false
-HITECH.NS,Hi-Tech Pipes Limited,NSE Listed,false
-HITECHCORP.NS,Hitech Corporation Limited,NSE Listed,false
-HITECHGEAR.NS,The Hi-Tech Gears Limited,NSE Listed,false
-HLEGLAS.NS,HLE Glascoat Limited,NSE Listed,false
-HLVLTD.NS,HLV LIMITED,NSE Listed,false
-HMAAGRO.NS,HMA Agro Industries Limited,NSE Listed,false
-HMVL.NS,Hindustan Media Ventures Limited,NSE Listed,false
-HNDFDS.NS,Hindustan Foods Limited,NSE Listed,false
-HOMEFIRST.NS,Home First Finance Company India Limited,NSE Listed,false
-HONASA.NS,Honasa Consumer Limited,NSE Listed,false
-HONAUT.NS,Honeywell Automation India Limited,NSE Listed,false
-HONDAPOWER.NS,Honda India Power Products Limited,NSE Listed,false
-HPAL.NS,HP Adhesives Limited,NSE Listed,false
-HPIL.NS,Hindprakash Industries Limited,NSE Listed,false
-HPL.NS,HPL Electric & Power Limited,NSE Listed,false
-HSCL.NS,Himadri Speciality Chemical Limited,NSE Listed,false
-HTMEDIA.NS,HT Media Limited,NSE Listed,false
-HUBTOWN.NS,Hubtown Limited,NSE Listed,false
-HUDCO.NS,Housing & Urban Development Corporation Limited,NSE Listed,false
-HUHTAMAKI.NS,Huhtamaki India Limited,NSE Listed,false
-HYBRIDFIN.NS,Hybrid Financial Services Limited,NSE Listed,false
-HYUNDAI.NS,Hyundai Motor India Limited,NSE Listed,false
-IBULLSLTD.NS,Indiabulls Limited,NSE Listed,false
-ICDSLTD.NS,ICDS Limited,NSE Listed,false
-ICEMAKE.NS,Ice Make Refrigeration Limited,NSE Listed,false
-ICICIAMC.NS,ICICI Prudential Asset Management Company Limited,NSE Listed,false
-ICIL.NS,Indo Count Industries Limited,NSE Listed,false
-ICRA.NS,ICRA Limited,NSE Listed,false
-IDBI.NS,IDBI Bank Limited,NSE Listed,false
-IDEAFORGE.NS,Ideaforge Technology Limited,NSE Listed,false
-IEX.NS,Indian Energy Exchange Limited,NSE Listed,false
-IFBAGRO.NS,IFB Agro Industries Limited,NSE Listed,false
-IFBIND.NS,IFB Industries Limited,NSE Listed,false
-IFCI.NS,IFCI Limited,NSE Listed,false
-IFGLEXPOR.NS,IFGL Refractories Limited,NSE Listed,false
-IGARASHI.NS,Igarashi Motors India Limited,NSE Listed,false
-IGCL.NS,Indogulf Cropsciences Limited,NSE Listed,false
-IGIL.NS,International Gemological Institute Limited,NSE Listed,false
-IGL.NS,Indraprastha Gas Limited,NSE Listed,false
-IGPL.NS,IG Petrochemicals Limited,NSE Listed,false
-IIFL.NS,IIFL Finance Limited,NSE Listed,false
-IIFLCAPS.NS,IIFL Capital Services Limited,NSE Listed,false
-IITL.NS,Industrial Investment Trust Limited,NSE Listed,false
-IKIO.NS,IKIO Technologies Limited,NSE Listed,false
-IKS.NS,Inventurus Knowledge Solutions Limited,NSE Listed,false
-IMAGICAA.NS,Imagicaaworld Entertainment Limited,NSE Listed,false
-IMFA.NS,Indian Metals & Ferro Alloys Limited,NSE Listed,false
-IMPAL.NS,India Motor Parts and Accessories Limited,NSE Listed,false
-INA.NS,Insolation Energy Limited,NSE Listed,false
-INCREDIBLE.NS,INCREDIBLE INDUSTRIES LIMITED,NSE Listed,false
-INDBANK.NS,Indbank Merchant Banking Services Limited,NSE Listed,false
-INDGN.NS,Indegene Limited,NSE Listed,false
-INDHOTEL.NS,The Indian Hotels Company Limited,NSE Listed,false
-INDIACEM.NS,The India Cements Limited,NSE Listed,false
-INDIAGLYCO.NS,India Glycols Limited,NSE Listed,false
-INDIAMART.NS,Indiamart Intermesh Limited,NSE Listed,false
-INDIANCARD.NS,Indian Card Clothing Company Limited,NSE Listed,false
-INDIANHUME.NS,Indian Hume Pipe Company Limited,NSE Listed,false
-INDIASHLTR.NS,India Shelter Finance Corporation Limited,NSE Listed,false
-INDIGOPNTS.NS,Indigo Paints Limited,NSE Listed,false
-INDIQUBE.NS,Indiqube Spaces Limited,NSE Listed,false
-INDNIPPON.NS,India Nippon Electricals Limited,NSE Listed,false
-INDOAMIN.NS,Indo Amines Limited,NSE Listed,false
-INDOBORAX.NS,Indo Borax & Chemicals Limited,NSE Listed,false
-INDOCO.NS,Indoco Remedies Limited,NSE Listed,false
-INDOFARM.NS,Indo Farm Equipment Limited,NSE Listed,false
-INDORAMA.NS,Indo Rama Synthetics (India) Limited,NSE Listed,false
-INDOSTAR.NS,IndoStar Capital Finance Limited,NSE Listed,false
-INDOTECH.NS,Indo Tech Transformers Limited,NSE Listed,false
-INDOTHAI.NS,Indo Thai Securities Limited,NSE Listed,false
-INDOUS.NS,Indo Us Biotech Limited,NSE Listed,false
-INDOWIND.NS,Indowind Energy Limited,NSE Listed,false
+HBLENGINE.NS,HBL Engineering Limited,Industrials,false
+HBSL.NS,HB Stockholdings Limited,Financial Services,false
+HCC.NS,Hindustan Construction Company Limited,Industrials,false
+HCG.NS,Healthcare Global Enterprises Limited,Healthcare,false
+HCL-INSYS.NS,HCL Infosystems Limited,Technology,false
+HDBFS.NS,HDB Financial Services Limited,Financial Services,false
+HEADSUP.NS,Heads UP Ventures Limited,Consumer Cyclical,false
+HEALTHX.NS,Health X Platform Limited,Healthcare,false
+HECPROJECT.NS,HEC Infra Projects Limited,Industrials,false
+HEG.NS,HEG Limited,Industrials,false
+HEIDELBERG.NS,HeidelbergCement India Limited,Basic Materials,false
+HEMIPROP.NS,Hemisphere Properties India Limited,Real Estate,false
+HERANBA.NS,Heranba Industries Limited,Basic Materials,false
+HERITGFOOD.NS,Heritage Foods Limited,Consumer Defensive,false
+HESTERBIO.NS,Hester Biosciences Limited,Healthcare,false
+HEXAGON.NS,Hexagon Nutrition Limited,Consumer Defensive,false
+HEXATRADEX.NS,Hexa Tradex Limited,Financial Services,false
+HEXT.NS,Hexaware Technologies Limited,Technology,false
+HFCL.NS,HFCL Limited,Technology,false
+HGINFRA.NS,H.G. Infra Engineering Limited,Industrials,false
+HGM.NS,HandsOn Global Management (HGM) Limited,Technology,false
+HGS.NS,Hinduja Global Solutions Limited,Industrials,false
+HIKAL.NS,Hikal Limited,Healthcare,false
+HILINFRA.NS,Highway Infrastructure Limited,Industrials,false
+HILTON.NS,Hilton Metal Forging Limited,Industrials,false
+HIMATSEIDE.NS,Himatsingka Seide Limited,Consumer Cyclical,false
+HINDCOMPOS.NS,Hindustan Composites Limited,Consumer Cyclical,false
+HINDCON.NS,Hindcon Chemicals Limited,Basic Materials,false
+HINDOILEXP.NS,Hindustan Oil Exploration Company Limited,Energy,false
+HINDWAREAP.NS,Hindware Home Innovation Limited,Consumer Cyclical,false
+HINDZINC.NS,Hindustan Zinc Limited,Basic Materials,false
+HIRECT.NS,Hind Rectifiers Limited,Industrials,false
+HISARMETAL.NS,Hisar Metal Industries Limited,Basic Materials,false
+HITECH.NS,Hi-Tech Pipes Limited,Basic Materials,false
+HITECHCORP.NS,Hitech Corporation Limited,Consumer Cyclical,false
+HITECHGEAR.NS,The Hi-Tech Gears Limited,Consumer Cyclical,false
+HLEGLAS.NS,HLE Glascoat Limited,Industrials,false
+HLVLTD.NS,HLV LIMITED,Consumer Cyclical,false
+HMAAGRO.NS,HMA Agro Industries Limited,Consumer Defensive,false
+HMVL.NS,Hindustan Media Ventures Limited,Communication Services,false
+HNDFDS.NS,Hindustan Foods Limited,Industrials,false
+HOMEFIRST.NS,Home First Finance Company India Limited,Financial Services,false
+HONASA.NS,Honasa Consumer Limited,Consumer Defensive,false
+HONAUT.NS,Honeywell Automation India Limited,Industrials,false
+HONDAPOWER.NS,Honda India Power Products Limited,Industrials,false
+HPAL.NS,HP Adhesives Limited,Basic Materials,false
+HPIL.NS,Hindprakash Industries Limited,Basic Materials,false
+HPL.NS,HPL Electric & Power Limited,Industrials,false
+HSCL.NS,Himadri Speciality Chemical Limited,Basic Materials,false
+HTMEDIA.NS,HT Media Limited,Communication Services,false
+HUBTOWN.NS,Hubtown Limited,Real Estate,false
+HUDCO.NS,Housing & Urban Development Corporation Limited,Financial Services,false
+HUHTAMAKI.NS,Huhtamaki India Limited,Consumer Cyclical,false
+HYBRIDFIN.NS,Hybrid Financial Services Limited,Financial Services,false
+HYUNDAI.NS,Hyundai Motor India Limited,Consumer Cyclical,false
+IBULLSLTD.NS,Indiabulls Limited,Real Estate,false
+ICDSLTD.NS,ICDS Limited,Real Estate,false
+ICEMAKE.NS,Ice Make Refrigeration Limited,Industrials,false
+ICICIAMC.NS,ICICI Prudential Asset Management Company Limited,Financial Services,false
+ICIL.NS,Indo Count Industries Limited,Consumer Cyclical,false
+ICRA.NS,ICRA Limited,Financial Services,false
+IDBI.NS,IDBI Bank Limited,Financial Services,false
+IDEAFORGE.NS,Ideaforge Technology Limited,Technology,false
+IEX.NS,Indian Energy Exchange Limited,Financial Services,false
+IFBAGRO.NS,IFB Agro Industries Limited,Consumer Defensive,false
+IFBIND.NS,IFB Industries Limited,Consumer Cyclical,false
+IFCI.NS,IFCI Limited,Financial Services,false
+IFGLEXPOR.NS,IFGL Refractories Limited,Basic Materials,false
+IGARASHI.NS,Igarashi Motors India Limited,Consumer Cyclical,false
+IGCL.NS,Indogulf Cropsciences Limited,Basic Materials,false
+IGIL.NS,International Gemological Institute Limited,Basic Materials,false
+IGL.NS,Indraprastha Gas Limited,Utilities,false
+IGPL.NS,IG Petrochemicals Limited,Basic Materials,false
+IIFL.NS,IIFL Finance Limited,Financial Services,false
+IIFLCAPS.NS,IIFL Capital Services Limited,Financial Services,false
+IITL.NS,Industrial Investment Trust Limited,Financial Services,false
+IKIO.NS,IKIO Technologies Limited,Technology,false
+IKS.NS,Inventurus Knowledge Solutions Limited,Healthcare,false
+IMAGICAA.NS,Imagicaaworld Entertainment Limited,Communication Services,false
+IMFA.NS,Indian Metals & Ferro Alloys Limited,Basic Materials,false
+IMPAL.NS,India Motor Parts and Accessories Limited,Consumer Cyclical,false
+INA.NS,Insolation Energy Limited,Technology,false
+INCREDIBLE.NS,INCREDIBLE INDUSTRIES LIMITED,Basic Materials,false
+INDBANK.NS,Indbank Merchant Banking Services Limited,Financial Services,false
+INDGN.NS,Indegene Limited,Healthcare,false
+INDHOTEL.NS,The Indian Hotels Company Limited,Consumer Cyclical,false
+INDIACEM.NS,The India Cements Limited,Basic Materials,false
+INDIAGLYCO.NS,India Glycols Limited,Basic Materials,false
+INDIAMART.NS,Indiamart Intermesh Limited,Communication Services,false
+INDIANCARD.NS,Indian Card Clothing Company Limited,Consumer Cyclical,false
+INDIANHUME.NS,Indian Hume Pipe Company Limited,Industrials,false
+INDIASHLTR.NS,India Shelter Finance Corporation Limited,Financial Services,false
+INDIGOPNTS.NS,Indigo Paints Limited,Basic Materials,false
+INDIQUBE.NS,Indiqube Spaces Limited,Real Estate,false
+INDNIPPON.NS,India Nippon Electricals Limited,Consumer Cyclical,false
+INDOAMIN.NS,Indo Amines Limited,Basic Materials,false
+INDOBORAX.NS,Indo Borax & Chemicals Limited,Basic Materials,false
+INDOCO.NS,Indoco Remedies Limited,Healthcare,false
+INDOFARM.NS,Indo Farm Equipment Limited,Industrials,false
+INDORAMA.NS,Indo Rama Synthetics (India) Limited,Consumer Cyclical,false
+INDOSTAR.NS,IndoStar Capital Finance Limited,Financial Services,false
+INDOTECH.NS,Indo Tech Transformers Limited,Industrials,false
+INDOTHAI.NS,Indo Thai Securities Limited,Financial Services,false
+INDOUS.NS,Indo Us Biotech Limited,Basic Materials,false
+INDOWIND.NS,Indowind Energy Limited,Utilities,false
 INDPRUD.NS,Industrial & Prudential Investment Company Limited,NSE Listed,false
-INDRAMEDCO.NS,Indraprastha Medical Corporation Limited,NSE Listed,false
-INDSWFTLAB.NS,Ind-Swift Laboratories Limited,NSE Listed,false
-INDTERRAIN.NS,Indian Terrain Fashions Limited,NSE Listed,false
-INFOBEAN.NS,InfoBeans Technologies Limited,NSE Listed,false
-INFOMEDIA.NS,Infomedia Press Limited,NSE Listed,false
-INGERRAND.NS,Ingersoll Rand (India) Limited,NSE Listed,false
-INNOVACAP.NS,Innova Captab Limited,NSE Listed,false
-INNOVANA.NS,Innovana Thinklabs Limited,NSE Listed,false
-INNOVISION.NS,Innovision Limited,NSE Listed,false
-INOXGREEN.NS,Inox Green Energy Services Limited,NSE Listed,false
-INOXINDIA.NS,INOX India Limited,NSE Listed,false
-INOXWIND.NS,Inox Wind Limited,NSE Listed,false
-INSECTICID.NS,Insecticides (India) Limited,NSE Listed,false
-INSPIRISYS.NS,Inspirisys Solutions Limited,NSE Listed,false
-INTELLECT.NS,Intellect Design Arena Limited,NSE Listed,false
-INTENTECH.NS,Intense Technologies Limited,NSE Listed,false
-INTERARCH.NS,Interarch Building Solutions Limited,NSE Listed,false
-INTLCONV.NS,International Conveyors Limited,NSE Listed,false
-INVENTURE.NS,Inventure Growth & Securities Limited,NSE Listed,false
+INDRAMEDCO.NS,Indraprastha Medical Corporation Limited,Healthcare,false
+INDSWFTLAB.NS,Ind-Swift Laboratories Limited,Healthcare,false
+INDTERRAIN.NS,Indian Terrain Fashions Limited,Consumer Cyclical,false
+INFOBEAN.NS,InfoBeans Technologies Limited,Technology,false
+INFOMEDIA.NS,Infomedia Press Limited,Financial Services,false
+INGERRAND.NS,Ingersoll Rand (India) Limited,Industrials,false
+INNOVACAP.NS,Innova Captab Limited,Healthcare,false
+INNOVANA.NS,Innovana Thinklabs Limited,Technology,false
+INNOVISION.NS,Innovision Limited,Industrials,false
+INOXGREEN.NS,Inox Green Energy Services Limited,Utilities,false
+INOXINDIA.NS,INOX India Limited,Industrials,false
+INOXWIND.NS,Inox Wind Limited,Industrials,false
+INSECTICID.NS,Insecticides (India) Limited,Basic Materials,false
+INSPIRISYS.NS,Inspirisys Solutions Limited,Technology,false
+INTELLECT.NS,Intellect Design Arena Limited,Technology,false
+INTENTECH.NS,Intense Technologies Limited,Technology,false
+INTERARCH.NS,Interarch Building Solutions Limited,Industrials,false
+INTLCONV.NS,International Conveyors Limited,Industrials,false
+INVENTURE.NS,Inventure Growth & Securities Limited,Financial Services,false
 INVPRECQ.NS,Investment & Precision Castings Limited,NSE Listed,false
-IOLCP.NS,IOL Chemicals and Pharmaceuticals Limited,NSE Listed,false
-IONEXCHANG.NS,ION Exchange (India) Limited,NSE Listed,false
-IPL.NS,India Pesticides Limited,NSE Listed,false
-IRB.NS,IRB Infrastructure Developers Limited,NSE Listed,false
-IRIS.NS,IRIS RegTech Solutions Limited,NSE Listed,false
-IRISDOREME.NS,Iris Clothings Limited,NSE Listed,false
-IRMENERGY.NS,IRM Energy Limited,NSE Listed,false
-ISFT.NS,Intrasoft Technologies Limited,NSE Listed,false
-ISGEC.NS,Isgec Heavy Engineering Limited,NSE Listed,false
-ISHANCH.NS,Ishan Dyes and Chemicals Limited,NSE Listed,false
-ITCHOTELS.NS,ITC Hotels Limited,NSE Listed,false
-ITDC.NS,India Tourism Development Corporation Limited,NSE Listed,false
-ITI.NS,ITI Limited,NSE Listed,false
-IVALUE.NS,Ivalue Infosolutions Limited,NSE Listed,false
-IVC.NS,IL&FS Investment Managers Limited,NSE Listed,false
-IVP.NS,IVP Limited,NSE Listed,false
+IOLCP.NS,IOL Chemicals and Pharmaceuticals Limited,Healthcare,false
+IONEXCHANG.NS,ION Exchange (India) Limited,Industrials,false
+IPL.NS,India Pesticides Limited,Basic Materials,false
+IRB.NS,IRB Infrastructure Developers Limited,Industrials,false
+IRIS.NS,IRIS RegTech Solutions Limited,Technology,false
+IRISDOREME.NS,Iris Clothings Limited,Consumer Cyclical,false
+IRMENERGY.NS,IRM Energy Limited,Utilities,false
+ISFT.NS,Intrasoft Technologies Limited,Consumer Cyclical,false
+ISGEC.NS,Isgec Heavy Engineering Limited,Industrials,false
+ISHANCH.NS,Ishan Dyes and Chemicals Limited,Basic Materials,false
+ITCHOTELS.NS,ITC Hotels Limited,Consumer Cyclical,false
+ITDC.NS,India Tourism Development Corporation Limited,Consumer Cyclical,false
+ITI.NS,ITI Limited,Technology,false
+IVALUE.NS,Ivalue Infosolutions Limited,Technology,false
+IVC.NS,IL&FS Investment Managers Limited,Financial Services,false
+IVP.NS,IVP Limited,Basic Materials,false
 IWP.NS,The Indian Wood Products Company Limited,NSE Listed,false
-IXIGO.NS,Le Travenues Technology Limited,NSE Listed,false
-IZMO.NS,IZMO Limited,NSE Listed,false
-J&KBANK.NS,The Jammu & Kashmir Bank Limited,NSE Listed,false
-JAGRAN.NS,Jagran Prakashan Limited,NSE Listed,false
-JAGSNPHARM.NS,Jagsonpal Pharmaceuticals Limited,NSE Listed,false
-JAIBALAJI.NS,Jai Balaji Industries Limited,NSE Listed,false
-JAICORPLTD.NS,Jai Corp Limited,NSE Listed,false
-JAINREC.NS,Jain Resource Recycling Limited,NSE Listed,false
-JAIPURKURT.NS,Nandani Creation Limited,NSE Listed,false
-JAMNAAUTO.NS,Jamna Auto Industries Limited,NSE Listed,false
-JARO.NS,Jaro Institute of Technology Management and Research Limited,NSE Listed,false
-JASH.NS,Jash Engineering Limited,NSE Listed,false
-JAYAGROGN.NS,Jayant Agro Organics Limited,NSE Listed,false
-JAYBARMARU.NS,Jay Bharat Maruti Limited,NSE Listed,false
-JAYKAY.NS,Jaykay Enterprises Limited,NSE Listed,false
-JAYNECOIND.NS,Jayaswal Neco Industries Limited,NSE Listed,false
-JAYSREETEA.NS,Jayshree Tea & Industries Limited,NSE Listed,false
-JBMA.NS,JBM Auto Limited,NSE Listed,false
+IXIGO.NS,Le Travenues Technology Limited,Consumer Cyclical,false
+IZMO.NS,IZMO Limited,Technology,false
+J&KBANK.NS,The Jammu & Kashmir Bank Limited,Financial Services,false
+JAGRAN.NS,Jagran Prakashan Limited,Communication Services,false
+JAGSNPHARM.NS,Jagsonpal Pharmaceuticals Limited,Healthcare,false
+JAIBALAJI.NS,Jai Balaji Industries Limited,Basic Materials,false
+JAICORPLTD.NS,Jai Corp Limited,Basic Materials,false
+JAINREC.NS,Jain Resource Recycling Limited,Basic Materials,false
+JAIPURKURT.NS,Nandani Creation Limited,Consumer Cyclical,false
+JAMNAAUTO.NS,Jamna Auto Industries Limited,Consumer Cyclical,false
+JARO.NS,Jaro Institute of Technology Management and Research Limited,Consumer Defensive,false
+JASH.NS,Jash Engineering Limited,Industrials,false
+JAYAGROGN.NS,Jayant Agro Organics Limited,Basic Materials,false
+JAYBARMARU.NS,Jay Bharat Maruti Limited,Consumer Cyclical,false
+JAYKAY.NS,Jaykay Enterprises Limited,Industrials,false
+JAYNECOIND.NS,Jayaswal Neco Industries Limited,Basic Materials,false
+JAYSREETEA.NS,Jayshree Tea & Industries Limited,Consumer Defensive,false
+JBMA.NS,JBM Auto Limited,Consumer Cyclical,false
 JETFREIGHT.NS,Jet Freight Logistics Limited,NSE Listed,false
-JGCHEM.NS,J.G.Chemicals Limited,NSE Listed,false
-JHS.NS,JHS Svendgaard Laboratories Limited,NSE Listed,false
+JGCHEM.NS,J.G.Chemicals Limited,Basic Materials,false
+JHS.NS,JHS Svendgaard Laboratories Limited,Consumer Defensive,false
 JINDALPHOT.NS,Jindal Photo Limited,NSE Listed,false
-JINDALPOLY.NS,Jindal Poly Films Limited,NSE Listed,false
+JINDALPOLY.NS,Jindal Poly Films Limited,Consumer Cyclical,false
 JINDALSAW.NS,Jindal Saw Limited,NSE Listed,false
 JINDRILL.NS,Jindal Drilling And Industries Limited,NSE Listed,false
 JINDWORLD.NS,Jindal Worldwide Limited,NSE Listed,false
 JISLDVREQS.NS,Jain Irrigation Systems Limited,NSE Listed,false
 JISLJALEQS.NS,Jain Irrigation Systems Limited,NSE Listed,false
-JITFINFRA.NS,JITF Infralogistics Limited,NSE Listed,false
+JITFINFRA.NS,JITF Infralogistics Limited,Industrials,false
 JKIL.NS,J.Kumar Infraprojects Limited,NSE Listed,false
 JKIPL.NS,Jinkushal Industries Limited,NSE Listed,false
 JKLAKSHMI.NS,JK Lakshmi Cement Limited,NSE Listed,false
-JKPAPER.NS,JK Paper Limited,NSE Listed,false
+JKPAPER.NS,JK Paper Limited,Basic Materials,false
 JKTYRE.NS,JK Tyre & Industries Limited,NSE Listed,false
 JLHL.NS,Jupiter Life Line Hospitals Limited,NSE Listed,false
 JMA.NS,Jullundur Motor Agency (Delhi) Limited,NSE Listed,false
-JMFINANCIL.NS,JM Financial Limited,NSE Listed,false
+JMFINANCIL.NS,JM Financial Limited,Financial Services,false
 JNKINDIA.NS,JNK India Limited,NSE Listed,false
 JOCIL.NS,Jocil Limited,NSE Listed,false
 JPOLYINVST.NS,Jindal Poly Investment and Finance Company Limited,NSE Listed,false
-JPPOWER.NS,Jaiprakash Power Ventures Limited,NSE Listed,false
+JPPOWER.NS,Jaiprakash Power Ventures Limited,Utilities,false
 JSFB.NS,Jana Small Finance Bank Limited,NSE Listed,false
 JSL.NS,Jindal Stainless Limited,NSE Listed,false
 JSLL.NS,Jeena Sikho Lifecare Limited,NSE Listed,false
-JSWCEMENT.NS,JSW Cement Limited,NSE Listed,false
+JSWCEMENT.NS,JSW Cement Limited,Basic Materials,false
 JSWDULUX.NS,JSW Dulux Limited,NSE Listed,false
 JSWENERGY.NS,JSW Energy Limited,NSE Listed,false
 JSWHL.NS,JSW Holdings Limited,NSE Listed,false
-JSWINFRA.NS,JSW Infrastructure Limited,NSE Listed,false
+JSWINFRA.NS,JSW Infrastructure Limited,Industrials,false
 JTEKTINDIA.NS,Jtekt India Limited,NSE Listed,false
 JTLIND.NS,JTL INDUSTRIES LIMITED,NSE Listed,false
 JUBLCPL.NS,Jubilant Agri and Consumer Products Limited,NSE Listed,false
-JUBLINGREA.NS,Jubilant Ingrevia Limited,NSE Listed,false
+JUBLINGREA.NS,Jubilant Ingrevia Limited,Basic Materials,false
 JUBLPHARMA.NS,Jubilant Pharmova Limited,NSE Listed,false
 JUNIPER.NS,Juniper Hotels Limited,NSE Listed,false
 JUSTDIAL.NS,Just Dial Limited,NSE Listed,false
-JWL.NS,Jupiter Wagons Limited,NSE Listed,false
+JWL.NS,Jupiter Wagons Limited,Industrials,false
 JYOTHYLAB.NS,Jyothy Labs Limited,NSE Listed,false
 JYOTICNC.NS,Jyoti CNC Automation Limited,NSE Listed,false
 JYOTISTRUC.NS,Jyoti Structures Limited,NSE Listed,false
-KABRAEXTRU.NS,Kabra Extrusion Technik Limited,NSE Listed,false
+KABRAEXTRU.NS,Kabra Extrusion Technik Limited,Industrials,false
 KAJARIACER.NS,Kajaria Ceramics Limited,NSE Listed,false
 KAKATCEM.NS,Kakatiya Cement Sugar & Industries Limited,NSE Listed,false
 KALAMANDIR.NS,Sai Silks (Kalamandir) Limited,NSE Listed,false
-KALPATARU.NS,Kalpataru Limited,NSE Listed,false
+KALPATARU.NS,Kalpataru Limited,Real Estate,false
 KALYANI.NS,Kalyani Commercials Limited,NSE Listed,false
 KALYANIFRG.NS,Kalyani Forge Limited,NSE Listed,false
-KALYANKJIL.NS,Kalyan Jewellers India Limited,NSE Listed,false
+KALYANKJIL.NS,Kalyan Jewellers India Limited,Consumer Cyclical,false
 KAMAHOLD.NS,Kama Holdings Limited,NSE Listed,false
 KAMATHOTEL.NS,Kamat Hotels (I) Limited,NSE Listed,false
 KAMDHENU.NS,Kamdhenu Limited,NSE Listed,false
-KAMOPAINTS.NS,Kamdhenu Ventures Limited,NSE Listed,false
+KAMOPAINTS.NS,Kamdhenu Ventures Limited,Basic Materials,false
 KANANIIND.NS,Kanani Industries Limited,NSE Listed,false
 KANCHI.NS,Kanchi Karpooram Limited,NSE Listed,false
 KANORICHEM.NS,Kanoria Chemicals & Industries Limited,NSE Listed,false
-KANPRPLA.NS,Kanpur Plastipack Limited,NSE Listed,false
+KANPRPLA.NS,Kanpur Plastipack Limited,Consumer Cyclical,false
 KAPSTON.NS,Kapston Services Limited,NSE Listed,false
 KARMAENG.NS,Karma Energy Limited,NSE Listed,false
 KARURVYSYA.NS,Karur Vysya Bank Limited,NSE Listed,false
-KAUSHALYA.NS,Kaushalya Infrastructure Development Corporation Limited,NSE Listed,false
+KAUSHALYA.NS,Kaushalya Infrastructure Development Corporation Limited,Industrials,false
 KAVDEFENCE.NS,Kavveri Defence & Wireless Technologies Limited,NSE Listed,false
 KAYA.NS,Kaya Limited,NSE Listed,false
 KAYNES.NS,Kaynes Technology India Limited,NSE Listed,false
-KCP.NS,KCP Limited,NSE Listed,false
+KCP.NS,KCP Limited,Basic Materials,false
 KCPSUGIND.NS,KCP Sugar and Industries Corporation Limited,NSE Listed,false
 KDDL.NS,KDDL Limited,NSE Listed,false
 KECL.NS,Kirloskar Electric Company Limited,NSE Listed,false
-KEEPLEARN.NS,DSJ Keep Learning Limited,NSE Listed,false
+KEEPLEARN.NS,DSJ Keep Learning Limited,Consumer Defensive,false
 KELLTONTEC.NS,Kellton Tech Solutions Limited,NSE Listed,false
 KENNAMET.NS,Kennametal India Limited,NSE Listed,false
 KERNEX.NS,Kernex Microsystems (India) Limited,NSE Listed,false
-KESORAMIND.NS,Kesoram Industries Limited,NSE Listed,false
+KESORAMIND.NS,Kesoram Industries Limited,Basic Materials,false
 KEYFINSERV.NS,Keynote Financial Services Limited,NSE Listed,false
 KFINTECH.NS,Kfin Technologies Limited,NSE Listed,false
 KHADIM.NS,Khadim India Limited,NSE Listed,false
-KHAICHEM.NS,Khaitan Chemicals & Fertilizers Limited,NSE Listed,false
+KHAICHEM.NS,Khaitan Chemicals & Fertilizers Limited,Basic Materials,false
 KHAITANLTD.NS,Khaitan (India) Limited,NSE Listed,false
 KHANDSE.NS,Khandwala Securities Limited,NSE Listed,false
 KICL.NS,Kalyani Investment Company Limited,NSE Listed,false
-KILITCH.NS,Kilitch Drugs (India) Limited,NSE Listed,false
+KILITCH.NS,Kilitch Drugs (India) Limited,Healthcare,false
 KIMS.NS,Krishna Institute of Medical Sciences Limited,NSE Listed,false
 KINGFA.NS,Kingfa Science & Technology (India) Limited,NSE Listed,false
 KIOCL.NS,KIOCL Limited,NSE Listed,false
@@ -1216,111 +1216,111 @@ KIRANVYPAR.NS,Kiran Vyapar Limited,NSE Listed,false
 KIRIINDUS.NS,Kiri Industries Limited,NSE Listed,false
 KIRLFER.NS,Kirloskar Ferrous Industries Limited,NSE Listed,false
 KIRLOSBROS.NS,Kirloskar Brothers Limited,NSE Listed,false
-KIRLOSENG.NS,Kirloskar Oil Engines Limited,NSE Listed,false
+KIRLOSENG.NS,Kirloskar Oil Engines Limited,Industrials,false
 KIRLOSIND.NS,Kirloskar Industries Limited,NSE Listed,false
 KIRLPNU.NS,Kirloskar Pneumatic Company Limited,NSE Listed,false
 KISSHT.NS,OnEMI Technology Solutions Limited,NSE Listed,false
-KITEX.NS,Kitex Garments Limited,NSE Listed,false
+KITEX.NS,Kitex Garments Limited,Consumer Cyclical,false
 KKCL.NS,Kewal Kiran Clothing Limited,NSE Listed,false
 KLBRENG-B.NS,Kilburn Engineering Limited,NSE Listed,false
 KMEW.NS,Knowledge Marine & Engineering Works Limited,NSE Listed,false
-KMSUGAR.NS,K.M.Sugar Mills Limited,NSE Listed,false
+KMSUGAR.NS,K.M.Sugar Mills Limited,Consumer Defensive,false
 KNACK.NS,Knack Packaging Limited,NSE Listed,false
 KNAGRI.NS,KN Agri Resources Limited,NSE Listed,false
 KNRCON.NS,KNR Constructions Limited,NSE Listed,false
-KOHINOOR.NS,Kohinoor Foods Limited,NSE Listed,false
+KOHINOOR.NS,Kohinoor Foods Limited,Consumer Defensive,false
 KOKUYOCMLN.NS,Kokuyo Camlin Limited,NSE Listed,false
 KOLTEPATIL.NS,Kolte - Patil Developers Limited,NSE Listed,false
 KOPRAN.NS,Kopran Limited,NSE Listed,false
-KOTARISUG.NS,Kothari Sugars And Chemicals Limited,NSE Listed,false
+KOTARISUG.NS,Kothari Sugars And Chemicals Limited,Consumer Defensive,false
 KOTHARIPET.NS,Kothari Petrochemicals Limited,NSE Listed,false
 KOTHARIPRO.NS,Kothari Products Limited,NSE Listed,false
 KOTIC.NS,Kothari Industrial Corporation Limited,NSE Listed,false
-KOTYARK.NS,Kotyark Industries Limited,NSE Listed,false
+KOTYARK.NS,Kotyark Industries Limited,Basic Materials,false
 KOVAI.NS,Kovai Medical Center & Hospital Limited,NSE Listed,false
 KPEL.NS,K.P. Energy Limited,NSE Listed,false
 KPIGREEN.NS,KPI Green Energy Limited,NSE Listed,false
-KPIL.NS,Kalpataru Projects International Limited,NSE Listed,false
+KPIL.NS,Kalpataru Projects International Limited,Industrials,false
 KPL.NS,Kwality Pharmaceuticals Limited,NSE Listed,false
 KPRMILL.NS,K.P.R. Mill Limited,NSE Listed,false
 KRBL.NS,KRBL Limited,NSE Listed,false
-KREBSBIO.NS,Krebs Biochemicals and Industries Limited,NSE Listed,false
+KREBSBIO.NS,Krebs Biochemicals and Industries Limited,Healthcare,false
 KRIDHANINF.NS,Kridhan Infra Limited,NSE Listed,false
 KRISHANA.NS,Krishana Phoschem Limited,NSE Listed,false
 KRISHIVAL.NS,Krishival Foods Limited,NSE Listed,false
-KRISHNADEF.NS,Krishna Defence And Allied Industries Limited,NSE Listed,false
+KRISHNADEF.NS,Krishna Defence And Allied Industries Limited,Industrials,false
 KRITI.NS,Kriti Industries (India) Limited,NSE Listed,false
 KRITIKA.NS,Kritika Wires Limited,NSE Listed,false
 KRITINUT.NS,Kriti Nutrients Limited,NSE Listed,false
-KRN.NS,KRN Heat Exchanger and Refrigeration Limited,NSE Listed,false
+KRN.NS,KRN Heat Exchanger and Refrigeration Limited,Technology,false
 KRONOX.NS,Kronox Lab Sciences Limited,NSE Listed,false
 KROSS.NS,Kross Limited,NSE Listed,false
 KRSNAA.NS,Krsnaa Diagnostics Limited,NSE Listed,false
-KRYSTAL.NS,Krystal Integrated Services Limited,NSE Listed,false
+KRYSTAL.NS,Krystal Integrated Services Limited,Industrials,false
 KSB.NS,Ksb Limited,NSE Listed,false
 KSCL.NS,Kaveri Seed Company Limited,NSE Listed,false
 KSHINTL.NS,KSH International Limited,NSE Listed,false
-KSHITIJPOL.NS,Kshitij Polyline Limited,NSE Listed,false
+KSHITIJPOL.NS,Kshitij Polyline Limited,Industrials,false
 KSL.NS,Kalyani Steels Limited,NSE Listed,false
 KSOLVES.NS,Ksolves India Limited,NSE Listed,false
 KSR.NS,KSR Footwear Limited,NSE Listed,false
-KTKBANK.NS,The Karnataka Bank Limited,NSE Listed,false
+KTKBANK.NS,The Karnataka Bank Limited,Financial Services,false
 KUANTUM.NS,Kuantum Papers Limited,NSE Listed,false
 KUSUMGAR.NS,Kusumgar Limited,NSE Listed,false
 KWIL.NS,Kwality Wall's (India) Limited,NSE Listed,false
-LAGNAM.NS,Lagnam Spintex Limited,NSE Listed,false
+LAGNAM.NS,Lagnam Spintex Limited,Consumer Cyclical,false
 LAHOTIOV.NS,Lahoti Overseas Limited,NSE Listed,false
 LAL.NS,Lorenzini Apparels Limited,NSE Listed,false
-LALPATHLAB.NS,Dr. Lal Path Labs Ltd.,NSE Listed,false
+LALPATHLAB.NS,Dr. Lal Path Labs Ltd.,Healthcare,false
 LAMBODHARA.NS,Lambodhara Textiles Limited,NSE Listed,false
 LANCORHOL.NS,Lancor Holdings Limited,NSE Listed,false
 LANDMARK.NS,Landmark Cars Limited,NSE Listed,false
 LANDSMILL.NS,Landsmill Green Limited,NSE Listed,false
-LAOPALA.NS,La Opala RG Limited,NSE Listed,false
+LAOPALA.NS,La Opala RG Limited,Consumer Cyclical,false
 LASA.NS,Lasa Supergenerics Limited,NSE Listed,false
 LASERPOWER.NS,Laser Power & Infra Limited,NSE Listed,false
 LATENTVIEW.NS,Latent View Analytics Limited,NSE Listed,false
-LATTEYS.NS,Latteys Industries Limited,NSE Listed,false
+LATTEYS.NS,Latteys Industries Limited,Industrials,false
 LAURUSLABS.NS,Laurus Labs Limited,NSE Listed,false
 LAXMICOT.NS,Laxmi Cotspin Limited,NSE Listed,false
 LAXMIDENTL.NS,Laxmi Dental Limited,NSE Listed,false
-LAXMIINDIA.NS,Laxmi India Finance Limited,NSE Listed,false
+LAXMIINDIA.NS,Laxmi India Finance Limited,Financial Services,false
 LCCINFOTEC.NS,LCC Infotech Limited,NSE Listed,false
 LEMERITE.NS,Le Merite Exports Limited,NSE Listed,false
 LEMONTREE.NS,Lemon Tree Hotels Limited,NSE Listed,false
-LENSKART.NS,Lenskart Solutions Limited,NSE Listed,false
+LENSKART.NS,Lenskart Solutions Limited,Healthcare,false
 LEXUS.NS,Lexus Granito (India) Limited,NSE Listed,false
 LFIC.NS,Lakshmi Finance & Industrial Corporation Limited,NSE Listed,false
 LGBBROSLTD.NS,LG Balakrishnan & Bros Limited,NSE Listed,false
-LGEINDIA.NS,LG Electronics India Limited,NSE Listed,false
+LGEINDIA.NS,LG Electronics India Limited,Technology,false
 LGHL.NS,Laxmi Goldorna House Limited,NSE Listed,false
 LIBAS.NS,Libas Consumer Products Limited,NSE Listed,false
 LIBERTSHOE.NS,Liberty Shoes Limited,NSE Listed,false
-LICHSGFIN.NS,LIC Housing Finance Limited,NSE Listed,false
+LICHSGFIN.NS,LIC Housing Finance Limited,Financial Services,false
 LIKHITHA.NS,Likhitha Infrastructure Limited,NSE Listed,false
 LINC.NS,Linc Limited,NSE Listed,false
 LINCOLN.NS,Lincoln Pharmaceuticals Limited,NSE Listed,false
-LINDEINDIA.NS,Linde India Limited,NSE Listed,false
+LINDEINDIA.NS,Linde India Limited,Basic Materials,false
 LLOYDSENGG.NS,LLOYDS ENGINEERING WORKS LIMITED,NSE Listed,false
 LLOYDSENT.NS,Lloyds Enterprises Limited,NSE Listed,false
-LLOYDSME.NS,Lloyds Metals And Energy Limited,NSE Listed,false
+LLOYDSME.NS,Lloyds Metals And Energy Limited,Basic Materials,false
 LMW.NS,LMW Limited,NSE Listed,false
 LOKESHMACH.NS,Lokesh Machines Limited,NSE Listed,false
 LORDSCHLO.NS,Lords Chloro Alkali Limited,NSE Listed,false
-LOTUSDEV.NS,Sri Lotus Developers and Realty Limited,NSE Listed,false
+LOTUSDEV.NS,Sri Lotus Developers and Realty Limited,Industrials,false
 LOTUSEYE.NS,Lotus Eye Hospital and Institute Limited,NSE Listed,false
 LOVABLE.NS,Lovable Lingerie Limited,NSE Listed,false
 LOYALTEX.NS,Loyal Textile Mills Limited,NSE Listed,false
-LPDC.NS,Landmark Property Development Company Limited,NSE Listed,false
+LPDC.NS,Landmark Property Development Company Limited,Real Estate,false
 LTF.NS,L&T Finance Limited,NSE Listed,false
 LTFOODS.NS,LT Foods Limited,NSE Listed,false
 LTM.NS,LTM Limited,NSE Listed,false
 LUMAXIND.NS,Lumax Industries Limited,NSE Listed,false
-LUMAXTECH.NS,Lumax Auto Technologies Limited,NSE Listed,false
+LUMAXTECH.NS,Lumax Auto Technologies Limited,Consumer Cyclical,false
 LUXIND.NS,Lux Industries Limited,NSE Listed,false
 LXCHEM.NS,Laxmi Organic Industries Limited,NSE Listed,false
 LYKALABS.NS,Lyka Labs Limited,NSE Listed,false
-M&MFIN.NS,Mahindra & Mahindra Financial Services Limited,NSE Listed,false
+M&MFIN.NS,Mahindra & Mahindra Financial Services Limited,Financial Services,false
 MAANALU.NS,Maan Aluminium Limited,NSE Listed,false
 MACPOWER.NS,Macpower CNC Machines Limited,NSE Listed,false
 MADHAV.NS,Madhav Marbles and Granites Limited,NSE Listed,false
@@ -1328,70 +1328,70 @@ MADHAVIPL.NS,Madhav Infra Projects Limited,NSE Listed,false
 MADHUCON.NS,Madhucon Projects Limited,NSE Listed,false
 MADRASFERT.NS,Madras Fertilizers Limited,NSE Listed,false
 MAFATIND.NS,Mafatlal Industries Limited,NSE Listed,false
-MAGADSUGAR.NS,Magadh Sugar & Energy Limited,NSE Listed,false
+MAGADSUGAR.NS,Magadh Sugar & Energy Limited,Consumer Defensive,false
 MAGNUM.NS,Magnum Ventures Limited,NSE Listed,false
 MAHABANK.NS,Bank of Maharashtra,NSE Listed,false
 MAHAPEXLTD.NS,Maha Rashtra Apex Corporation Limited,NSE Listed,false
-MAHASTEEL.NS,Mahamaya Steel Industries Limited,NSE Listed,false
+MAHASTEEL.NS,Mahamaya Steel Industries Limited,Basic Materials,false
 MAHEPC.NS,Mahindra EPC Irrigation Limited,NSE Listed,false
 MAHESHWARI.NS,Maheshwari Logistics Limited,NSE Listed,false
 MAHLIFE.NS,Mahindra Lifespace Developers Limited,NSE Listed,false
-MAHLOG.NS,Mahindra Logistics Limited,NSE Listed,false
+MAHLOG.NS,Mahindra Logistics Limited,Industrials,false
 MAHSCOOTER.NS,Maharashtra Scooters Limited,NSE Listed,false
 MAHSEAMLES.NS,Maharashtra Seamless Limited,NSE Listed,false
 MAITHANALL.NS,Maithan Alloys Limited,NSE Listed,false
-MAJESAUT.NS,Majestic Auto Limited,NSE Listed,false
+MAJESAUT.NS,Majestic Auto Limited,Real Estate,false
 MALLCOM.NS,Mallcom (India) Limited,NSE Listed,false
 MALUPAPER.NS,Malu Paper Mills Limited,NSE Listed,false
 MAMATA.NS,Mamata Machinery Limited,NSE Listed,false
-MANAKALUCO.NS,Manaksia Aluminium Company Limited,NSE Listed,false
+MANAKALUCO.NS,Manaksia Aluminium Company Limited,Basic Materials,false
 MANAKCOAT.NS,Manaksia Coated Metals & Industries Limited,NSE Listed,false
 MANAKSIA.NS,Manaksia Limited,NSE Listed,false
 MANAKSTEEL.NS,Manaksia Steels Limited,NSE Listed,false
-MANALIPETC.NS,Manali Petrochemicals Limited,NSE Listed,false
+MANALIPETC.NS,Manali Petrochemicals Limited,Basic Materials,false
 MANAPPURAM.NS,Manappuram Finance Limited,NSE Listed,false
 MANBA.NS,Manba Finance Limited,NSE Listed,false
 MANCREDIT.NS,Mangal Credit and Fincorp Limited,NSE Listed,false
-MANGALAM.NS,Mangalam Drugs And Organics Limited,NSE Listed,false
+MANGALAM.NS,Mangalam Drugs And Organics Limited,Healthcare,false
 MANGLMCEM.NS,Mangalam Cement Limited,NSE Listed,false
 MANINDS.NS,Man Industries (India) Limited,NSE Listed,false
 MANINFRA.NS,Man Infraconstruction Limited,NSE Listed,false
 MANOMAY.NS,Manomay Tex India Limited,NSE Listed,false
-MANORAMA.NS,Manorama Industries Limited,NSE Listed,false
+MANORAMA.NS,Manorama Industries Limited,Consumer Defensive,false
 MANORG.NS,Mangalam Organics Limited,NSE Listed,false
 MANUGRAPH.NS,Manugraph India Limited,NSE Listed,false
 MANYAVAR.NS,Vedant Fashions Limited,NSE Listed,false
 MAPMYINDIA.NS,C.E. Info Systems Limited,NSE Listed,false
 MARALOVER.NS,Maral Overseas Limited,NSE Listed,false
-MARATHON.NS,Marathon Nextgen Realty Limited,NSE Listed,false
+MARATHON.NS,Marathon Nextgen Realty Limited,Real Estate,false
 MARINE.NS,Marine Electricals (India) Limited,NSE Listed,false
 MARKOLINES.NS,Markolines Pavement Technologies Limited,NSE Listed,false
 MARKSANS.NS,Marksans Pharma Limited,NSE Listed,false
-MARSONS.NS,Marsons Limited,NSE Listed,false
+MARSONS.NS,Marsons Limited,Industrials,false
 MASFIN.NS,MAS Financial Services Limited,NSE Listed,false
 MASKINVEST.NS,Mask Investments Limited,NSE Listed,false
 MASTEK.NS,Mastek Limited,NSE Listed,false
-MASTERTR.NS,Master Trust Limited,NSE Listed,false
+MASTERTR.NS,Master Trust Limited,Financial Services,false
 MATRIMONY.NS,Matrimony.Com Limited,NSE Listed,false
 MAWANASUG.NS,Mawana Sugars Limited,NSE Listed,false
 MAXESTATES.NS,Max Estates Limited,NSE Listed,false
-MAXIND.NS,Max India Limited,NSE Listed,false
+MAXIND.NS,Max India Limited,Healthcare,false
 MAYURUNIQ.NS,Mayur Uniquoters Ltd,NSE Listed,false
 MAZDA.NS,Mazda Limited,NSE Listed,false
 MBAPL.NS,Madhya Bharat Agro Products Limited,NSE Listed,false
-MBEL.NS,M & B Engineering Limited,NSE Listed,false
+MBEL.NS,M & B Engineering Limited,Industrials,false
 MBLINFRA.NS,MBL Infrastructure Limited,NSE Listed,false
 MCCHRLS-B.NS,Mac Charles India Limited,NSE Listed,false
 MCL.NS,M TEK COPPER LIMITED,NSE Listed,false
-MCLEODRUSS.NS,Mcleod Russel India Limited,NSE Listed,false
+MCLEODRUSS.NS,Mcleod Russel India Limited,Consumer Defensive,false
 MCLOUD.NS,Magellanic Cloud Limited,NSE Listed,false
 MEDANTA.NS,Global Health Limited,NSE Listed,false
 MEDIASSIST.NS,Medi Assist Healthcare Services Limited,NSE Listed,false
-MEDICAMEQ.NS,Medicamen Biotech Limited,NSE Listed,false
+MEDICAMEQ.NS,Medicamen Biotech Limited,Healthcare,false
 MEDICO.NS,Medico Remedies Limited,NSE Listed,false
 MEDPLUS.NS,Medplus Health Services Limited,NSE Listed,false
 MEESHO.NS,Meesho Limited,NSE Listed,false
-MEGASTAR.NS,Megastar Foods Limited,NSE Listed,false
+MEGASTAR.NS,Megastar Foods Limited,Consumer Defensive,false
 MEIL.NS,Mangal Electrical Industries Limited,NSE Listed,false
 MENNPIS.NS,Menon Pistons Limited,NSE Listed,false
 MENONBE.NS,Menon Bearings Limited,NSE Listed,false
@@ -1399,74 +1399,74 @@ MERCANTILE.NS,Mercantile Ventures Limited,NSE Listed,false
 MERCURYEV.NS,Mercury Ev-Tech Limited,NSE Listed,false
 METROBRAND.NS,Metro Brands Limited,NSE Listed,false
 METROGLOBL.NS,Metroglobal Limited,NSE Listed,false
-METROPOLIS.NS,Metropolis Healthcare Limited,NSE Listed,false
+METROPOLIS.NS,Metropolis Healthcare Limited,Healthcare,false
 MFML.NS,Mahalaxmi Fabric Mills Limited,NSE Listed,false
 MGEL.NS,Mangalam Global Enterprise Limited,NSE Listed,false
 MGL.NS,Mahanagar Gas Limited,NSE Listed,false
-MHLXMIRU.NS,Mahalaxmi Rubtech Limited,NSE Listed,false
+MHLXMIRU.NS,Mahalaxmi Rubtech Limited,Consumer Cyclical,false
 MHRIL.NS,Mahindra Holidays & Resorts India Limited,NSE Listed,false
 MICEL.NS,MIC Electronics Limited,NSE Listed,false
 MIDHANI.NS,Mishra Dhatu Nigam Limited,NSE Listed,false
-MIDWESTLTD.NS,Midwest Limited,NSE Listed,false
+MIDWESTLTD.NS,Midwest Limited,Basic Materials,false
 MINDACORP.NS,Minda Corporation Limited,NSE Listed,false
 MINDTECK.NS,Mindteck (India) Limited,NSE Listed,false
-MIRZAINT.NS,Mirza International Limited,NSE Listed,false
+MIRZAINT.NS,Mirza International Limited,Consumer Cyclical,false
 MITCON.NS,MITCON Consultancy & Engineering Services Limited,NSE Listed,false
 MITTAL.NS,Mittal Life Style Limited,NSE Listed,false
 MKPL.NS,M K Proteins Limited,NSE Listed,false
 MMFL.NS,MM Forgings Limited,NSE Listed,false
-MMP.NS,MMP Industries Limited,NSE Listed,false
+MMP.NS,MMP Industries Limited,Basic Materials,false
 MMTC.NS,MMTC Limited,NSE Listed,false
 MMWL.NS,Media Matrix Worldwide Limited,NSE Listed,false
 MOBIKWIK.NS,One Mobikwik Systems Limited,NSE Listed,false
-MODINATUR.NS,Modi Naturals Limited,NSE Listed,false
+MODINATUR.NS,Modi Naturals Limited,Consumer Defensive,false
 MODIRUBBER.NS,Modi Rubber Limited,NSE Listed,false
 MODIS.NS,Modis Navnirman Limited,NSE Listed,false
 MODISONLTD.NS,MODISON LIMITED,NSE Listed,false
-MODTHREAD.NS,Modern Threads (India) Limited,NSE Listed,false
+MODTHREAD.NS,Modern Threads (India) Limited,Consumer Cyclical,false
 MOHITIND.NS,Mohit Industries Limited,NSE Listed,false
 MOKSH.NS,Moksh Ornaments Limited,NSE Listed,false
 MOL.NS,Meghmani Organics Limited,NSE Listed,false
-MOLDTECH.NS,Mold-Tek Technologies Limited,NSE Listed,false
+MOLDTECH.NS,Mold-Tek Technologies Limited,Industrials,false
 MOLDTKPAC.NS,Mold-Tek Packaging Limited,NSE Listed,false
 MONARCH.NS,Monarch Networth Capital Limited,NSE Listed,false
 MONEYBOXX.NS,Moneyboxx Finance Limited,NSE Listed,false
-MONTECARLO.NS,Monte Carlo Fashions Limited,NSE Listed,false
+MONTECARLO.NS,Monte Carlo Fashions Limited,Consumer Cyclical,false
 MOREPENLAB.NS,Morepen Laboratories Limited,NSE Listed,false
 MOSCHIP.NS,Moschip Technologies Limited,NSE Listed,false
 MOTILALOFS.NS,Motilal Oswal Financial Services Limited,NSE Listed,false
-MOTISONS.NS,Motisons Jewellers Limited,NSE Listed,false
+MOTISONS.NS,Motisons Jewellers Limited,Consumer Cyclical,false
 MOTOGENFIN.NS,The Motor & General Finance Limited,NSE Listed,false
 MPSLTD.NS,MPS Limited,NSE Listed,false
 MRPL.NS,Mangalore Refinery and Petrochemicals Limited,NSE Listed,false
 MSPL.NS,MSP Steel & Power Limited,NSE Listed,false
 MSTCLTD.NS,Mstc Limited,NSE Listed,false
 MSUMI.NS,Motherson Sumi Wiring India Limited,NSE Listed,false
-MTARTECH.NS,Mtar Technologies Limited,NSE Listed,false
+MTARTECH.NS,Mtar Technologies Limited,Industrials,false
 MTEDUCARE.NS,MT Educare Limited,NSE Listed,false
 MTNL.NS,Mahanagar Telephone Nigam Limited,NSE Listed,false
 MUFIN.NS,Mufin Green Finance Limited,NSE Listed,false
-MUFTI.NS,Credo Brands Marketing Limited,NSE Listed,false
+MUFTI.NS,Credo Brands Marketing Limited,Consumer Cyclical,false
 MUKANDLTD.NS,Mukand Limited,NSE Listed,false
 MUKKA.NS,Mukka Proteins Limited,NSE Listed,false
 MUKTAARTS.NS,Mukta Arts Limited,NSE Listed,false
-MUNJALAU.NS,Munjal Auto Industries Limited,NSE Listed,false
+MUNJALAU.NS,Munjal Auto Industries Limited,Consumer Cyclical,false
 MUNJALSHOW.NS,Munjal Showa Limited,NSE Listed,false
 MURUDCERA.NS,Murudeshwar Ceramics Limited,NSE Listed,false
 MUTHOOTCAP.NS,Muthoot Capital Services Limited,NSE Listed,false
-MUTHOOTMF.NS,Muthoot Microfin Limited,NSE Listed,false
+MUTHOOTMF.NS,Muthoot Microfin Limited,Financial Services,false
 MVGJL.NS,Manoj Vaibhav Gems N Jewellers Limited,NSE Listed,false
 MWL.NS,Mangalam Worldwide Limited,NSE Listed,false
 NACLIND.NS,NACL Industries Limited,NSE Listed,false
-NAGREEKCAP.NS,Nagreeka Capital & Infrastructure Limited,NSE Listed,false
+NAGREEKCAP.NS,Nagreeka Capital & Infrastructure Limited,Financial Services,false
 NAGREEKEXP.NS,Nagreeka Exports Limited,NSE Listed,false
 NAHARCAP.NS,Nahar Capital and Financial Services Limited,NSE Listed,false
 NAHARINDUS.NS,Nahar Industrial Enterprises Limited,NSE Listed,false
-NAHARPOLY.NS,Nahar Poly Films Limited,NSE Listed,false
+NAHARPOLY.NS,Nahar Poly Films Limited,Consumer Cyclical,false
 NAHARSPING.NS,Nahar Spinning Mills Limited,NSE Listed,false
 NAM-INDIA.NS,Nippon Life India Asset Management Limited,NSE Listed,false
 NARMADA.NS,Narmada Agrobase Limited,NSE Listed,false
-NATCAPSUQ.NS,Natural Capsules Limited,NSE Listed,false
+NATCAPSUQ.NS,Natural Capsules Limited,Healthcare,false
 NATCOPHARM.NS,Natco Pharma Limited,NSE Listed,false
 NATHBIOGEN.NS,Nath Bio-Genes (India) Limited,NSE Listed,false
 NATIONALUM.NS,National Aluminium Company Limited,NSE Listed,false
@@ -1474,191 +1474,191 @@ NATIONSTD.NS,National Standard (India) Limited,NSE Listed,false
 NAUKRI.NS,Info Edge (India) Limited,NSE Listed,false
 NAVA.NS,NAVA LIMITED,NSE Listed,false
 NAVKARCORP.NS,Navkar Corporation Limited,NSE Listed,false
-NAVKARURB.NS,Navkar Urbanstructure Limited,NSE Listed,false
+NAVKARURB.NS,Navkar Urbanstructure Limited,Basic Materials,false
 NAVNETEDUL.NS,Navneet Education Limited,NSE Listed,false
 NAZARA.NS,Nazara Technologies Limited,NSE Listed,false
-NBIFIN.NS,N. B. I. Industrial Finance Company Limited,NSE Listed,false
+NBIFIN.NS,N. B. I. Industrial Finance Company Limited,Financial Services,false
 NCLIND.NS,NCL Industries Limited,NSE Listed,false
 NDGL.NS,Naga Dhunseri Group Limited,NSE Listed,false
 NDL.NS,Nandan Denim Limited,NSE Listed,false
 NDLVENTURE.NS,NDL Ventures Limited,NSE Listed,false
-NDRAUTO.NS,Ndr Auto Components Limited,NSE Listed,false
+NDRAUTO.NS,Ndr Auto Components Limited,Consumer Cyclical,false
 NDTV.NS,New Delhi Television Limited,NSE Listed,false
 NEAGI.NS,Neelamalai Agro Industries Limited,NSE Listed,false
 NECCLTD.NS,North Eastern Carrying Corporation Limited,NSE Listed,false
-NECLIFE.NS,Nectar Lifesciences Limited,NSE Listed,false
+NECLIFE.NS,Nectar Lifesciences Limited,Healthcare,false
 NELCAST.NS,Nelcast Limited,NSE Listed,false
 NELCO.NS,NELCO Limited,NSE Listed,false
 NEOGEN.NS,Neogen Chemicals Limited,NSE Listed,false
-NEPHROPLUS.NS,Nephrocare Health Services Limited,NSE Listed,false
+NEPHROPLUS.NS,Nephrocare Health Services Limited,Healthcare,false
 NESCO.NS,Nesco Limited,NSE Listed,false
 NETWEB.NS,Netweb Technologies India Limited,NSE Listed,false
 NETWORK18.NS,Network18 Media & Investments Limited,NSE Listed,false
-NEUEON.NS,Neueon Corporation Limited,NSE Listed,false
+NEUEON.NS,Neueon Corporation Limited,Basic Materials,false
 NEULANDLAB.NS,Neuland Laboratories Limited,NSE Listed,false
 NEWGEN.NS,Newgen Software Technologies Limited,NSE Listed,false
 NEXTMEDIA.NS,Next Mediaworks Limited,NSE Listed,false
-NFL.NS,National Fertilizers Limited,NSE Listed,false
+NFL.NS,National Fertilizers Limited,Basic Materials,false
 NGIL.NS,Nakoda Group of Industries Limited,NSE Listed,false
 NGLFINE.NS,NGL Fine-Chem Limited,NSE Listed,false
 NH.NS,Narayana Hrudayalaya Ltd.,NSE Listed,false
-NIACL.NS,The New India Assurance Company Limited,NSE Listed,false
+NIACL.NS,The New India Assurance Company Limited,Financial Services,false
 NIBE.NS,NIBE Limited,NSE Listed,false
 NIBL.NS,NRB Industrial Bearings Limited,NSE Listed,false
 NIITLTD.NS,NIIT Limited,NSE Listed,false
-NIITMTS.NS,NIIT Learning Systems Limited,NSE Listed,false
+NIITMTS.NS,NIIT Learning Systems Limited,Consumer Defensive,false
 NILAINFRA.NS,Nila Infrastructures Limited,NSE Listed,false
 NILASPACES.NS,Nila Spaces Limited,NSE Listed,false
 NILE.NS,Nile Limited,NSE Listed,false
-NILKAMAL.NS,Nilkamal Limited,NSE Listed,false
+NILKAMAL.NS,Nilkamal Limited,Consumer Cyclical,false
 NIMBSPROJ.NS,Nimbus Projects Limited,NSE Listed,false
 NINSYS.NS,NINtec Systems Limited,NSE Listed,false
 NIPPOBATRY.NS,Indo-National Limited,NSE Listed,false
-NIRAJ.NS,Niraj Cement Structurals Limited,NSE Listed,false
+NIRAJ.NS,Niraj Cement Structurals Limited,Industrials,false
 NIRAJISPAT.NS,Niraj Ispat Industries Limited,NSE Listed,false
 NIRLON.NS,Nirlon Limited,NSE Listed,false
 NITCO.NS,Nitco Limited,NSE Listed,false
-NITINSPIN.NS,Nitin Spinners Limited,NSE Listed,false
+NITINSPIN.NS,Nitin Spinners Limited,Consumer Cyclical,false
 NITIRAJ.NS,Nitiraj Engineers Limited,NSE Listed,false
 NITTAGELA.NS,Nitta Gelatin India Limited,NSE Listed,false
 NIVABUPA.NS,Niva Bupa Health Insurance Company Limited,NSE Listed,false
-NKIND.NS,NK Industries Limited,NSE Listed,false
+NKIND.NS,NK Industries Limited,Consumer Defensive,false
 NLCINDIA.NS,NLC India Limited,NSE Listed,false
 NOCIL.NS,NOCIL Limited,NSE Listed,false
 NOIDATOLL.NS,Noida Toll Bridge Company Limited,NSE Listed,false
-NORBTEAEXP.NS,Norben Tea & Exports Limited,NSE Listed,false
+NORBTEAEXP.NS,Norben Tea & Exports Limited,Consumer Defensive,false
 NORTHARC.NS,Northern Arc Capital Limited,NSE Listed,false
 NOVAAGRI.NS,Nova Agritech Limited,NSE Listed,false
 NOVARTIND.NS,Novartis India Limited,NSE Listed,false
-NPST.NS,Network People Services Technologies Limited,NSE Listed,false
+NPST.NS,Network People Services Technologies Limited,Technology,false
 NRAIL.NS,N R Agarwal Industries Limited,NSE Listed,false
 NRBBEARING.NS,NRB Bearing Limited,NSE Listed,false
 NRL.NS,Nupur Recyclers Limited,NSE Listed,false
-NSIL.NS,Nalwa Sons Investments Limited,NSE Listed,false
+NSIL.NS,Nalwa Sons Investments Limited,Financial Services,false
 NSLNISP.NS,NMDC Steel Limited,NSE Listed,false
 NTPCGREEN.NS,NTPC Green Energy Limited,NSE Listed,false
 NUCLEUS.NS,Nucleus Software Exports Limited,NSE Listed,false
-NURECA.NS,Nureca Limited,NSE Listed,false
+NURECA.NS,Nureca Limited,Healthcare,false
 NUVAMA.NS,Nuvama Wealth Management Limited,NSE Listed,false
 NUVOCO.NS,Nuvoco Vistas Corporation Limited,NSE Listed,false
 OAL.NS,Oriental Aromatics Limited,NSE Listed,false
-OBCL.NS,OBCL Limited,NSE Listed,false
+OBCL.NS,OBCL Limited,Industrials,false
 OCCLLTD.NS,OCCL Limited,NSE Listed,false
 ODIGMA.NS,Odigma Consultancy Solutions Limited,NSE Listed,false
 OILCOUNTUB.NS,Oil Country Tubular Limited,NSE Listed,false
-OLAELEC.NS,Ola Electric Mobility Limited,NSE Listed,false
+OLAELEC.NS,Ola Electric Mobility Limited,Consumer Cyclical,false
 OLECTRA.NS,Olectra Greentech Limited,NSE Listed,false
 OMAXAUTO.NS,Omax Autos Limited,NSE Listed,false
 OMAXE.NS,Omaxe Limited,NSE Listed,false
-OMFREIGHT.NS,Om Freight Forwarders Limited,NSE Listed,false
+OMFREIGHT.NS,Om Freight Forwarders Limited,Industrials,false
 OMINFRAL.NS,OM INFRA LIMITED,NSE Listed,false
 OMNI.NS,Omnitech Engineering Limited,NSE Listed,false
 OMPOWER.NS,Om Power Transmission Limited,NSE Listed,false
-ONELIFECAP.NS,Onelife Capital Advisors Limited,NSE Listed,false
+ONELIFECAP.NS,Onelife Capital Advisors Limited,Financial Services,false
 ONEPOINT.NS,One Point One Solutions Limited,NSE Listed,false
 ONESOURCE.NS,Onesource Specialty Pharma Limited,NSE Listed,false
 ONIDA.NS,Onida Electronics Limited,NSE Listed,false
-ONMOBILE.NS,OnMobile Global Limited,NSE Listed,false
+ONMOBILE.NS,OnMobile Global Limited,Communication Services,false
 ONWARDTEC.NS,Onward Technologies Limited,NSE Listed,false
 OPTIEMUS.NS,Optiemus Infracom Limited,NSE Listed,false
 ORBTEXP.NS,Orbit Exports Limited,NSE Listed,false
-ORCHASP.NS,Orchasp Limited,NSE Listed,false
+ORCHASP.NS,Orchasp Limited,Technology,false
 ORCHPHARMA.NS,Orchid Pharma Limited,NSE Listed,false
 ORICONENT.NS,Oricon Enterprises Limited,NSE Listed,false
 ORIENTALTL.NS,Oriental Trimex Limited,NSE Listed,false
-ORIENTBELL.NS,Orient Bell Limited,NSE Listed,false
+ORIENTBELL.NS,Orient Bell Limited,Industrials,false
 ORIENTCEM.NS,Orient Cement Limited,NSE Listed,false
 ORIENTCER.NS,ORIENT CERATECH LIMITED,NSE Listed,false
 ORIENTELEC.NS,Orient Electric Limited,NSE Listed,false
-ORIENTHOT.NS,Oriental Hotels Limited,NSE Listed,false
+ORIENTHOT.NS,Oriental Hotels Limited,Consumer Cyclical,false
 ORIENTLTD.NS,Orient Press Limited,NSE Listed,false
 ORIENTPPR.NS,Orient Paper & Industries Limited,NSE Listed,false
 ORIENTTECH.NS,Orient Technologies Limited,NSE Listed,false
-ORISSAMINE.NS,The Orissa Minerals Development Company Limited,NSE Listed,false
+ORISSAMINE.NS,The Orissa Minerals Development Company Limited,Basic Materials,false
 ORKLAINDIA.NS,Orkla India Limited,NSE Listed,false
 ORTINGLOBE.NS,ORTIN GLOBAL LIMITED,NSE Listed,false
 OSIAHYPER.NS,Osia Hyper Retail Limited,NSE Listed,false
-OSWALAGRO.NS,Oswal Agro Mills Limited,NSE Listed,false
+OSWALAGRO.NS,Oswal Agro Mills Limited,Real Estate,false
 OSWALGREEN.NS,Oswal Greentech Limited,NSE Listed,false
 OSWALPUMPS.NS,Oswal Pumps Limited,NSE Listed,false
 OSWALSEEDS.NS,ShreeOswal Seeds And Chemicals Limited,NSE Listed,false
-PACEDIGITK.NS,Pace Digitek Limited,NSE Listed,false
+PACEDIGITK.NS,Pace Digitek Limited,Technology,false
 PAISALO.NS,Paisalo Digital Limited,NSE Listed,false
 PAKKA.NS,PAKKA LIMITED,NSE Listed,false
 PALASHSECU.NS,Palash Securities Limited,NSE Listed,false
-PALREDTEC.NS,Palred Technologies Limited,NSE Listed,false
+PALREDTEC.NS,Palred Technologies Limited,Technology,false
 PANACEABIO.NS,Panacea Biotec Limited,NSE Listed,false
 PANACHE.NS,Panache Digilife Limited,NSE Listed,false
 PANAMAPET.NS,Panama Petrochem Limited,NSE Listed,false
-PANSARI.NS,Pansari Developers Limited,NSE Listed,false
+PANSARI.NS,Pansari Developers Limited,Real Estate,false
 PAR.NS,Par Drugs And Chemicals Limited,NSE Listed,false
 PARACABLES.NS,Paramount Communications Limited,NSE Listed,false
 PARADEEP.NS,Paradeep Phosphates Limited,NSE Listed,false
-PARAGMILK.NS,Parag Milk Foods Limited,NSE Listed,false
+PARAGMILK.NS,Parag Milk Foods Limited,Consumer Defensive,false
 PARAS.NS,Paras Defence and Space Technologies Limited,NSE Listed,false
 PARASPETRO.NS,Paras Petrofils Limited,NSE Listed,false
 PARKHOSPS.NS,Park Medi World Limited,NSE Listed,false
-PARKHOTELS.NS,Apeejay Surrendra Park Hotels Limited,NSE Listed,false
+PARKHOTELS.NS,Apeejay Surrendra Park Hotels Limited,Consumer Cyclical,false
 PARSVNATH.NS,Parsvnath Developers Limited,NSE Listed,false
 PASHUPATI.NS,Pashupati Cotspin Limited,NSE Listed,false
 PASUPTAC.NS,Pasupati Acrylon Limited,NSE Listed,false
-PATANJALI.NS,Patanjali Foods Limited,NSE Listed,false
+PATANJALI.NS,Patanjali Foods Limited,Consumer Defensive,false
 PATELENG.NS,Patel Engineering Limited,NSE Listed,false
 PATELRMART.NS,Patel Retail Limited,NSE Listed,false
 PATINTLOG.NS,Patel Integrated Logistics Limited,NSE Listed,false
-PAUSHAKLTD.NS,Paushak Limited,NSE Listed,false
+PAUSHAKLTD.NS,Paushak Limited,Basic Materials,false
 PAVNAIND.NS,Pavna Industries Limited,NSE Listed,false
 PCBL.NS,PCBL Chemical Limited,NSE Listed,false
 PCJEWELLER.NS,PC Jeweller Limited,NSE Listed,false
-PDMJEPAPER.NS,Pudumjee Paper Products Limited,NSE Listed,false
+PDMJEPAPER.NS,Pudumjee Paper Products Limited,Basic Materials,false
 PDSL.NS,PDS Limited,NSE Listed,false
 PEARLPOLY.NS,Pearl Polymers Limited,NSE Listed,false
 PENIND.NS,Pennar Industries Limited,NSE Listed,false
-PENINLAND.NS,Peninsula Land Limited,NSE Listed,false
+PENINLAND.NS,Peninsula Land Limited,Real Estate,false
 PFIZER.NS,Pfizer Limited,NSE Listed,false
 PFOCUS.NS,Prime Focus Limited,NSE Listed,false
 PFS.NS,PTC India Financial Services Limited,NSE Listed,false
-PGEL.NS,PG Electroplast Limited,NSE Listed,false
+PGEL.NS,PG Electroplast Limited,Technology,false
 PGHH.NS,Procter & Gamble Hygiene and Health Care Limited,NSE Listed,false
 PGHL.NS,Procter & Gamble Health Limited,NSE Listed,false
 PGIL.NS,Pearl Global Industries Limited,NSE Listed,false
-PICCADIL.NS,Piccadily Agro Industries Limited,NSE Listed,false
+PICCADIL.NS,Piccadily Agro Industries Limited,Consumer Defensive,false
 PIGL.NS,Power & Instrumentation (Gujarat) Limited,NSE Listed,false
 PILANIINVS.NS,Pilani Investment and Industries Corporation Limited,NSE Listed,false
 PILITA.NS,PIL ITALICA LIFESTYLE LIMITED,NSE Listed,false
-PINELABS.NS,Pine Labs Limited,NSE Listed,false
+PINELABS.NS,Pine Labs Limited,Technology,false
 PIONEEREMB.NS,Pioneer Embroideries Limited,NSE Listed,false
 PIONRINV.NS,Pioneer Investcorp Limited,NSE Listed,false
 PIRAMALFIN.NS,Piramal Finance Limited,NSE Listed,false
-PITTIENG.NS,Pitti Engineering Limited,NSE Listed,false
+PITTIENG.NS,Pitti Engineering Limited,Industrials,false
 PIXTRANS.NS,Pix Transmissions Limited,NSE Listed,false
 PKTEA.NS,The Peria Karamalai Tea & Produce Company Limited,NSE Listed,false
 PLASTIBLEN.NS,Plastiblends India Limited,NSE Listed,false
-PLATIND.NS,Platinum Industries Limited,NSE Listed,false
+PLATIND.NS,Platinum Industries Limited,Basic Materials,false
 PLAZACABLE.NS,Plaza Wires Limited,NSE Listed,false
 PML.NS,Paul Merchants Limited,NSE Listed,false
 PNBGILTS.NS,PNB Gilts Limited,NSE Listed,false
-PNBHOUSING.NS,PNB Housing Finance Limited,NSE Listed,false
+PNBHOUSING.NS,PNB Housing Finance Limited,Financial Services,false
 PNC.NS,Pritish Nandy Communications Limited,NSE Listed,false
 PNCINFRA.NS,PNC Infratech Limited,NSE Listed,false
 PNGJL.NS,P N Gadgil Jewellers Limited,NSE Listed,false
-PNGSREVA.NS,PNGS Reva Diamond Jewellery Limited,NSE Listed,false
+PNGSREVA.NS,PNGS Reva Diamond Jewellery Limited,Consumer Cyclical,false
 POCL.NS,Pondy Oxides & Chemicals Limited,NSE Listed,false
 PODDARMENT.NS,Poddar Pigments Limited,NSE Listed,false
 POKARNA.NS,Pokarna Limited,NSE Listed,false
-POLYMED.NS,Poly Medicure Limited,NSE Listed,false
+POLYMED.NS,Poly Medicure Limited,Healthcare,false
 POLYPLEX.NS,Polyplex Corporation Limited,NSE Listed,false
 PONNIERODE.NS,Ponni Sugars (Erode) Limited,NSE Listed,false
 POONAWALLA.NS,Poonawalla Fincorp Limited,NSE Listed,false
-POWERICA.NS,Powerica Limited,NSE Listed,false
+POWERICA.NS,Powerica Limited,Industrials,false
 POWERINDIA.NS,Hitachi Energy India Limited,NSE Listed,false
 POWERMECH.NS,Power Mech Projects Limited,NSE Listed,false
 PPAP.NS,PPAP Automotive Limited,NSE Listed,false
-PPL.NS,Prakash Pipes Limited,NSE Listed,false
+PPL.NS,Prakash Pipes Limited,Industrials,false
 PPLPHARMA.NS,Piramal Pharma Limited,NSE Listed,false
 PRABHA.NS,Prabha Energy Limited,NSE Listed,false
 PRADPME.NS,Pradeep Metals Limited,NSE Listed,false
-PRAENG.NS,Prajay Engineers Syndicate Limited,NSE Listed,false
+PRAENG.NS,Prajay Engineers Syndicate Limited,Real Estate,false
 PRAJIND.NS,Praj Industries Limited,NSE Listed,false
 PRAKASH.NS,Prakash Industries Limited,NSE Listed,false
 PRAKASHSTL.NS,Prakash Steelage Limited,NSE Listed,false
@@ -1666,23 +1666,23 @@ PRAVEG.NS,Praveg Limited,NSE Listed,false
 PRAXIS.NS,Praxis Home Retail Limited,NSE Listed,false
 PRECAM.NS,Precision Camshafts Limited,NSE Listed,false
 PRECOT.NS,Precot Limited,NSE Listed,false
-PRECWIRE.NS,Precision Wires India Limited,NSE Listed,false
+PRECWIRE.NS,Precision Wires India Limited,Industrials,false
 PREMCO.NS,Premco Global Limited,NSE Listed,false
 PREMEXPLN.NS,Premier Explosives Limited,NSE Listed,false
 PREMIER.NS,Premier Limited,NSE Listed,false
-PREMIERENE.NS,Premier Energies Limited,NSE Listed,false
+PREMIERENE.NS,Premier Energies Limited,Technology,false
 PREMIERPOL.NS,Premier Polyfilm Limited,NSE Listed,false
 PRICOLLTD.NS,Pricol Limited,NSE Listed,false
 PRIMESECU.NS,Prime Securities Limited,NSE Listed,false
-PRIMO.NS,Primo Chemicals Limited,NSE Listed,false
+PRIMO.NS,Primo Chemicals Limited,Basic Materials,false
 PRINCEPIPE.NS,Prince Pipes And Fittings Limited,NSE Listed,false
 PRITI.NS,Priti International Limited,NSE Listed,false
 PRITIKAUTO.NS,Pritika Auto Industries Limited,NSE Listed,false
-PRIVISCL.NS,Privi Speciality Chemicals Limited,NSE Listed,false
+PRIVISCL.NS,Privi Speciality Chemicals Limited,Basic Materials,false
 PROSTARM.NS,Prostarm Info Systems Limited,NSE Listed,false
 PROTEAN.NS,Protean eGov Technologies Limited,NSE Listed,false
 PROZONER.NS,Prozone Realty Limited,NSE Listed,false
-PRSMJOHNSN.NS,Prism Johnson Limited,NSE Listed,false
+PRSMJOHNSN.NS,Prism Johnson Limited,Basic Materials,false
 PRUDENT.NS,Prudent Corporate Advisory Services Limited,NSE Listed,false
 PRUDMOULI.NS,Prudential Sugar Corporation Limited,NSE Listed,false
 PSB.NS,Punjab & Sind Bank,NSE Listed,false
