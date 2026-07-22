@@ -123,13 +123,17 @@ of Gemini.
   - Why: dual sources of truth (defaults in code AND env file) cause drift.
     The `.env.example` documents valid values; `.env` provides them.
   - Reasoning: Twelve-Factor App principle — config in environment, code is config-agnostic
-- 🎯 Recommended primary: `gemini/gemini-2.5-flash`
+-  Recommended primary: `gemini/gemini-flash-latest`
+  - **Use the `-latest` alias, not a pinned version.** Google retires
+    specific version strings (e.g. `gemini-2.5-flash` began returning
+    `404 no longer available to new users`). The `-latest` alias always
+    resolves to the current flash model, so a retirement never breaks you.
   - **Lesson learned in C.6**: Groq models (llama-3.3-70b, gpt-oss-120b)
     reject the assistant-message shape ADK builds for multi-turn tool
     conversations (assistant turn with `thought` + `function_call` parts
     together). Resilient layer falls back, but every conversation wastes
     a roundtrip. Gemini handles this natively.
-- 🎯 Recommended secondary: `gemini/gemini-2.5-flash-lite`
+-  Recommended secondary: `gemini/gemini-flash-lite-latest`
   (note: needs `max_tokens >= 100` for thinking budget)
 - 🎯 Recommended tertiary fallback: `groq/openai/gpt-oss-120b` (free tier,
   fast — only takes over if both Gemini models hit rate limits)
