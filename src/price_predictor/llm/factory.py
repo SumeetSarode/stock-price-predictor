@@ -58,7 +58,7 @@ def make_model(model_name: str) -> LiteLlm:
         model_name: LiteLLM model string. Examples:
             - "groq/openai/gpt-oss-120b"
             - "gemini/gemini-2.5-flash"
-            - "ollama_chat/qwen2.5:7b"   (local, no key; uses ollama_api_base)
+            - "ollama_chat/qwen3:8b"     (local, no key; uses ollama_api_base)
 
     Returns:
         Configured LiteLlm instance ready to pass to LlmAgent(model=...).

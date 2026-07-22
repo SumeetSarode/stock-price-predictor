@@ -18,8 +18,8 @@ class TestKeylessLocalProvider:
     """Ollama models build with an api_base and NO api key."""
 
     def test_ollama_chat_sets_api_base_no_key(self):
-        m = make_model("ollama_chat/qwen2.5:7b")
-        assert m.model == "ollama_chat/qwen2.5:7b"
+        m = make_model("ollama_chat/qwen3:8b")
+        assert m.model == "ollama_chat/qwen3:8b"
         # ADK's LiteLlm stashes extra kwargs in _additional_args.
         assert m._additional_args["api_base"] == settings.ollama_api_base
         # keyless: no api_key was injected.
@@ -31,7 +31,7 @@ class TestKeylessLocalProvider:
 
     def test_api_base_follows_settings(self, monkeypatch):
         monkeypatch.setattr(settings, "ollama_api_base", "http://192.168.1.50:11434")
-        m = make_model("ollama_chat/qwen2.5:7b")
+        m = make_model("ollama_chat/qwen3:8b")
         assert m._additional_args["api_base"] == "http://192.168.1.50:11434"
 
 
@@ -58,12 +58,12 @@ class TestResilientChainWithLocalTail:
         monkeypatch.setattr(
             type(factory.settings),
             "effective_chain",
-            lambda self, profile: ["ollama_chat/qwen2.5:7b", "ollama/llama3.1:8b"],
+            lambda self, profile: ["ollama_chat/qwen3:8b", "ollama/llama3.1:8b"],
         )
         model = make_resilient_model("agentic")
         assert isinstance(model, ResilientModel)
         names = [m.model for m in model.inner_models]
-        assert names == ["ollama_chat/qwen2.5:7b", "ollama/llama3.1:8b"]
+        assert names == ["ollama_chat/qwen3:8b", "ollama/llama3.1:8b"]
         # every inner local model carries the api_base.
         for inner in model.inner_models:
             assert inner._additional_args["api_base"] == settings.ollama_api_base
