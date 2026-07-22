@@ -104,6 +104,28 @@ MODEL_INCOMPATIBILITY_PATTERNS: tuple[str, ...] = (
                              # discipline for nested numeric arrays.
 )
 
+# Substrings in a BadRequestError (400) that mean "this specific MODEL isn't
+# valid/available on this account" -- as opposed to "your REQUEST is malformed".
+# Critically different from a genuine bug: the failure is model-specific, so
+# the NEXT model (different name + provider) will very likely succeed. We MUST
+# fall back on these, never hard-fail the whole prediction.
+#
+# Seen in the wild: Gemini returns a 400 (not 404) for a retired/unavailable
+# alias like 'gemini-flash-latest' with messages such as
+# "... is not found for API version v1beta, or is not supported for
+# generateContent" and "... is no longer available to new users".
+MODEL_AVAILABILITY_400_PATTERNS: tuple[str, ...] = (
+    "not found for api version",
+    "is not found",
+    "not supported for generatecontent",
+    "no longer available",
+    "not available",
+    "is not allowed",
+    "unknown model",
+    "invalid model",
+    "model not found",
+)
+
 # Cooldown durations
 SHORT_COOLDOWN = timedelta(seconds=60)    # per-minute rate limit
 INCOMPAT_COOLDOWN = timedelta(hours=1)    # model can't handle this conversation
@@ -123,6 +145,18 @@ def _is_model_incompatibility(error: BadRequestError) -> bool:
     """
     msg = str(error).lower()
     return any(p in msg for p in MODEL_INCOMPATIBILITY_PATTERNS)
+
+
+def _is_model_availability_400(error: BadRequestError) -> bool:
+    """True if this BadRequest means the MODEL isn't available on this account.
+
+    A retired/unknown model can come back as a 400 (not a 404) -- e.g. Gemini
+    rejecting 'gemini-flash-latest' with 'not found for API version ... or is
+    not supported for generateContent'. This is model-specific, so the next
+    model in the chain will likely work: fall back rather than hard-fail.
+    """
+    msg = str(error).lower()
+    return any(p in msg for p in MODEL_AVAILABILITY_400_PATTERNS)
 
 
 def _is_groq_tool_validation_failure(error: Exception) -> bool:
@@ -159,6 +193,8 @@ def _classify_cooldown(error: Exception) -> timedelta | datetime:
     """
     if isinstance(error, BadRequestError) and _is_model_incompatibility(error):
         return INCOMPAT_COOLDOWN  # 1h: this model fundamentally can't help
+    if isinstance(error, BadRequestError) and _is_model_availability_400(error):
+        return INCOMPAT_COOLDOWN  # 1h: model not available on this account
     if isinstance(error, MODEL_UNAVAILABLE_ERRORS):
         return INCOMPAT_COOLDOWN  # 1h: model not on this account, won't appear
     msg = str(error).lower()
@@ -301,17 +337,21 @@ class ResilientModel(BaseLlm):
                     logger.info("[resilient] success model=%s", model.model)
                     return
                 except BadRequestError as e:
-                    # Sub-classify: model-specific quirk → fall back; otherwise
-                    # genuine bug → raise. (BadRequestError is NOT in
-                    # STRUCTURAL_ERRORS for this reason — it needs sub-handling.)
-                    if _is_model_incompatibility(e):
+                    # Sub-classify: model-specific problem -> fall back;
+                    # genuine malformed request -> raise. (BadRequestError is
+                    # NOT in STRUCTURAL_ERRORS for this reason.)
+                    if _is_model_incompatibility(e) or _is_model_availability_400(e):
                         last_error = e
                         self._set_cooldown(model.model, e)
+                        reason = (
+                            "can't handle this conversation shape"
+                            if _is_model_incompatibility(e)
+                            else "not available on this account"
+                        )
                         logger.warning(
-                            "[resilient] model incompatibility model=%s -- "
-                            "this model can't handle this conversation shape, "
+                            "[resilient] model problem model=%s (%s) -- "
                             "falling back. underlying error: %s",
-                            model.model, str(e)[:300],
+                            model.model, reason, str(e)[:300],
                         )
                         continue
                     logger.error(

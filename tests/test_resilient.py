@@ -36,6 +36,7 @@ from price_predictor.llm.resilient import (
     AllModelsExhaustedError,
     ResilientModel,
     _classify_cooldown,
+    _is_model_availability_400,
     _is_model_incompatibility,
     _next_midnight_utc,
 )
@@ -380,6 +381,55 @@ class TestModelIncompatibility:
         result = _classify_cooldown(err)
         assert result == INCOMPAT_COOLDOWN
         assert result > SHORT_COOLDOWN, "incompat cooldown must outlast rate-limit"
+
+    # ── Model-availability 400 (the gemini-flash-latest bug) ──────────
+    def test_detects_gemini_availability_400_message(self):
+        """The literal Gemini 400 that killed predictions must be detected."""
+        err = BadRequestError(
+            "litellm.BadRequestError: GeminiException - models/gemini-flash-latest "
+            "is not found for API version v1beta, or is not supported for "
+            "generateContent.",
+            model="gemini/gemini-flash-latest", llm_provider="gemini",
+        )
+        assert _is_model_availability_400(err)
+        # and it must NOT be mistaken for a conversation-shape incompatibility
+        assert not _is_model_incompatibility(err)
+
+    def test_availability_400_is_not_a_genuine_bug(self):
+        """A real malformed-request 400 must NOT match availability patterns."""
+        err = BadRequestError(
+            "messages array cannot be empty",
+            model="x", llm_provider="groq",
+        )
+        assert not _is_model_availability_400(err)
+
+    @pytest.mark.asyncio
+    async def test_gemini_availability_400_falls_back_and_succeeds(self):
+        """EXACT repro of the user's bug: bad primary Gemini model must NOT
+        kill the prediction -- it must fall back to Groq and succeed."""
+        err = BadRequestError(
+            "GeminiException - models/gemini-flash-latest is not found for API "
+            "version v1beta, or is not supported for generateContent.",
+            model="gemini/gemini-flash-latest", llm_provider="gemini",
+        )
+        primary = _make_fake("gemini/gemini-flash-latest", error=err)
+        fallback = _make_fake("groq/openai/gpt-oss-120b")  # must be tried
+        m = ResilientModel(inner_models=[primary, fallback])
+
+        responses = [r async for r in m.generate_content_async(_make_request())]
+
+        assert len(responses) == 1, "prediction must still succeed via fallback"
+        assert primary.call_count == 1
+        assert fallback.call_count == 1, "availability 400 must trigger fallback"
+        assert "gemini/gemini-flash-latest" in m.cooldowns
+
+    def test_classify_cooldown_for_availability_400_returns_long(self):
+        err = BadRequestError(
+            "is not found for API version v1beta",
+            model="gemini/gemini-flash-latest", llm_provider="gemini",
+        )
+        result = _classify_cooldown(err)
+        assert result == INCOMPAT_COOLDOWN
 
 
 # ──────────────────────────────────────────────────────────────
