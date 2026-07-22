@@ -234,6 +234,24 @@ git checkout main
 The next time they double-click the icon, they get your update. No action
 needed on their end.
 
+### New `.env` settings ship automatically (keys stay safe)
+
+When you add a **new setting** to `.env.example` (say a new `OLLAMA_API_BASE`),
+the launcher merges it into the user's existing `.env` on their next launch:
+
+- **Add-missing-only.** It only *appends* keys they don't already have.
+- **Their API keys and tweaks are never touched** — every existing line
+  (secrets, `PRICE_CHAIN=yfinance`, custom ports) is left byte-for-byte as-is.
+- **Idempotent.** Once merged, later launches do nothing.
+
+So you never have to walk a non-technical user through editing `.env` again —
+just update `.env.example`, promote to `release`, and the new setting appears
+on their laptop with its documented default.
+
+> **Note:** if you *change the default value* of a setting that already
+> exists in their `.env`, the merge won't overwrite their copy (by design —
+> we won't clobber a user's choice). It only adds brand-new keys.
+
 ---
 
 ## Troubleshooting

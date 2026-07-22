@@ -60,6 +60,16 @@ if errorlevel 1 (
     echo   [warn] Dependency sync had an issue - trying to start anyway.
 )
 
+REM -- 2a. Merge any NEW settings from the refreshed template into your .env.
+REM    ADD-MISSING-ONLY: appends keys you don't have yet (e.g. a new option
+REM    added in an update) while leaving your API keys and all existing
+REM    settings byte-for-byte untouched. Fully non-fatal.
+echo   Checking for new settings...
+uv run python scripts\sync_env.py
+if errorlevel 1 (
+    echo   [info] Settings check skipped - using your .env as-is.
+)
+
 REM -- 2b. Refresh the full NSE stock search index (runs every launch).
 REM    We download NSE's official listed-equity master (EQUITY_L.csv). This
 REM    is a STATIC file on NSE's archives CDN - reachable worldwide, incl.
