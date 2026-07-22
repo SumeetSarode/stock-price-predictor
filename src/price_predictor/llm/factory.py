@@ -39,6 +39,14 @@ _API_KEY_GETTERS: dict[str, Callable[[], str]] = {
     "gemini": lambda: settings.gemini_api_key.get_secret_value(),
 }
 
+# Providers that run LOCALLY and need NO API key -- they need an `api_base`
+# (where the local server listens) instead. LiteLLM routes both
+# 'ollama/<model>' and 'ollama_chat/<model>' to a local Ollama server.
+# Used as the final OFFLINE fallback tier: when every hosted provider
+# (Groq, Gemini) is rate-limited, the chain drops to the local model, which
+# has no quota and no rate limit. See settings.ollama_api_base.
+_KEYLESS_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "ollama_chat"})
+
 
 def make_model(model_name: str) -> LiteLlm:
     """Build a LiteLLM-wrapped model for ADK use. ONE specific model only.
@@ -50,6 +58,7 @@ def make_model(model_name: str) -> LiteLlm:
         model_name: LiteLLM model string. Examples:
             - "groq/openai/gpt-oss-120b"
             - "gemini/gemini-2.5-flash"
+            - "ollama_chat/qwen2.5:7b"   (local, no key; uses ollama_api_base)
 
     Returns:
         Configured LiteLlm instance ready to pass to LlmAgent(model=...).
@@ -58,10 +67,18 @@ def make_model(model_name: str) -> LiteLlm:
         ValueError: if the provider prefix is not registered in _API_KEY_GETTERS.
     """
     provider = model_name.split("/", 1)[0]
+
+    # Local, keyless providers (Ollama): no API key, but a local api_base
+    # pointing at the running Ollama server. This is what lets the resilient
+    # chain fall over to an offline model when hosted providers are exhausted.
+    if provider in _KEYLESS_LOCAL_PROVIDERS:
+        return LiteLlm(model=model_name, api_base=settings.ollama_api_base)
+
     if provider not in _API_KEY_GETTERS:
+        supported = sorted(set(_API_KEY_GETTERS) | _KEYLESS_LOCAL_PROVIDERS)
         raise ValueError(
             f"Unsupported provider: {provider!r}. "
-            f"Supported: {sorted(_API_KEY_GETTERS)}. "
+            f"Supported: {supported}. "
             f"Add an API key + getter to factory.py to enable."
         )
     return LiteLlm(model=model_name, api_key=_API_KEY_GETTERS[provider]())

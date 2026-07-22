@@ -116,6 +116,17 @@ class Settings(BaseSettings):
     paid_agentic: str = Field(validation_alias="PAID_AGENTIC")
     use_paid: bool = Field(default=False, validation_alias="USE_PAID")
 
+    # ── Local model runtime (Ollama) ───────────────────────────────────
+    # Base URL of the local Ollama server. Only consulted when an
+    # 'ollama_chat/*' or 'ollama/*' entry appears in a model chain -- e.g.
+    # as the final OFFLINE fallback after Groq + Gemini are rate-limited.
+    # A local model has no quota and no rate limit (provider_rate_limits
+    # returns (0,0) for 'ollama'/'ollama_chat', so the limiter is a no-op).
+    # Default matches Ollama's out-of-the-box listen address.
+    ollama_api_base: str = Field(
+        default="http://localhost:11434", validation_alias="OLLAMA_API_BASE"
+    )
+
     # ── Per-provider request rate limits (used by llm.rate_limiter) ──────
     # Defaults are slightly under each provider's free-tier ceiling so we
     # leave headroom for clock drift / other tooling sharing the API key.
