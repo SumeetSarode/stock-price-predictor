@@ -50,3 +50,9 @@ reports/
 
 # Smoke-test transcripts (transient; regenerated on each run)
 scripts/smoke_chain_output.txt
+
+# Diagnostic runs: ignore the many timestamped ones, but ALLOW latest.* so
+# the user can commit+push a single result file for review.
+diagnostics/diag_*
+!diagnostics/latest.txt
+!diagnostics/latest.json
