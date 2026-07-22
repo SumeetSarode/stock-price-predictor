@@ -178,31 +178,38 @@ If all that works, you're done.
 
 ---
 
-## Optional — Offline fallback with Ollama (advanced)
+## Offline fallback with Ollama (mostly automatic)
 
 By default the app uses free hosted AI (Gemini + Groq). Those have daily
-limits; when they run out, predictions pause until the quota resets. If you
-want the app to **keep working even when the free quotas are exhausted**, you
-can add a local AI model that runs on the laptop itself — no internet, no
-quota. This is optional; skip it if the hosted free tiers are enough.
+limits; when they run out, predictions would normally pause until the quota
+resets. To keep the app working **even when the free quotas are exhausted**,
+it falls back to a local AI model that runs on the laptop itself — no
+internet, no quota.
+
+**The launcher sets this up for you.** Every time the desktop icon is
+double-clicked, it automatically:
+
+1. Checks whether Ollama is installed — and if not, tries to install it
+   silently via `winget`.
+2. Starts the Ollama server if it isn't already running.
+3. Pulls the configured model (`qwen3:8b`) if it isn't downloaded yet
+   (a one-time ~5 GB download; you'll see progress in the black window).
+
+After the first successful launch, the fallback is ready and later launches
+just confirm it in a second. Every step is **non-fatal** — if Ollama can't be
+set up (no winget, offline, etc.), the app still starts on the hosted AI.
 
 > **Hardware note:** the local model runs on the CPU and needs ~5 GB free
 > disk + ~8 GB free RAM. On a 16 GB laptop it works but is slower than the
 > hosted models — which is fine, because it only kicks in as a last resort.
 
-1. **Install Ollama:** download from https://ollama.com/download and run the
-   Windows installer. It starts automatically and runs in the background.
-2. **Pull the model** — open PowerShell and run:
-   ```powershell
-   ollama pull qwen3:8b
-   ollama list          # should list qwen3:8b (~5 GB)
-   ```
-3. **That's it.** The app is already configured to use it as the final
-   fallback (`ollama_chat/qwen3:8b` is in `.env`'s `CHAIN_AGENTIC`). On
-   startup it checks the model is present and logs a warning if it isn't.
+> **If auto-install doesn't work** (some machines lack `winget`): install
+> Ollama by hand from https://ollama.com/download, then just relaunch — the
+> launcher pulls the model on its own from there.
 
 > **To turn it off:** open `.env` in Notepad and delete the
-> `,ollama_chat/qwen3:8b` at the end of the `CHAIN_AGENTIC` line. Save.
+> `,ollama_chat/qwen3:8b` at the end of the `CHAIN_AGENTIC` line. Save. The
+> launcher then skips all Ollama setup.
 
 ---
 

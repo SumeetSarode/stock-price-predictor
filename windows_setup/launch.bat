@@ -70,6 +70,16 @@ if errorlevel 1 (
     echo   [info] Settings check skipped - using your .env as-is.
 )
 
+REM -- 2b. Make the offline AI fallback actually usable: ensure Ollama is
+REM    installed + running + the model pulled. Only does work if your chain
+REM    includes a local model. First run may download a few GB (one-time).
+REM    Fully non-fatal - the app still starts on hosted AI if this can't finish.
+echo   Checking the offline AI fallback (Ollama)...
+uv run python scripts\ensure_ollama.py
+if errorlevel 1 (
+    echo   [info] Offline fallback setup skipped - hosted AI still works.
+)
+
 REM -- 2b. Refresh the full NSE stock search index (runs every launch).
 REM    We download NSE's official listed-equity master (EQUITY_L.csv). This
 REM    is a STATIC file on NSE's archives CDN - reachable worldwide, incl.
