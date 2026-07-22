@@ -297,7 +297,9 @@ async def check_gdelt() -> dict[str, Any]:
     end = date.today()
     start = end - timedelta(days=7)
     probes: list[dict[str, Any]] = []
-    for q in ("Infosys", "ITC"):
+    for i, q in enumerate(("Infosys", "ITC")):
+        if i:
+            await asyncio.sleep(6)  # GDELT rate-limits bursts (429)
         try:
             df = await fetch_news(q, start.isoformat(), end.isoformat(), max_records=3)
             sample = str(df.iloc[0]["title"])[:70] if len(df) else ""
@@ -418,6 +420,7 @@ def main() -> None:
     print("  [3/6] live model probes done")
 
     results["gdelt_news"] = asyncio.run(check_gdelt())
+    time.sleep(8)  # let GDELT's rate-limit window recover before the floor burst
     results["gdelt_floor"] = check_gdelt_floor()
     _write(results)
     print("  [4/6] GDELT news + query-floor check done")
