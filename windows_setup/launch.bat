@@ -61,9 +61,9 @@ if errorlevel 1 (
 )
 
 REM -- 2a. Merge any NEW settings from the refreshed template into your .env.
-REM    ADD-MISSING-ONLY: appends keys you don't have yet (e.g. a new option
-REM    added in an update) while leaving your API keys and all existing
-REM    settings byte-for-byte untouched. Fully non-fatal.
+REM    Adds keys you don't have yet, and updates app-managed keys (the model
+REM    chain) to the latest values - while leaving your API keys and personal
+REM    settings (PRICE_CHAIN, ports) byte-for-byte untouched. Fully non-fatal.
 echo   Checking for new settings...
 uv run python scripts\sync_env.py
 if errorlevel 1 (

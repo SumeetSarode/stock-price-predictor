@@ -236,21 +236,25 @@ needed on their end.
 
 ### New `.env` settings ship automatically (keys stay safe)
 
-When you add a **new setting** to `.env.example` (say a new `OLLAMA_API_BASE`),
-the launcher merges it into the user's existing `.env` on their next launch:
+When you update `.env.example` and promote to `release`, the launcher syncs
+the change into the user's existing `.env` on their next launch:
 
-- **Add-missing-only.** It only *appends* keys they don't already have.
-- **Their API keys and tweaks are never touched** — every existing line
-  (secrets, `PRICE_CHAIN=yfinance`, custom ports) is left byte-for-byte as-is.
-- **Idempotent.** Once merged, later launches do nothing.
+- **New keys are added.** Any key they don't have yet (e.g. a brand-new
+  `OLLAMA_API_BASE`) is appended with its documented default.
+- **App-managed keys are updated.** The model chains — `CHAIN_AGENTIC` and
+  `PAID_AGENTIC` — are "owned" by the app: if you change their value in
+  `.env.example` (e.g. add an Ollama fallback tail), the user's line is
+  updated to match. **This is how model/chain changes reach every laptop.**
+- **Their API keys and personal tweaks are NEVER touched.** Secrets,
+  `PRICE_CHAIN=yfinance`, custom ports — all left byte-for-byte as-is.
+- **Idempotent.** Once synced, later launches do nothing.
 
-So you never have to walk a non-technical user through editing `.env` again —
-just update `.env.example`, promote to `release`, and the new setting appears
-on their laptop with its documented default.
+So to push a model/chain change to every deployed laptop: edit `CHAIN_AGENTIC`
+in `.env.example`, promote to `release`, done. Their next launch picks it up.
 
-> **Note:** if you *change the default value* of a setting that already
-> exists in their `.env`, the merge won't overwrite their copy (by design —
-> we won't clobber a user's choice). It only adds brand-new keys.
+> **Want another key to auto-update too?** Add it to the `MANAGED_KEYS` set
+> in `scripts/sync_env.py`. Keep that list tiny and NEVER add secrets or
+> user/geo-specific settings — those must stay user-owned.
 
 ---
 
