@@ -117,19 +117,23 @@ class TestGdeltKeyword:
         assert _gdelt_keyword("Reliance Industries", exact_phrase=False) == "Reliance Industries"
 
     def test_short_name_keeps_bare_name_matchable_via_or_group(self):
-        # The ITC bug: must NOT become the exact phrase "ITC Limited" (that
-        # would miss every article that says only "ITC"). Keep "ITC" matchable.
+        # PROVEN: GDELT rejects any sub-floor term even inside an OR, so the
+        # bare 3-char name must NOT appear alone. We OR finance-qualified
+        # phrases that each clear the floor.
         kw = _gdelt_keyword("ITC", exact_phrase=True)
-        assert kw == '("ITC" OR "ITC Limited")'
-        assert '"ITC"' in kw  # bare name still a matchable term
+        assert kw.startswith('("ITC Limited" OR ')
+        assert '"ITC shares"' in kw
+        assert '"ITC"' not in kw  # bare sub-floor term must never be emitted
 
     def test_short_name_or_group_regardless_of_tier(self):
-        # Short names need length on BOTH tiers, so the OR group is used even
-        # when exact_phrase is False.
-        assert _gdelt_keyword("MRF", exact_phrase=False) == '("MRF" OR "MRF Limited")'
+        # Short names need qualified phrases on BOTH tiers (bare name is
+        # unusable), so the OR group is used even when exact_phrase is False.
+        kw = _gdelt_keyword("MRF", exact_phrase=False)
+        assert kw.startswith('("MRF Limited" OR ')
+        assert '"MRF stock"' in kw
 
     def test_whitespace_trimmed(self):
-        assert _gdelt_keyword("  ITC  ", exact_phrase=True) == '("ITC" OR "ITC Limited")'
+        assert _gdelt_keyword("  ITC  ", exact_phrase=True).startswith('("ITC Limited" OR ')
 
     def test_short_name_already_suffixed_left_alone(self):
         assert _gdelt_keyword("X Ltd", exact_phrase=True) == '"X Ltd"'
@@ -168,13 +172,15 @@ class TestBuildParams:
         assert params["query"] == '"Infosys" sourcelang:eng sourcecountry:IN'
 
     def test_short_name_is_padded_to_clear_gdelt_floor(self):
-        """The ITC bug: keep "ITC" matchable via an OR group, don't replace it."""
+        """The ITC bug: emit qualified phrases, never the bare sub-floor name."""
         params = _build_params(
             "ITC", datetime(2024, 1, 1, tzinfo=UTC),
             datetime(2024, 1, 31, tzinfo=UTC), lang="eng", max_records=250,
             source_country="IN",
         )
-        assert params["query"] == '("ITC" OR "ITC Limited") sourcelang:eng sourcecountry:IN'
+        assert params["query"].startswith('("ITC Limited" OR ')
+        assert params["query"].endswith("sourcelang:eng sourcecountry:IN")
+        assert '"ITC"' not in params["query"]
 
     def test_short_name_padded_even_when_loose(self):
         params = _build_params(
@@ -182,7 +188,8 @@ class TestBuildParams:
             datetime(2024, 1, 31, tzinfo=UTC), lang="eng", max_records=250,
             exact_phrase=False,
         )
-        assert params["query"] == '("MRF" OR "MRF Limited") sourcelang:eng'
+        assert params["query"].startswith('("MRF Limited" OR ')
+        assert params["query"].endswith("sourcelang:eng")
 
 
 # ─────────────────────────────────────────────────────────────

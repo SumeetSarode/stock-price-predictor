@@ -93,35 +93,39 @@ def _to_gdelt_datetime(dt: datetime, *, end_of_day: bool) -> str:
     return dt.strftime("%Y%m%d") + suffix
 
 
-# GDELT's Doc API rejects very short free-text queries with a plain-text
-# "Your query was too short" body (which then fails JSON parsing). Short
-# NSE names are common: ITC, MRF, DLF, ACC, PVR, IEX, IOC ... all 3 chars.
+# GDELT's Doc API rejects any quoted phrase below a minimum length with a
+# plain-text "The specified phrase is too short." body (which then fails
+# JSON parsing). Short NSE names are common: ITC, MRF, DLF, ACC, PVR, IEX,
+# IOC ... all 3 chars.
 #
-# The fix must ADD length WITHOUT losing recall: news articles say just
-# "ITC", so we must NOT replace the name with "ITC Limited" (that exact
-# phrase would miss every "ITC"-only article). Instead we emit an OR group
-# that KEEPS the bare name as the primary matchable term and appends the
-# corporate-form variant purely to clear the length floor:
-#     "ITC"  ->  ("ITC" OR "ITC Limited")
-# Recall on plain "ITC" is preserved; the variant just lengthens the query.
-# The exact floor is empirical; scripts/diagnose.py verifies it live off-VPN.
-_MIN_GDELT_QUERY_CHARS = 5
-_CORP_SUFFIX = "Limited"
+# PROVEN LIVE (scripts/diagnose.py floor probe, off-VPN):
+#   "IT"                      -> REJECTED (too short)
+#   "ITCXYZ"                  -> ACCEPTED
+#   ("ITC" OR "ITC Limited")  -> REJECTED (too short)   <-- key finding
+# GDELT validates the SHORTEST term, so a bare 3-char name is unusable even
+# inside an OR group. We therefore must NOT emit the bare name at all for
+# short tickers. Instead we OR together finance-QUALIFIED phrases that are
+# each safely above the floor AND actually occur in Indian market coverage
+# ("ITC Limited", "ITC shares", ...). This clears the floor and, as a bonus,
+# filters out junk (a bare "ITC" would also match unrelated 'IT' chatter).
+_MIN_GDELT_QUERY_CHARS = 6
+_SHORT_NAME_QUALIFIERS = ("Limited", "Ltd", "shares", "stock", "share price")
 
 
 def _gdelt_keyword(name: str, *, exact_phrase: bool) -> str:
     """Build the GDELT keyword expression for a company name.
 
     Normal-length names: a quoted phrase (exact tier) or bare tokens
-    (loose tier). Short names: an OR group that keeps the bare name
-    matchable and adds a corporate-form variant only to satisfy GDELT's
-    minimum-length floor -- we never replace the name.
+    (loose tier). Short names (below GDELT's per-term floor): an OR group
+    of finance-qualified phrases -- the bare name is NEVER emitted alone
+    because GDELT rejects any sub-floor term, even inside an OR.
     """
     n = name.strip()
     if len(n) >= _MIN_GDELT_QUERY_CHARS or n.lower().endswith(("ltd", "limited")):
         return f'"{n}"' if exact_phrase else n
-    # Short acronym: keep "ITC" matchable, add length via an OR variant.
-    return f'("{n}" OR "{n} {_CORP_SUFFIX}")'
+    # Short ticker: only qualified phrases, each safely above the floor.
+    variants = " OR ".join(f'"{n} {q}"' for q in _SHORT_NAME_QUALIFIERS)
+    return f"({variants})"
 
 
 def _build_params(

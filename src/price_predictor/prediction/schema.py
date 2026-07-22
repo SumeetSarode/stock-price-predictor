@@ -48,11 +48,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import Annotated
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    WithJsonSchema,
     computed_field,
     model_validator,
 )
@@ -60,6 +62,35 @@ from pydantic import (
 from price_predictor.prediction.trading_calendar import (
     target_datetime_for_horizon,
 )
+
+# ─────────────────────────────────────────────────────────────
+# Gemini-safe fixed-length pair.
+# ─────────────────────────────────────────────────────────────
+# A Python ``tuple[float, float]`` keeps the model hashable (frozen=True +
+# tuple fields -> Prediction usable as a dict key / set member for batch
+# de-dup). BUT Pydantic serialises a fixed-length tuple to JSON Schema
+# using ``prefixItems`` (draft 2020-12) with NO ``items`` key. Google's
+# Gemini ``response_schema`` validator rejects that outright:
+#
+#   GenerateContentRequest...response_schema.properties[entry_zone].items:
+#   missing field.
+#
+# ...which 400s the WHOLE structured-output prediction. Confirmed live via
+# scripts/diagnose.py end-to-end probe. Fix: keep the tuple type (so
+# runtime behaviour + hashability are unchanged) but override the emitted
+# JSON Schema to the homogeneous ``items`` form Gemini understands. A JSON
+# array [lo, hi] still validates back into a 2-tuple exactly as before.
+FloatPair = Annotated[
+    tuple[float, float],
+    WithJsonSchema(
+        {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 2,
+            "maxItems": 2,
+        }
+    ),
+]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -284,7 +315,7 @@ class Prediction(BaseModel):
             "impossible-to-reach 'certainty' (so we never emit it)."
         ),
     )
-    entry_zone: tuple[float, float] = Field(
+    entry_zone: FloatPair = Field(
         ...,
         description=(
             "Suggested entry range (low, high). Both must be > 0 and "

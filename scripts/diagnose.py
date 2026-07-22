@@ -232,20 +232,26 @@ def check_chain_models(discovered_flash: list[str]) -> list[dict[str, Any]]:
 def check_gdelt_floor() -> dict[str, Any]:
     """Measure GDELT's ACTUAL minimum-query behavior, bypassing our padding.
 
-    Hits GDELT directly with RAW quoted single-word queries of increasing
-    length ('IT', 'ITC', 'ITCX', ...) and records, for each, whether GDELT
-    returned JSON (accepted) or a 'too short'-style rejection. This tells us
-    the real floor from data instead of a guessed constant. Read-only.
+    Hits GDELT directly with RAW queries and records, for each, whether
+    GDELT returned JSON (accepted) or a 'too short'-style rejection. This
+    tells us the real floor from data instead of a guessed constant.
+
+    NOTE: GDELT rate-limits bursts (HTTP 429), so we sleep between probes --
+    an earlier run got 429s that masked the real answer. Read-only.
     """
     end = date.today()
     start = end - timedelta(days=7)
     sd = start.strftime("%Y%m%d") + "000000"
     ed = end.strftime("%Y%m%d") + "235959"
     probes: list[dict[str, Any]] = []
-    # length 2..6 single tokens, plus the real 'ITC' and our OR-group fix.
+    # length 2..6 single tokens, the (proven-broken) bare-name OR group, and
+    # the ACTUAL fix: an OR of finance-qualified phrases (each above floor).
     raw_terms = ['"IT"', '"ITC"', '"ITCX"', '"ITCXY"', '"ITCXYZ"',
-                 '("ITC" OR "ITC Limited")']
-    for term in raw_terms:
+                 '("ITC" OR "ITC Limited")',
+                 '("ITC Limited" OR "ITC shares" OR "ITC stock")']
+    for i, term in enumerate(raw_terms):
+        if i:
+            time.sleep(6)  # avoid GDELT's burst rate-limit (429)
         q = f"{term} sourcelang:eng"
         url = (
             "https://api.gdeltproject.org/api/v2/doc/doc?"

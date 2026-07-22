@@ -132,6 +132,44 @@ class TestJSONAndHashing:
         # And usable in sets
         assert {p, p} == {p}
 
+    def test_entry_zone_json_schema_is_gemini_safe(self):
+        """Regression: entry_zone must emit `items`, never `prefixItems`.
+
+        A bare tuple[float, float] serialises to JSON Schema with
+        `prefixItems` and NO `items` -- which Google's Gemini
+        response_schema validator 400s ('properties[entry_zone].items:
+        missing field'), killing the whole structured-output prediction.
+        Confirmed live off-VPN. FloatPair overrides the schema to the
+        `items` form; this locks it so nobody reverts to a raw tuple.
+        """
+        ez = Prediction.model_json_schema()["properties"]["entry_zone"]
+        assert ez["type"] == "array"
+        assert ez.get("items") == {"type": "number"}
+        assert ez.get("minItems") == 2 and ez.get("maxItems") == 2
+        assert "prefixItems" not in ez
+
+    def test_no_prefixitems_anywhere_in_schema(self):
+        """No field in the whole Prediction schema may use prefixItems.
+
+        Gemini rejects prefixItems outright, so any fixed-length tuple
+        field would silently reintroduce the entry_zone 400. Guard the
+        entire tree, not just entry_zone.
+        """
+        import json
+
+        blob = json.dumps(Prediction.model_json_schema())
+        assert "prefixItems" not in blob
+
+    def test_entry_zone_json_array_coerces_to_tuple(self):
+        """A JSON array [lo, hi] (what Gemini returns) must load as a tuple,
+        preserving hashability + index access downstream."""
+        kw = _valid_bullish_kwargs()
+        kw["entry_zone"] = [1450.0, 1470.0]  # list, as JSON gives us
+        p = Prediction(**kw)
+        assert isinstance(p.entry_zone, tuple)
+        assert p.entry_zone == (1450.0, 1470.0)
+        assert hash(p) is not None
+
 
 # ─────────────────────────────────────────────────────────────
 # 3. Immutability (frozen contract)
