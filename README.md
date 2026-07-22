@@ -78,6 +78,39 @@ cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
 > `.env` to skip the blocked tiers — fetches drop to ~2s. (The Windows
 > installer asks about this automatically.)
 
+### Optional: local Ollama fallback (offline, no quota)
+
+The LLM chain can end in a **local Ollama model** as an offline last resort.
+It fires only when every hosted provider (Gemini + Groq) is rate-limited, so
+the app keeps working even when your free-tier quotas run dry. It's already
+wired into `CHAIN_AGENTIC` (the `ollama_chat/qwen3:8b` tail) — you just need
+Ollama installed and the model pulled.
+
+1. **Install Ollama** — https://ollama.com/download
+   - **macOS:** `brew install ollama` (or the .dmg)
+   - **Windows:** run the installer from the site
+   - **Linux:** `curl -fsSL https://ollama.com/install.sh | sh`
+2. **Start the server** (the desktop app does this automatically; headless:)
+   ```bash
+   ollama serve
+   ```
+3. **Pull the fallback model** (matches the chain tail):
+   ```bash
+   ollama pull qwen3:8b
+   ollama list          # confirm qwen3:8b (~5 GB) is on disk
+   ```
+4. **Done.** On startup the app runs a guard that logs a warning if the
+   configured model isn't pulled — so you'll know before you need it.
+
+> **Don't want the local fallback?** Just delete the `,ollama_chat/qwen3:8b`
+> tail from `CHAIN_AGENTIC` in `.env`. Everything else works unchanged.
+>
+> **Ollama on a different machine?** (e.g. app on a server, Ollama on your
+> laptop) set `OLLAMA_API_BASE=http://<that-host>:11434` in `.env`, and on
+> the Ollama box run `OLLAMA_HOST=0.0.0.0 ollama serve` so it accepts remote
+> connections. Pick a model that fits that machine's RAM (16 GB → `qwen3:8b`
+> or `qwen2.5:7b`; smaller boxes → `qwen2.5:3b`).
+
 ### Run — CLI
 
 ```bash

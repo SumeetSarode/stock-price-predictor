@@ -43,6 +43,7 @@ from rich.table import Table
 
 from price_predictor.cli.backtest_cmd import backtest_command
 from price_predictor.config.settings import settings
+from price_predictor.llm.ollama_guard import warn_if_local_models_missing
 from price_predictor.prediction import (
     BatchError,
     CalibrationReport,
@@ -67,6 +68,18 @@ app = typer.Typer(
     help="Free, local Nifty50 trading prediction system.",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def _startup(ctx: typer.Context) -> None:
+    """Pre-command hook: verify the offline Ollama fallback model is ready.
+
+    Only runs when an actual subcommand is invoked (skips bare `--help`).
+    Non-fatal: logs a warning if the local fallback model isn't pulled,
+    never blocks the command.
+    """
+    if ctx.invoked_subcommand is not None:
+        warn_if_local_models_missing()
 
 # Single shared Console - typer creates its own internally, but having
 # our own lets us style consistently across commands.

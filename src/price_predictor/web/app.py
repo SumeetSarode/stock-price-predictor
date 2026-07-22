@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from price_predictor._version import __version__
+from price_predictor.llm.ollama_guard import warn_if_local_models_missing
 from price_predictor.web.routes import api, pages
 from price_predictor.web.services.scheduler import grading_loop
 from price_predictor.web.settings import settings
@@ -28,6 +29,9 @@ async def _lifespan(app: FastAPI):
     — which is exactly what the test suite relies on.
     """
     task: asyncio.Task | None = None
+    # Startup guard: warn (never fail) if the offline Ollama fallback model
+    # isn't pulled, so it's not discovered mid-outage when it's needed most.
+    warn_if_local_models_missing()
     if settings.enable_scheduler:
         task = asyncio.create_task(
             grading_loop(

@@ -178,6 +178,34 @@ If all that works, you're done.
 
 ---
 
+## Optional — Offline fallback with Ollama (advanced)
+
+By default the app uses free hosted AI (Gemini + Groq). Those have daily
+limits; when they run out, predictions pause until the quota resets. If you
+want the app to **keep working even when the free quotas are exhausted**, you
+can add a local AI model that runs on the laptop itself — no internet, no
+quota. This is optional; skip it if the hosted free tiers are enough.
+
+> **Hardware note:** the local model runs on the CPU and needs ~5 GB free
+> disk + ~8 GB free RAM. On a 16 GB laptop it works but is slower than the
+> hosted models — which is fine, because it only kicks in as a last resort.
+
+1. **Install Ollama:** download from https://ollama.com/download and run the
+   Windows installer. It starts automatically and runs in the background.
+2. **Pull the model** — open PowerShell and run:
+   ```powershell
+   ollama pull qwen3:8b
+   ollama list          # should list qwen3:8b (~5 GB)
+   ```
+3. **That's it.** The app is already configured to use it as the final
+   fallback (`ollama_chat/qwen3:8b` is in `.env`'s `CHAIN_AGENTIC`). On
+   startup it checks the model is present and logs a warning if it isn't.
+
+> **To turn it off:** open `.env` in Notepad and delete the
+> `,ollama_chat/qwen3:8b` at the end of the `CHAIN_AGENTIC` line. Save.
+
+---
+
 ## Phase 7 — Hand it over
 
 Tell the non-technical user just three things:
