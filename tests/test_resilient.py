@@ -161,6 +161,35 @@ class TestTransientFallback:
         assert "b" in m.cooldowns
         assert "c" not in m.cooldowns
 
+    @pytest.mark.asyncio
+    async def test_ollama_tail_catches_when_all_hosted_rate_limited(self):
+        """Mirror the REAL chain: Gemini + both Groq models rate-limited,
+        local Ollama tail (no quota) catches and succeeds.
+
+        This is the exact scenario the offline fallback exists for: every
+        hosted provider is 429'd, and the pipeline still returns an answer
+        instead of raising AllModelsExhaustedError.
+        """
+        def rl(provider: str) -> RateLimitError:
+            return RateLimitError("429", llm_provider=provider, model="x")
+
+        gemini = _make_fake("gemini/gemini-2.5-flash", error=rl("gemini"))
+        groq1 = _make_fake("groq/openai/gpt-oss-120b", error=rl("groq"))
+        groq2 = _make_fake("groq/llama-3.3-70b-versatile", error=rl("groq"))
+        ollama = _make_fake("ollama_chat/qwen2.5:7b")  # local, succeeds
+        m = ResilientModel(inner_models=[gemini, groq1, groq2, ollama])
+
+        responses = [r async for r in m.generate_content_async(_make_request())]
+
+        assert len(responses) == 1, "Ollama tail should have produced a response"
+        # all three hosted models were tried and cooled down
+        assert gemini.call_count == 1
+        assert groq1.call_count == 1
+        assert groq2.call_count == 1
+        # the local tail was reached and succeeded (never cooled down)
+        assert ollama.call_count == 1
+        assert "ollama_chat/qwen2.5:7b" not in m.cooldowns
+
 
 # ──────────────────────────────────────────────────────────────
 # Structural errors NEVER trigger fallback (would mask bugs)
