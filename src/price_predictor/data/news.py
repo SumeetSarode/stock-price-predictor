@@ -93,6 +93,37 @@ def _to_gdelt_datetime(dt: datetime, *, end_of_day: bool) -> str:
     return dt.strftime("%Y%m%d") + suffix
 
 
+# GDELT's Doc API rejects very short free-text queries with a plain-text
+# "Your query was too short" body (which then fails JSON parsing). Short
+# NSE names are common: ITC, MRF, DLF, ACC, PVR, IEX, IOC ... all 3 chars.
+#
+# The fix must ADD length WITHOUT losing recall: news articles say just
+# "ITC", so we must NOT replace the name with "ITC Limited" (that exact
+# phrase would miss every "ITC"-only article). Instead we emit an OR group
+# that KEEPS the bare name as the primary matchable term and appends the
+# corporate-form variant purely to clear the length floor:
+#     "ITC"  ->  ("ITC" OR "ITC Limited")
+# Recall on plain "ITC" is preserved; the variant just lengthens the query.
+# The exact floor is empirical; scripts/diagnose.py verifies it live off-VPN.
+_MIN_GDELT_QUERY_CHARS = 5
+_CORP_SUFFIX = "Limited"
+
+
+def _gdelt_keyword(name: str, *, exact_phrase: bool) -> str:
+    """Build the GDELT keyword expression for a company name.
+
+    Normal-length names: a quoted phrase (exact tier) or bare tokens
+    (loose tier). Short names: an OR group that keeps the bare name
+    matchable and adds a corporate-form variant only to satisfy GDELT's
+    minimum-length floor -- we never replace the name.
+    """
+    n = name.strip()
+    if len(n) >= _MIN_GDELT_QUERY_CHARS or n.lower().endswith(("ltd", "limited")):
+        return f'"{n}"' if exact_phrase else n
+    # Short acronym: keep "ITC" matchable, add length via an OR variant.
+    return f'("{n}" OR "{n} {_CORP_SUFFIX}")'
+
+
 def _build_params(
     query: str,
     start_dt: datetime,
@@ -117,7 +148,7 @@ def _build_params(
       ``sourcecountry:``. Left off by default; the relevance ladder in
       ``fetch_news_relevant`` adds it as the most-specific first tier.
     """
-    phrase = f'"{query}"' if exact_phrase else query
+    phrase = _gdelt_keyword(query, exact_phrase=exact_phrase)
     parts = [phrase, f"sourcelang:{lang}"]
     if source_country:
         parts.append(f"sourcecountry:{source_country}")

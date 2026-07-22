@@ -26,6 +26,7 @@ import json
 import platform
 import sys
 import time
+import urllib.parse
 import urllib.request
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -96,12 +97,25 @@ def _render_txt(r: dict[str, Any]) -> str:
 
     news = r.get("gdelt_news", {})
     lines.append("\n[GDELT NEWS]")
-    if news.get("ok"):
-        lines.append(f"  OK - {news['rows']} headline(s) for {news['query']!r}")
-        if news.get("sample"):
-            lines.append(f"  sample: {news['sample']}")
-    else:
+    for p in news.get("probes", []):
+        if p["ok"]:
+            lines.append(f"  [OK  ] {p['query']:10s} {p['rows']} headline(s)  {p.get('sample','')}")
+        else:
+            lines.append(f"  [FAIL] {p['query']:10s} {p['error'][:90]}")
+    if not news.get("probes"):
         lines.append(f"  FAILED: {news.get('error')}")
+
+    floor = r.get("gdelt_floor", {})
+    if floor.get("probes"):
+        lines.append("\n[GDELT QUERY-LENGTH FLOOR] (raw probes, bypassing our padding)")
+        for p in floor["probes"]:
+            if p["accepted"] is True:
+                mark = "ACCEPTED"
+            elif p["accepted"] is False:
+                mark = "REJECTED"
+            else:
+                mark = "ERROR   "
+            lines.append(f"  [{mark}] {p['term']:28s} {p['note']}")
 
     oll = r.get("ollama", {})
     lines.append("\n[OLLAMA]")
@@ -215,17 +229,72 @@ def check_chain_models(discovered_flash: list[str]) -> list[dict[str, Any]]:
     return [probe_model(m) for m in candidates]
 
 
+def check_gdelt_floor() -> dict[str, Any]:
+    """Measure GDELT's ACTUAL minimum-query behavior, bypassing our padding.
+
+    Hits GDELT directly with RAW quoted single-word queries of increasing
+    length ('IT', 'ITC', 'ITCX', ...) and records, for each, whether GDELT
+    returned JSON (accepted) or a 'too short'-style rejection. This tells us
+    the real floor from data instead of a guessed constant. Read-only.
+    """
+    end = date.today()
+    start = end - timedelta(days=7)
+    sd = start.strftime("%Y%m%d") + "000000"
+    ed = end.strftime("%Y%m%d") + "235959"
+    probes: list[dict[str, Any]] = []
+    # length 2..6 single tokens, plus the real 'ITC' and our OR-group fix.
+    raw_terms = ['"IT"', '"ITC"', '"ITCX"', '"ITCXY"', '"ITCXYZ"',
+                 '("ITC" OR "ITC Limited")']
+    for term in raw_terms:
+        q = f"{term} sourcelang:eng"
+        url = (
+            "https://api.gdeltproject.org/api/v2/doc/doc?"
+            f"query={urllib.parse.quote(q)}&mode=ArtList&format=json"
+            f"&maxrecords=1&startdatetime={sd}&enddatetime={ed}"
+        )
+        try:
+            with urllib.request.urlopen(url, timeout=20) as r:
+                body = r.read().decode("utf-8", "replace")
+            try:
+                json.loads(body)
+                probes.append({"term": term, "accepted": True, "note": "valid JSON"})
+            except ValueError:
+                probes.append({
+                    "term": term, "accepted": False,
+                    "note": body.strip()[:120] or "non-JSON body",
+                })
+        except Exception as exc:
+            probes.append({"term": term, "accepted": None,
+                           "note": f"{type(exc).__name__}: {exc}"})
+    return {"probes": probes}
+
+
 async def check_gdelt() -> dict[str, Any]:
+    """Probe GDELT with a normal name AND a short acronym (ITC) -- the latter
+    proves the too-short-query padding fix works live."""
     from price_predictor.data.news import fetch_news
 
     end = date.today()
     start = end - timedelta(days=7)
-    try:
-        df = await fetch_news("Infosys", start.isoformat(), end.isoformat(), max_records=3)
-        sample = str(df.iloc[0]["title"])[:70] if len(df) else ""
-        return {"ok": True, "query": "Infosys", "rows": len(df), "sample": sample}
-    except Exception as exc:
-        return {"ok": False, "query": "Infosys", "error": f"{type(exc).__name__}: {exc}"}
+    probes: list[dict[str, Any]] = []
+    for q in ("Infosys", "ITC"):
+        try:
+            df = await fetch_news(q, start.isoformat(), end.isoformat(), max_records=3)
+            sample = str(df.iloc[0]["title"])[:70] if len(df) else ""
+            probes.append({"query": q, "ok": True, "rows": len(df), "sample": sample})
+        except Exception as exc:
+            probes.append({"query": q, "ok": False, "error": f"{type(exc).__name__}: {exc}"})
+    # Top-level ok = every probe succeeded (short-name fix included).
+    ok = all(p["ok"] for p in probes)
+    first = probes[0]
+    return {
+        "ok": ok,
+        "query": first["query"],
+        "rows": first.get("rows", 0),
+        "sample": first.get("sample", ""),
+        "error": next((p["error"] for p in probes if not p["ok"]), None),
+        "probes": probes,
+    }
 
 
 def check_ollama() -> dict[str, Any]:
@@ -329,8 +398,9 @@ def main() -> None:
     print("  [3/6] live model probes done")
 
     results["gdelt_news"] = asyncio.run(check_gdelt())
+    results["gdelt_floor"] = check_gdelt_floor()
     _write(results)
-    print("  [4/6] GDELT news check done")
+    print("  [4/6] GDELT news + query-floor check done")
 
     results["ollama"] = check_ollama()
     _write(results)

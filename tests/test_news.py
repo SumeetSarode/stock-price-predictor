@@ -26,6 +26,7 @@ from price_predictor.data.news import (
     GDELT_DOC_URL,
     NewsFetchError,
     _build_params,
+    _gdelt_keyword,
     _iter_windows,
     _normalize_articles,
     _parse_seendate,
@@ -108,6 +109,32 @@ class TestToGdeltDatetime:
 # ─────────────────────────────────────────────────────────────
 # _build_params
 # ─────────────────────────────────────────────────────────────
+class TestGdeltKeyword:
+    def test_long_name_exact_is_quoted(self):
+        assert _gdelt_keyword("Reliance Industries", exact_phrase=True) == '"Reliance Industries"'
+
+    def test_long_name_loose_is_bare(self):
+        assert _gdelt_keyword("Reliance Industries", exact_phrase=False) == "Reliance Industries"
+
+    def test_short_name_keeps_bare_name_matchable_via_or_group(self):
+        # The ITC bug: must NOT become the exact phrase "ITC Limited" (that
+        # would miss every article that says only "ITC"). Keep "ITC" matchable.
+        kw = _gdelt_keyword("ITC", exact_phrase=True)
+        assert kw == '("ITC" OR "ITC Limited")'
+        assert '"ITC"' in kw  # bare name still a matchable term
+
+    def test_short_name_or_group_regardless_of_tier(self):
+        # Short names need length on BOTH tiers, so the OR group is used even
+        # when exact_phrase is False.
+        assert _gdelt_keyword("MRF", exact_phrase=False) == '("MRF" OR "MRF Limited")'
+
+    def test_whitespace_trimmed(self):
+        assert _gdelt_keyword("  ITC  ", exact_phrase=True) == '("ITC" OR "ITC Limited")'
+
+    def test_short_name_already_suffixed_left_alone(self):
+        assert _gdelt_keyword("X Ltd", exact_phrase=True) == '"X Ltd"'
+
+
 class TestBuildParams:
     def test_exact_phrase_quotes_query_by_default(self):
         params = _build_params(
@@ -139,6 +166,23 @@ class TestBuildParams:
             source_country="IN",
         )
         assert params["query"] == '"Infosys" sourcelang:eng sourcecountry:IN'
+
+    def test_short_name_is_padded_to_clear_gdelt_floor(self):
+        """The ITC bug: keep "ITC" matchable via an OR group, don't replace it."""
+        params = _build_params(
+            "ITC", datetime(2024, 1, 1, tzinfo=UTC),
+            datetime(2024, 1, 31, tzinfo=UTC), lang="eng", max_records=250,
+            source_country="IN",
+        )
+        assert params["query"] == '("ITC" OR "ITC Limited") sourcelang:eng sourcecountry:IN'
+
+    def test_short_name_padded_even_when_loose(self):
+        params = _build_params(
+            "MRF", datetime(2024, 1, 1, tzinfo=UTC),
+            datetime(2024, 1, 31, tzinfo=UTC), lang="eng", max_records=250,
+            exact_phrase=False,
+        )
+        assert params["query"] == '("MRF" OR "MRF Limited") sourcelang:eng'
 
 
 # ─────────────────────────────────────────────────────────────
