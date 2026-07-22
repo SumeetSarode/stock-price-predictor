@@ -107,15 +107,16 @@ def _render_txt(r: dict[str, Any]) -> str:
 
     floor = r.get("gdelt_floor", {})
     if floor.get("probes"):
-        lines.append("\n[GDELT QUERY-LENGTH FLOOR] (raw probes, bypassing our padding)")
+        lines.append("\n[GDELT SHORT-NAME RECALL] (raw probes -- accepted? + article count)")
         for p in floor["probes"]:
             if p["accepted"] is True:
-                mark = "ACCEPTED"
+                mark = f"OK  {p.get('articles', 0):>3} art"
             elif p["accepted"] is False:
-                mark = "REJECTED"
+                mark = "REJECTED   "
             else:
-                mark = "ERROR   "
-            lines.append(f"  [{mark}] {p['term']:28s} {p['note']}")
+                mark = "ERROR      "
+            label = p.get("label", "")
+            lines.append(f"  [{mark}] {label:38s} {p.get('note','')[:60]}")
 
     oll = r.get("ollama", {})
     lines.append("\n[OLLAMA]")
@@ -230,48 +231,61 @@ def check_chain_models(discovered_flash: list[str]) -> list[dict[str, Any]]:
 
 
 def check_gdelt_floor() -> dict[str, Any]:
-    """Measure GDELT's ACTUAL minimum-query behavior, bypassing our padding.
+    """Measure GDELT's ACTUAL behaviour for short-name queries -- both what
+    it ACCEPTS and how much it RETURNS (recall), bypassing our own code.
 
-    Hits GDELT directly with RAW queries and records, for each, whether
-    GDELT returned JSON (accepted) or a 'too short'-style rejection. This
-    tells us the real floor from data instead of a guessed constant.
+    The real question isn't 'does it stop erroring' -- it's 'which query
+    gets the most ITC news'. So for every candidate we record ACCEPTED/
+    REJECTED *and* the article count, so we can pick the best variant from
+    data instead of guessing.
 
-    NOTE: GDELT rate-limits bursts (HTTP 429), so we sleep between probes --
-    an earlier run got 429s that masked the real answer. Read-only.
+    Includes the crucial untested case: UNQUOTED bare 'ITC' (a loose token,
+    not a quoted phrase) -- if GDELT allows that, it's far better recall
+    than any qualified-phrase workaround.
+
+    NOTE: GDELT rate-limits bursts (HTTP 429), so we sleep between probes.
+    Read-only.
     """
     end = date.today()
-    start = end - timedelta(days=7)
+    start = end - timedelta(days=30)  # wider window = more meaningful counts
     sd = start.strftime("%Y%m%d") + "000000"
     ed = end.strftime("%Y%m%d") + "235959"
     probes: list[dict[str, Any]] = []
-    # length 2..6 single tokens, the (proven-broken) bare-name OR group, and
-    # the ACTUAL fix: an OR of finance-qualified phrases (each above floor).
-    raw_terms = ['"IT"', '"ITC"', '"ITCX"', '"ITCXY"', '"ITCXYZ"',
-                 '("ITC" OR "ITC Limited")',
-                 '("ITC Limited" OR "ITC shares" OR "ITC stock")']
-    for i, term in enumerate(raw_terms):
+    # label -> raw GDELT query (exactly as sent, our code NOT involved)
+    candidates = [
+        ("quoted 2-char floor test", '"IT"'),
+        ("quoted bare name", '"ITC"'),
+        ("UNQUOTED bare name", "ITC"),
+        ("unquoted + IN bias", "ITC"),  # same term, sourcecountry added below
+        ("quoted OR (proven broken)", '("ITC" OR "ITC Limited")'),
+        ("qualified-phrase group (current fix)",
+         '("ITC Limited" OR "ITC Ltd" OR "ITC shares" OR "ITC stock")'),
+    ]
+    for i, (label, term) in enumerate(candidates):
         if i:
             time.sleep(6)  # avoid GDELT's burst rate-limit (429)
         q = f"{term} sourcelang:eng"
+        if label == "unquoted + IN bias":
+            q += " sourcecountry:IN"
         url = (
             "https://api.gdeltproject.org/api/v2/doc/doc?"
             f"query={urllib.parse.quote(q)}&mode=ArtList&format=json"
-            f"&maxrecords=1&startdatetime={sd}&enddatetime={ed}"
+            f"&maxrecords=75&startdatetime={sd}&enddatetime={ed}"
         )
         try:
-            with urllib.request.urlopen(url, timeout=20) as r:
+            with urllib.request.urlopen(url, timeout=25) as r:
                 body = r.read().decode("utf-8", "replace")
             try:
-                json.loads(body)
-                probes.append({"term": term, "accepted": True, "note": "valid JSON"})
+                payload = json.loads(body)
+                n = len(payload.get("articles", []))
+                probes.append({"term": q, "label": label, "accepted": True,
+                               "articles": n, "note": f"{n} article(s)"})
             except ValueError:
-                probes.append({
-                    "term": term, "accepted": False,
-                    "note": body.strip()[:120] or "non-JSON body",
-                })
+                probes.append({"term": q, "label": label, "accepted": False,
+                               "articles": 0, "note": body.strip()[:100] or "non-JSON"})
         except Exception as exc:
-            probes.append({"term": term, "accepted": None,
-                           "note": f"{type(exc).__name__}: {exc}"})
+            probes.append({"term": q, "label": label, "accepted": None,
+                           "articles": 0, "note": f"{type(exc).__name__}: {exc}"})
     return {"probes": probes}
 
 
