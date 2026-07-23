@@ -191,6 +191,51 @@ class TestTransientFallback:
         assert ollama.call_count == 1
         assert "ollama_chat/qwen3:8b" not in m.cooldowns
 
+    @pytest.mark.asyncio
+    async def test_pacing_cap_falls_over_to_ollama_without_calling_groq(
+        self, monkeypatch,
+    ):
+        """PROOF for part B: when the groq per-minute limiter would sleep
+        longer than the cap, acquire() RAISES, the chain cools groq for 60s
+        and falls over to the local Ollama tail -- and the groq MODEL is
+        never even called (no wasted API hit, no hang).
+
+        This is the exact 'chain gets stuck on groq rate limit' scenario,
+        now proven to fall through end-to-end.
+        """
+        from price_predictor.llm.rate_limiter import ProviderRateLimiter
+
+        # Real groq limiter, rpm=1 + tiny 2s cap, pre-saturated so the NEXT
+        # acquire() must wait ~60s (>> cap) and therefore raises.
+        groq_limiter = ProviderRateLimiter("groq", rpm=1, rpd=0, max_sleep_s=2.0)
+        await groq_limiter.acquire()  # fills the single per-minute slot
+        # Ollama tail: no quota -> disabled limiter -> acquire() is a no-op.
+        ollama_limiter = ProviderRateLimiter("ollama_chat", rpm=0, rpd=0)
+
+        async def fake_get_limiter(provider: str) -> ProviderRateLimiter:
+            return groq_limiter if provider == "groq" else ollama_limiter
+
+        monkeypatch.setattr(
+            "price_predictor.llm.resilient.get_limiter", fake_get_limiter
+        )
+
+        groq = _make_fake("groq/openai/gpt-oss-120b")   # would succeed if called
+        ollama = _make_fake("ollama_chat/qwen3:8b")     # local tail
+        m = ResilientModel(inner_models=[groq, ollama])
+
+        responses = [r async for r in m.generate_content_async(_make_request())]
+
+        assert len(responses) == 1, "Ollama tail should have produced a response"
+        # Groq's MODEL was never called -- the limiter bailed BEFORE the call.
+        assert groq.call_count == 0
+        # Groq was cooled down (60s short cooldown, NOT until-midnight).
+        assert "groq/openai/gpt-oss-120b" in m.cooldowns
+        expiry = m.cooldowns["groq/openai/gpt-oss-120b"]
+        assert expiry - datetime.now(UTC) <= timedelta(seconds=61)
+        # Ollama was reached and succeeded.
+        assert ollama.call_count == 1
+        assert groq_limiter.total_pacing_fallthroughs == 1
+
 
 # ──────────────────────────────────────────────────────────────
 # Structural errors NEVER trigger fallback (would mask bugs)
