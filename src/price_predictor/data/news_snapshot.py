@@ -50,14 +50,15 @@ import json
 import os
 import re
 import tempfile
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
 from loguru import logger
 
 from price_predictor.data.news import NewsFetchError, fetch_news
-
+from price_predictor.data.news_providers import GoogleNewsRssProvider
+from price_predictor.data.news_providers import NewsFetchError as RssFetchError
 
 # Hash truncation length. 16 hex chars = 64 bits = collision probability
 # is negligible at our scale (< 1M cached queries per as_of). Filenames
@@ -105,7 +106,7 @@ def _hash_key(
     original hashes (no cache invalidation).
     """
     suffix = "" if exact_phrase else "|loose"
-    payload = f"{lang}|{lookback_days}|{query}{suffix}".encode("utf-8")
+    payload = f"{lang}|{lookback_days}|{query}{suffix}".encode()
     return hashlib.sha256(payload).hexdigest()[:_KEY_LEN]
 
 
@@ -184,7 +185,7 @@ class NewsSnapshot:
             "lang": lang,
             "as_of": as_of.isoformat(),
             "lookback_days": lookback_days,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "fetched_at": datetime.now(UTC).isoformat(),
             "article_count": len(articles),
             "articles": articles,
         }
@@ -235,12 +236,80 @@ class NewsSnapshot:
     # ─────────────────────────────────────────────────────────
     # The one-shot public API
     # ─────────────────────────────────────────────────────────
+    async def _rss_fallback(
+        self,
+        query: str,
+        start: date,
+        end: date,
+        as_of: date,
+        *,
+        lang: str,
+        exact_phrase: bool,
+        gdelt_err: NewsFetchError,
+    ) -> pd.DataFrame:
+        """Live-only fallback when GDELT fails. Re-raises gdelt_err unless a
+        fresh, non-empty RSS result is available.
+
+        Look-ahead guard: RSS returns RECENT news only, so it is used ONLY
+        when the window's end is within the freshness horizon. For an older
+        (backtest) window we re-raise the GDELT error rather than fabricate
+        'current' news for a past date.
+
+        Empty RSS also re-raises: GDELT ERRORED (not 'found nothing'), so we
+        must not cache an empty result as truth -- that would permanently
+        neuter this (query, as_of) after a transient throttle.
+        """
+        from price_predictor.config.settings import settings
+
+        if not settings.news_rss_fallback_enabled:
+            raise gdelt_err
+
+        provider = GoogleNewsRssProvider(
+            freshness_days=settings.news_rss_freshness_days
+        )
+        end_dt = pd.Timestamp(as_of, tz="UTC").to_pydatetime()
+        if not provider.coverage.can_serve_end(end_dt):
+            logger.warning(
+                f"news RSS fallback SKIPPED (window ends {as_of}, older than "
+                f"{settings.news_rss_freshness_days}d horizon -- backtest, not "
+                f"live); re-raising GDELT error for query={query!r}"
+            )
+            raise gdelt_err
+
+        logger.info(
+            f"news RSS fallback: GDELT failed ({gdelt_err}); trying "
+            f"{provider.name} for query={query!r} as_of={as_of}"
+        )
+        try:
+            df = await provider.fetch(
+                query, start.isoformat(), end.isoformat(),
+                lang=lang, exact_phrase=exact_phrase,
+            )
+        except (ValueError, RssFetchError) as rss_err:
+            logger.warning(
+                f"news RSS fallback ALSO failed ({rss_err}); re-raising "
+                f"original GDELT error for query={query!r}"
+            )
+            raise gdelt_err from rss_err
+
+        if df.empty:
+            logger.warning(
+                f"news RSS fallback returned no articles for query={query!r}; "
+                f"re-raising GDELT error (won't cache empty as truth)"
+            )
+            raise gdelt_err
+
+        logger.info(
+            f"news RSS fallback SUCCEEDED: {len(df)} article(s) from "
+            f"{provider.name} for query={query!r}"
+        )
+        return df
+
     async def get_or_fetch(
         self,
         query: str,
         as_of: date,
-        lookback_days: int,
-        *,
+        lookback_days: int,        *,
         lang: str = "eng",
         exact_phrase: bool = True,
     ) -> pd.DataFrame:
@@ -287,12 +356,19 @@ class NewsSnapshot:
                 query, start.isoformat(), end.isoformat(), lang=lang,
                 exact_phrase=exact_phrase,
             )
-        except (ValueError, NewsFetchError):
-            # Don't poison the cache with a failed fetch -- let the
-            # caller see the error and decide. Degrading silently here
-            # would mean a one-time network blip permanently neuters
-            # that (query, as_of) combination.
+        except ValueError:
+            # Caller's bad input -- no fallback would help.
             raise
+        except NewsFetchError as gdelt_err:
+            # GDELT failed (typically a 429 burst). Try the live RSS fallback,
+            # but ONLY for recent windows -- a backtest must never be served
+            # 'current' news for a past date (look-ahead). If the fallback is
+            # disabled, out-of-horizon, or also fails/empty, re-raise the
+            # original GDELT error so the caller decides whether to degrade.
+            df = await self._rss_fallback(
+                query, start, end, as_of, lang=lang,
+                exact_phrase=exact_phrase, gdelt_err=gdelt_err,
+            )
 
         # Belt-and-braces: drop any article published AFTER as_of.
         # GDELT filters by seendate, not publishdate, so a late-indexed

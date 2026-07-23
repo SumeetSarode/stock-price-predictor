@@ -170,6 +170,20 @@ class Settings(BaseSettings):
         default=10.0, validation_alias="PACING_MAX_SLEEP_S"
     )
 
+    # ── News RSS live fallback (used by data.news_snapshot) ──────────────
+    # GDELT is keyless + IP-rate-limited (~1 req/5s) so bursts return 429 and
+    # a run silently loses its news. When GDELT fails, fall back to Google
+    # News RSS (live-only). CRITICAL: RSS returns RECENT news only, so it is
+    # used ONLY when the requested window ends within news_rss_freshness_days
+    # of now -- never for backtests (that would fabricate 'current' news for
+    # a past date == look-ahead). Set enabled=false to keep GDELT-only.
+    news_rss_fallback_enabled: bool = Field(
+        default=True, validation_alias="NEWS_RSS_FALLBACK_ENABLED"
+    )
+    news_rss_freshness_days: int = Field(
+        default=30, validation_alias="NEWS_RSS_FRESHNESS_DAYS"
+    )
+
     def provider_rate_limits(self, provider: str) -> tuple[int, int]:
         """Return (rpm, rpd) for `provider`, honoring USE_PAID.
 

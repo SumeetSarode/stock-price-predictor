@@ -30,6 +30,9 @@ from unittest.mock import AsyncMock, patch
 import pandas as pd
 import pytest
 
+from price_predictor.data.news import NewsFetchError
+from price_predictor.data.news_providers import NewsFetchError as RssFetchError
+from price_predictor.data.news_providers.base import NewsProviderCoverage
 from price_predictor.data.news_snapshot import (
     NewsSnapshot,
     NewsSnapshotError,
@@ -339,3 +342,143 @@ class TestPersistedFormat:
 
         with pytest.raises(NewsSnapshotError, match="Cannot load snapshot"):
             tmp_snapshot._load(path)
+
+
+# ────────────────────────────────────────────────────
+# 7. RSS live fallback when GDELT fails (Scope A)
+# ────────────────────────────────────────────────────
+class _FakeRss:
+    """Stand-in for GoogleNewsRssProvider with REAL coverage logic so the
+    look-ahead freshness guard is exercised for real; only the network
+    .fetch is faked."""
+
+    def __init__(self, *, freshness_days=30, df=None, err=None):
+        self._cov = NewsProviderCoverage(
+            historical=False, freshness_days=freshness_days
+        )
+        self._df = df
+        self._err = err
+        self.fetch_called = False
+
+    @property
+    def name(self):
+        return "google_news_rss"
+
+    @property
+    def coverage(self):
+        return self._cov
+
+    async def fetch(self, *args, **kwargs):
+        self.fetch_called = True
+        if self._err is not None:
+            raise self._err
+        return self._df
+
+
+def _rss_df(published_at) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "title": ["rss headline"],
+            "url": ["https://et.com/live"],
+            "published_at": pd.to_datetime([published_at], utc=True),
+            "source": ["Economic Times"],
+            "language": ["eng"],
+        }
+    )
+
+
+class TestRssFallback:
+    def test_fresh_window_uses_rss_when_gdelt_fails(self, tmp_snapshot):
+        """GDELT 429s on a recent window -> RSS fallback supplies articles."""
+        today = date.today()
+        rss_df = _rss_df(pd.Timestamp(today, tz="UTC") - pd.Timedelta(days=1))
+        fake = _FakeRss(df=rss_df)
+
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, side_effect=NewsFetchError("GDELT 429"),
+        ), patch(
+            "price_predictor.data.news_snapshot.GoogleNewsRssProvider",
+            return_value=fake,
+        ):
+            df = asyncio.run(tmp_snapshot.get_or_fetch("Reliance", today, 7))
+
+        assert fake.fetch_called is True
+        assert len(df) == 1
+        assert df.iloc[0]["source"] == "Economic Times"
+
+    def test_stale_backtest_window_skips_rss_and_reraises(self, tmp_snapshot):
+        """Look-ahead guard: an old window must NOT be served by a live feed.
+        RSS is never called; the original GDELT error propagates."""
+        old = date(2019, 3, 14)
+        fake = _FakeRss(df=_rss_df(pd.Timestamp("2026-07-09", tz="UTC")))
+
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, side_effect=NewsFetchError("GDELT 429"),
+        ), patch(
+            "price_predictor.data.news_snapshot.GoogleNewsRssProvider",
+            return_value=fake,
+        ), pytest.raises(NewsFetchError, match="GDELT 429"):
+            asyncio.run(tmp_snapshot.get_or_fetch("Reliance", old, 7))
+
+        assert fake.fetch_called is False  # guard skipped it
+
+    def test_disabled_flag_reraises_without_rss(self, tmp_snapshot, monkeypatch):
+        from price_predictor.config.settings import settings as _settings
+        monkeypatch.setattr(_settings, "news_rss_fallback_enabled", False)
+        fake = _FakeRss(df=_rss_df(pd.Timestamp(date.today(), tz="UTC")))
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, side_effect=NewsFetchError("GDELT 429"),
+        ), patch(
+            "price_predictor.data.news_snapshot.GoogleNewsRssProvider",
+            return_value=fake,
+        ), pytest.raises(NewsFetchError, match="GDELT 429"):
+            asyncio.run(tmp_snapshot.get_or_fetch("X", date.today(), 7))
+        assert fake.fetch_called is False
+
+    def test_empty_rss_reraises_and_does_not_cache(self, tmp_snapshot):
+        """GDELT ERRORED (not 'found nothing'). Empty RSS must re-raise so we
+        don't cache an empty result and permanently neuter this key."""
+        today = date.today()
+        empty = pd.DataFrame(
+            columns=["title", "url", "published_at", "source", "language"]
+        )
+        fake = _FakeRss(df=empty)
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, side_effect=NewsFetchError("GDELT 429"),
+        ), patch(
+            "price_predictor.data.news_snapshot.GoogleNewsRssProvider",
+            return_value=fake,
+        ), pytest.raises(NewsFetchError, match="GDELT 429"):
+            asyncio.run(tmp_snapshot.get_or_fetch("X", today, 7))
+        # Nothing cached.
+        assert not tmp_snapshot.path_for("X", today, 7).exists()
+
+    def test_rss_also_fails_reraises_original_gdelt_error(self, tmp_snapshot):
+        today = date.today()
+        fake = _FakeRss(err=RssFetchError("RSS down"))
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, side_effect=NewsFetchError("GDELT 429"),
+        ), patch(
+            "price_predictor.data.news_snapshot.GoogleNewsRssProvider",
+            return_value=fake,
+        ), pytest.raises(NewsFetchError, match="GDELT 429"):
+            asyncio.run(tmp_snapshot.get_or_fetch("X", today, 7))
+        assert fake.fetch_called is True
+
+    def test_valueerror_from_gdelt_never_triggers_rss(self, tmp_snapshot):
+        """Caller's bad input -> raise immediately, no fallback."""
+        fake = _FakeRss(df=_rss_df(pd.Timestamp(date.today(), tz="UTC")))
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, side_effect=ValueError("bad query"),
+        ), patch(
+            "price_predictor.data.news_snapshot.GoogleNewsRssProvider",
+            return_value=fake,
+        ), pytest.raises(ValueError, match="bad query"):
+            asyncio.run(tmp_snapshot.get_or_fetch("X", date.today(), 7))
+        assert fake.fetch_called is False
