@@ -372,6 +372,33 @@ class TestFetchNews:
         assert route.call_count == 1  # no retry on non-429
 
     @respx.mock
+    async def test_connect_timeout_then_success_retries(self, monkeypatch):
+        """A transient ConnectTimeout (network blip) is retried, not surfaced."""
+        import price_predictor.data.news as news_mod
+
+        monkeypatch.setattr(news_mod, "GDELT_NETWORK_BACKOFF_S", 0.0)
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [
+            httpx.ConnectTimeout("connect timed out"),
+            httpx.Response(200, json=_gdelt_response([_article()])),
+        ]
+        df = await fetch_news("Reliance", "2024-01-01", "2024-01-31")
+        assert len(df) == 1
+        assert route.call_count == 2  # retried once
+
+    @respx.mock
+    async def test_connect_timeout_exhausts_retries_then_raises(self, monkeypatch):
+        """Persistent network faults raise after NETWORK_RETRIES+1 attempts."""
+        import price_predictor.data.news as news_mod
+
+        monkeypatch.setattr(news_mod, "GDELT_NETWORK_BACKOFF_S", 0.0)
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [httpx.ConnectTimeout("nope")] * 5
+        with pytest.raises(NewsFetchError, match="GDELT request failed"):
+            await fetch_news("Reliance", "2024-01-01", "2024-01-31")
+        assert route.call_count == news_mod.GDELT_NETWORK_RETRIES + 1
+
+    @respx.mock
     async def test_timeout_raises(self):
         respx.get(GDELT_DOC_URL).mock(side_effect=httpx.TimeoutException("timeout"))
         with pytest.raises(NewsFetchError, match="GDELT request failed"):

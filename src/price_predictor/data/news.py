@@ -66,6 +66,14 @@ DEFAULT_USER_AGENT = "price-predictor/0.1 (+https://github.com/sumeet-s2597)"
 GDELT_RATE_LIMIT_RETRIES = 2
 GDELT_RATE_LIMIT_BACKOFF_S = 5.0
 
+# Transient network faults (ConnectTimeout / ReadTimeout / ConnectError) are
+# distinct from a 429: they're usually a momentary local blip, not GDELT
+# throttling. Retry them a couple times with a SHORT backoff (no point waiting
+# 5s for a network hiccup). Seen in the wild: a machine's connection blinked
+# and BOTH company + sector news timed out simultaneously.
+GDELT_NETWORK_RETRIES = 2
+GDELT_NETWORK_BACKOFF_S = 2.0
+
 NEWS_DF_COLUMNS = ["title", "url", "published_at", "source", "language"]
 
 
@@ -221,26 +229,54 @@ async def _gdelt_get_json(
     start: str,
     end: str,
 ) -> Any:
-    """GET the GDELT Doc API with bounded retry on its 429 rate-limit.
+    """GET the GDELT Doc API with bounded retry on transient failures.
 
-    GDELT throttles bursts from one IP to ~1 request / 5s. A single 429
-    otherwise costs a whole run its news (company + sector fire together).
-    We retry a 429 up to ``GDELT_RATE_LIMIT_RETRIES`` times with linear
-    backoff; a non-429 HTTP error, or a 429 after the last retry, raises
+    Two independent retry paths, both bounded:
+
+    * HTTP 429 (rate-limit): GDELT throttles bursts to ~1 req/5s. A single
+      429 otherwise costs a whole run its news (company + sector fire
+      together). Retried up to ``GDELT_RATE_LIMIT_RETRIES`` times with a
+      5s/10s backoff (>= GDELT's window so the retry lands after reset).
+    * Network faults (ConnectTimeout / ReadTimeout / ConnectError): a
+      momentary local blip -- retried up to ``GDELT_NETWORK_RETRIES`` times
+      with a short 2s backoff. Seen live: the machine's connection blinked
+      and both news calls timed out at once.
+
+    A non-retryable HTTP error, or exhausting either budget, raises
     ``NewsFetchError``. Non-JSON bodies (GDELT's 'too short' plain text)
-    also raise ``NewsFetchError``.
+    also raise ``NewsFetchError``. gather.py soft-fails that to neutral, so
+    a prediction never crashes on news.
     """
-    for attempt in range(GDELT_RATE_LIMIT_RETRIES + 1):
+    network_attempts = 0
+    rate_limit_attempts = 0
+    while True:
         try:
             resp = await client.get(GDELT_DOC_URL, params=params)
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             is_429 = e.response.status_code == 429
-            if is_429 and attempt < GDELT_RATE_LIMIT_RETRIES:
-                backoff = GDELT_RATE_LIMIT_BACKOFF_S * (attempt + 1)
+            if is_429 and rate_limit_attempts < GDELT_RATE_LIMIT_RETRIES:
+                rate_limit_attempts += 1
+                backoff = GDELT_RATE_LIMIT_BACKOFF_S * rate_limit_attempts
                 logger.debug(
-                    f"GDELT 429 for query={query!r} (attempt {attempt + 1}); "
-                    f"retrying in {backoff:.0f}s"
+                    f"GDELT 429 for query={query!r} "
+                    f"(retry {rate_limit_attempts}); waiting {backoff:.0f}s"
+                )
+                await asyncio.sleep(backoff)
+                continue
+            raise NewsFetchError(
+                f"GDELT request failed for query={query!r} "
+                f"({start}..{end}): {type(e).__name__}: {e}"
+            ) from e
+        except httpx.TransportError as e:
+            # ConnectTimeout / ReadTimeout / ConnectError -- transient blip.
+            if network_attempts < GDELT_NETWORK_RETRIES:
+                network_attempts += 1
+                backoff = GDELT_NETWORK_BACKOFF_S * network_attempts
+                logger.debug(
+                    f"GDELT network fault ({type(e).__name__}) for "
+                    f"query={query!r} (retry {network_attempts}); "
+                    f"waiting {backoff:.0f}s"
                 )
                 await asyncio.sleep(backoff)
                 continue
@@ -251,7 +287,7 @@ async def _gdelt_get_json(
         except httpx.HTTPError as e:
             raise NewsFetchError(
                 f"GDELT request failed for query={query!r} "
-                f"({start}..{end}): {type(e).__name__}: {e}"
+            f"({start}..{end}): {type(e).__name__}: {e}"
             ) from e
         try:
             return resp.json()
@@ -260,8 +296,6 @@ async def _gdelt_get_json(
                 f"GDELT returned non-JSON response (status={resp.status_code}): "
                 f"{resp.text[:200]!r}"
             ) from e
-    # Unreachable: a 429 on the final attempt raises inside the loop above.
-    raise AssertionError("unreachable")  # pragma: no cover
 
 
 async def fetch_news(
