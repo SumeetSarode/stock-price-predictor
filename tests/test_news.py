@@ -333,6 +333,45 @@ class TestFetchNews:
             await fetch_news("Reliance", "2024-01-01", "2024-01-31")
 
     @respx.mock
+    async def test_429_then_success_retries(self, monkeypatch):
+        """A transient 429 (GDELT rate-limit) is retried, not surfaced."""
+        import price_predictor.data.news as news_mod
+
+        monkeypatch.setattr(news_mod, "GDELT_RATE_LIMIT_BACKOFF_S", 0.0)
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [
+            httpx.Response(429),
+            httpx.Response(200, json=_gdelt_response([_article()])),
+        ]
+        df = await fetch_news("Reliance", "2024-01-01", "2024-01-31")
+        assert len(df) == 1
+        assert route.call_count == 2  # retried once
+
+    @respx.mock
+    async def test_429_exhausts_retries_then_raises(self, monkeypatch):
+        """Persistent 429 raises after RETRIES+1 attempts (bounded, not infinite)."""
+        import price_predictor.data.news as news_mod
+
+        monkeypatch.setattr(news_mod, "GDELT_RATE_LIMIT_BACKOFF_S", 0.0)
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [httpx.Response(429)] * 5
+        with pytest.raises(NewsFetchError, match="GDELT request failed"):
+            await fetch_news("Reliance", "2024-01-01", "2024-01-31")
+        assert route.call_count == news_mod.GDELT_RATE_LIMIT_RETRIES + 1
+
+    @respx.mock
+    async def test_non_429_http_error_is_not_retried(self, monkeypatch):
+        """A 500 fails fast -- only 429 is retryable."""
+        import price_predictor.data.news as news_mod
+
+        monkeypatch.setattr(news_mod, "GDELT_RATE_LIMIT_BACKOFF_S", 0.0)
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [httpx.Response(500), httpx.Response(500)]
+        with pytest.raises(NewsFetchError, match="GDELT request failed"):
+            await fetch_news("Reliance", "2024-01-01", "2024-01-31")
+        assert route.call_count == 1  # no retry on non-429
+
+    @respx.mock
     async def test_timeout_raises(self):
         respx.get(GDELT_DOC_URL).mock(side_effect=httpx.TimeoutException("timeout"))
         with pytest.raises(NewsFetchError, match="GDELT request failed"):
