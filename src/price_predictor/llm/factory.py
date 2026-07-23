@@ -72,7 +72,16 @@ def make_model(model_name: str) -> LiteLlm:
     # pointing at the running Ollama server. This is what lets the resilient
     # chain fall over to an offline model when hosted providers are exhausted.
     if provider in _KEYLESS_LOCAL_PROVIDERS:
-        return LiteLlm(model=model_name, api_base=settings.ollama_api_base)
+        # Disable qwen3-style "thinking": litellm maps reasoning_effort='none'
+        # to Ollama's think=False, so the model emits the JSON answer directly
+        # instead of narrating its reasoning as prose (which then fails
+        # ImpactAssessment / Prediction JSON parsing). See llm/json_extract.py
+        # for the defence-in-depth that recovers JSON if a model ignores this.
+        return LiteLlm(
+            model=model_name,
+            api_base=settings.ollama_api_base,
+            reasoning_effort="none",
+        )
 
     if provider not in _API_KEY_GETTERS:
         supported = sorted(set(_API_KEY_GETTERS) | _KEYLESS_LOCAL_PROVIDERS)

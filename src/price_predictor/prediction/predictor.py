@@ -79,6 +79,7 @@ from price_predictor.data.news_snapshot import (
     get_news_snapshot,
     set_news_snapshot,
 )
+from price_predictor.llm.json_extract import extract_json
 from price_predictor.prediction.guardrails import (
     HallucinationError,
     validate_all,
@@ -293,8 +294,11 @@ async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
 
     prompt = build_news_impact_prompt(inputs)
     raw = await _run_agent_for_text(_news_impact_agent, prompt)
+    # Small local fallback models (qwen3) narrate reasoning around the JSON;
+    # strip it so parsing sees only the object. No-op for clean hosted output.
+    cleaned = extract_json(raw)
     try:
-        return ImpactAssessment.model_validate_json(raw)
+        return ImpactAssessment.model_validate_json(cleaned)
     except Exception as e:
         raise PredictionError(
             f"news_impact agent returned invalid ImpactAssessment JSON: {e}"
@@ -331,8 +335,11 @@ async def run_synthesizer_agent(
             f"avoids this issue."
         )
     raw = await _run_agent_for_text(_synthesizer_agent, prompt)
+    # See run_news_impact_agent: tolerate reasoning/markdown chatter from the
+    # offline fallback tier; hosted models pass through unchanged.
+    cleaned = extract_json(raw)
     try:
-        return Prediction.model_validate_json(raw)
+        return Prediction.model_validate_json(cleaned)
     except Exception as e:
         raise SynthesisParseError(
             f"synthesizer agent returned invalid Prediction JSON: {e}"

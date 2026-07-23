@@ -29,6 +29,20 @@ class TestKeylessLocalProvider:
         m = make_model("ollama/llama3.1:8b")
         assert m._additional_args["api_base"] == settings.ollama_api_base
 
+    def test_ollama_disables_thinking(self):
+        # qwen3 narrates its reasoning as prose unless thinking is off, which
+        # breaks JSON parsing. litellm maps reasoning_effort='none' -> Ollama
+        # think=False. Regression for the HINDUNILVR.NS 'We need to produce
+        # Impac...' parse failure.
+        m = make_model("ollama_chat/qwen3:8b")
+        assert m._additional_args["reasoning_effort"] == "none"
+
+    def test_hosted_models_do_not_get_reasoning_effort(self):
+        # Only the local tier gets the thinking-off knob; hosted models are
+        # left exactly as before.
+        m = make_model("groq/openai/gpt-oss-120b")
+        assert "reasoning_effort" not in m._additional_args
+
     def test_api_base_follows_settings(self, monkeypatch):
         monkeypatch.setattr(settings, "ollama_api_base", "http://192.168.1.50:11434")
         m = make_model("ollama_chat/qwen3:8b")
