@@ -391,18 +391,33 @@ class TestValidateAll:
     def test_passes_for_clean_input(self):
         validate_all(_make_pred(), _make_si())
 
-    def test_grounding_runs_first(self):
-        # Pred has BOTH bad target (invented 1599) AND bad citations
-        # (gamma squeeze). Grounding error must win since it's first.
+    def test_reports_all_failures_at_once(self):
+        # Pred has BOTH bad target (invented 1599) AND fabricated citation
+        # (gamma squeeze). Collect-all: the raised error must name BOTH
+        # tiers so the LLM can fix them together (no whack-a-mole).
         with pytest.raises(HallucinationError) as ex:
             validate_all(
                 _make_pred(
-                    target_value=1599.0,                # invented
-                    contributing=("gamma squeeze",),    # fabricated
+                    target_value=1599.0,                # invented -> grounding
+                    contributing=("gamma squeeze",),    # fabricated -> citation
                 ),
                 _make_si(),
             )
+        # Combined tier field lists every failing tier.
+        assert "grounding" in ex.value.tier
+        assert "citation" in ex.value.tier
+        # Message enumerates both violations.
+        msg = str(ex.value)
+        assert "grounding" in msg and "citation" in msg
+        assert "simultaneously" in msg
+
+    def test_single_failure_passes_through_unwrapped(self):
+        # Only ONE tier fails -> the original single error is raised as-is
+        # (no needless 'N checks failed' wrapper).
+        with pytest.raises(HallucinationError) as ex:
+            validate_all(_make_pred(target_value=1599.0), _make_si())
         assert ex.value.tier == "grounding"
+        assert "simultaneously" not in str(ex.value)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -459,6 +474,30 @@ class TestSynthesizeWithGuardrails:
         with pytest.raises(PredictionError, match="3×"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
         assert mock_synth.await_count == 3  # tried 3×, then gave up
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_feedback_is_cumulative_across_attempts(self, mock_synth):
+        """The retry loop must REMEMBER earlier failures (anti whack-a-mole).
+
+        Attempt 1 fails grounding, attempt 2 fails a DIFFERENT tier
+        (citation). The feedback handed to attempt 3 must still mention
+        the grounding problem from attempt 1 -- otherwise the LLM would
+        happily re-break what it already fixed.
+        """
+        bad_grounding = _make_pred(target_value=1599.0)          # grounding
+        bad_citation = _make_pred(contributing=("gamma squeeze",))  # citation
+        good = _make_pred()
+        mock_synth.side_effect = [bad_grounding, bad_citation, good]
+
+        result = asyncio.run(synthesize_with_guardrails(_make_si()))
+        assert result is good
+        assert mock_synth.await_count == 3
+        # Attempt 3's feedback remembers BOTH prior problems.
+        feedback3 = mock_synth.call_args_list[2].kwargs.get("feedback")
+        assert feedback3 is not None
+        assert "grounding" in feedback3   # from attempt 1, NOT forgotten
+        assert "citation" in feedback3    # from attempt 2
 
     # ─────────────────────────────────────────────────────────────
     # SynthesisParseError retry path — regression for TCS.NS daily prod

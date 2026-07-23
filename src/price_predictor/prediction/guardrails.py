@@ -487,16 +487,50 @@ def validate_calibration(pred: Prediction, si: SynthesisInput) -> None:
 # Public: run all four
 # ────────────────────────────────────────────
 def validate_all(pred: Prediction, si: SynthesisInput) -> None:
-    """Run all four guardrails. Raises HallucinationError on first fail.
+    """Run all four guardrails and report EVERY failure at once.
 
-    Order matters: grounding (cheapest, catches the most common
-    failures) first, then citations, then consistency, then
-    calibration last. Calibration is cheap but rarely fails for a
-    well-calibrated model; running it after the substantive checks
-    means we don't reject for over-confidence on an already-broken
-    prediction (the substantive error is more useful feedback).
+    Why collect-all instead of fail-fast: the retry loop feeds the error
+    back to the LLM so it can fix its output. If we raised on the FIRST
+    failing tier, the LLM only ever learns about one problem at a time --
+    it fixes the target (grounding), which shifts the direction and trips
+    consistency on the next attempt, which it fixes by re-breaking the
+    target... a whack-a-mole that burns the whole retry budget without
+    ever converging. By collecting every violation into a single error,
+    the LLM sees the complete constraint set and can satisfy them all in
+    one shot.
+
+    Tiers still run in the same order (grounding, citation, consistency,
+    calibration) so the combined message reads most-substantive-first.
+
+    Raises:
+        HallucinationError: if any tier(s) failed. When multiple failed,
+            ``tier`` is a comma-joined list and the message enumerates
+            every violation.
     """
-    validate_grounding(pred, si)
-    validate_citations(pred, si)
-    validate_consistency(pred, si)
-    validate_calibration(pred, si)
+    validators = (
+        validate_grounding,
+        validate_citations,
+        validate_consistency,
+        validate_calibration,
+    )
+    failures: list[HallucinationError] = []
+    for validator in validators:
+        try:
+            validator(pred, si)
+        except HallucinationError as e:
+            failures.append(e)
+
+    if not failures:
+        return
+    if len(failures) == 1:
+        raise failures[0]
+
+    # Multiple tiers failed -- combine so the LLM fixes them together.
+    tiers = ",".join(e.tier for e in failures)
+    combined = "\n".join(f"  - {e}" for e in failures)
+    raise HallucinationError(
+        tiers,
+        f"{len(failures)} checks failed simultaneously. Fix ALL of them "
+        f"in your next attempt (fixing one must not break another):\n"
+        f"{combined}",
+    )

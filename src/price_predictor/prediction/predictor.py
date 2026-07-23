@@ -376,6 +376,25 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
     """
     feedback: str | None = None
     last_error: Exception | None = None
+    # Cumulative memory of every distinct problem seen so far. Without this,
+    # each attempt only knows about its OWN failure and forgets earlier ones,
+    # so the LLM re-breaks a constraint it already fixed. We accumulate the
+    # distinct issues and feed them ALL back every attempt.
+    prior_issues: list[str] = []
+
+    def _cumulative_feedback(latest: str) -> str:
+        if latest not in prior_issues:
+            prior_issues.append(latest)
+        if len(prior_issues) == 1:
+            return prior_issues[0]
+        joined = "\n".join(
+            f"  ({i}) {msg}" for i, msg in enumerate(prior_issues, 1)
+        )
+        return (
+            "Your previous attempts failed for these reasons. Fix ALL of "
+            "them at once -- fixing one must not reintroduce another:\n"
+            f"{joined}"
+        )
 
     for attempt in range(1, _MAX_GUARDRAIL_ATTEMPTS + 1):
         try:
@@ -390,11 +409,11 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
             # LLM returned garbage (empty / markdown-fenced / truncated).
             # No partial Prediction to inspect; just nudge the model.
             last_error = e
-            feedback = (
-                f"Your previous response could not be parsed as JSON: {e}. "
-                f"Emit ONLY a single JSON object that exactly matches the "
-                f"Prediction schema. No markdown fences, no commentary, "
-                f"no leading or trailing text."
+            feedback = _cumulative_feedback(
+                f"Response could not be parsed as JSON: {e}. Emit ONLY a "
+                f"single JSON object that exactly matches the Prediction "
+                f"schema. No markdown fences, no commentary, no leading or "
+                f"trailing text."
             )
             if attempt < _MAX_GUARDRAIL_ATTEMPTS:
                 logger.warning(
@@ -403,7 +422,7 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
                 )
         except HallucinationError as e:
             last_error = e
-            feedback = str(e)
+            feedback = _cumulative_feedback(str(e))
             if attempt < _MAX_GUARDRAIL_ATTEMPTS:
                 logger.warning(
                     f"guardrail tripped on attempt {attempt}: {e}. "
