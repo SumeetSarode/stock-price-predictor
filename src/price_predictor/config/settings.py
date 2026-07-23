@@ -150,6 +150,26 @@ class Settings(BaseSettings):
     groq_rpm_paid:   int = Field(default=0, validation_alias="GROQ_RPM_PAID")
     groq_rpd_paid:   int = Field(default=0, validation_alias="GROQ_RPD_PAID")
 
+    # ── Pacing sleep cap (used by llm.rate_limiter) ─────────────────────
+    # The per-minute limiter normally SLEEPS until a slot frees up. That's
+    # right for big batch runs (keep load on fast hosted models), but for a
+    # single interactive prediction a long sleep looks like a hang -- the
+    # user would rather fall through to the next model in the chain.
+    #
+    # This caps how long the limiter is willing to sleep. If the required
+    # wait exceeds the cap, the limiter RAISES a (per-minute) RateLimitError
+    # instead of sleeping, which the ResilientModel handles by cooling the
+    # provider down for 60s and falling over to the next model (e.g. Groq
+    # saturated -> Gemini or the local Ollama tail). 0 = never cap (always
+    # sleep; the original behavior).
+    #
+    # Default 10s: absorbs normal steady-state pacing jitter (Groq ~2s,
+    # Gemini ~7s between calls at free-tier RPM) but bails fast when a
+    # provider is genuinely saturated for a full window.
+    pacing_max_sleep_s: float = Field(
+        default=10.0, validation_alias="PACING_MAX_SLEEP_S"
+    )
+
     def provider_rate_limits(self, provider: str) -> tuple[int, int]:
         """Return (rpm, rpd) for `provider`, honoring USE_PAID.
 

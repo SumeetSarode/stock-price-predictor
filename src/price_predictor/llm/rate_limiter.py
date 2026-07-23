@@ -59,7 +59,6 @@ import time
 from collections import deque
 from datetime import UTC, datetime
 from datetime import time as dtime
-from datetime import timedelta
 
 from litellm.exceptions import RateLimitError
 
@@ -79,18 +78,27 @@ class ProviderRateLimiter:
         rpm: max requests per rolling 60-second window. 0 = unlimited.
         rpd: max requests per UTC day.                 0 = unlimited.
 
-    On rpm exhaustion: SLEEP until oldest in-window request ages out.
+    On rpm exhaustion: SLEEP until oldest in-window request ages out --
+        UNLESS the wait would exceed ``max_sleep_s`` (>0), in which case
+        RAISE a per-minute RateLimitError so the caller's ResilientModel
+        cools this provider down for 60s and falls over to the next model
+        instead of hanging on a long pacing sleep.
     On rpd exhaustion: RAISE litellm.RateLimitError so the caller's
         ResilientModel marks this provider cooled-down until midnight UTC
         and falls through to the next provider in the chain.
     """
 
-    def __init__(self, name: str, *, rpm: int = 0, rpd: int = 0) -> None:
+    def __init__(
+        self, name: str, *, rpm: int = 0, rpd: int = 0, max_sleep_s: float = 0.0,
+    ) -> None:
         if rpm < 0 or rpd < 0:
             raise ValueError(f"rpm/rpd must be >= 0 (got rpm={rpm}, rpd={rpd})")
+        if max_sleep_s < 0:
+            raise ValueError(f"max_sleep_s must be >= 0 (got {max_sleep_s})")
         self.name = name
         self.rpm = rpm
         self.rpd = rpd
+        self.max_sleep_s = max_sleep_s
         self._lock = asyncio.Lock()
         # Sliding window: monotonic timestamps of recent requests
         self._minute_log: deque[float] = deque()
@@ -101,6 +109,7 @@ class ProviderRateLimiter:
         self.total_acquired: int = 0
         self.total_paced_sleeps: int = 0
         self.total_daily_rejections: int = 0
+        self.total_pacing_fallthroughs: int = 0
 
     @property
     def disabled(self) -> bool:
@@ -166,6 +175,31 @@ class ProviderRateLimiter:
                     # popping it brings us under rpm.
                     wait = self._minute_log[0] + 60.0 - mono_now + 0.05
                     if wait > 0:
+                        # Cap: if the pacing sleep would be longer than we're
+                        # willing to block, fall over to the next model in the
+                        # chain instead of hanging. Raise a PER-MINUTE
+                        # RateLimitError (wording deliberately avoids 'daily'/
+                        # 'quota' so ResilientModel picks the 60s short cooldown,
+                        # not the until-midnight one).
+                        if 0 < self.max_sleep_s < wait:
+                            self.total_pacing_fallthroughs += 1
+                            logger.info(
+                                "[rate_limit] %s pacing wait %.2fs exceeds cap "
+                                "%.2fs -- raising RateLimitError to fall over "
+                                "(%d/%d in last 60s)",
+                                self.name, wait, self.max_sleep_s,
+                                len(self._minute_log), self.rpm,
+                            )
+                            raise RateLimitError(
+                                message=(
+                                    f"{self.name} per-minute rate pacing would "
+                                    f"block {wait:.1f}s (> cap "
+                                    f"{self.max_sleep_s:.1f}s); falling over to "
+                                    f"the next model."
+                                ),
+                                model=self.name,
+                                llm_provider=self.name,
+                            )
                         self.total_paced_sleeps += 1
                         logger.info(
                             "[rate_limit] %s pacing: sleeping %.2fs "
@@ -225,7 +259,9 @@ async def get_limiter(provider: str) -> ProviderRateLimiter:
         # Lazy import to avoid circular settings <-> llm import at module load
         from price_predictor.config.settings import settings
         rpm, rpd = settings.provider_rate_limits(provider)
-        limiter = ProviderRateLimiter(provider, rpm=rpm, rpd=rpd)
+        limiter = ProviderRateLimiter(
+            provider, rpm=rpm, rpd=rpd, max_sleep_s=settings.pacing_max_sleep_s,
+        )
         LIMITERS[provider] = limiter
         if not limiter.disabled:
             logger.info(

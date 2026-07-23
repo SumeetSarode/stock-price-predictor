@@ -103,9 +103,78 @@ async def test_rpm_over_limit_sleeps(monkeypatch):
     assert lim.total_paced_sleeps == 1
 
 
-# ──────────────────────────────────────────────────────────────
-# RPD — raise (don't sleep) on daily exhaustion
-# ──────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────
+# Pacing sleep cap -- fall over instead of hanging on a long sleep
+# ────────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_pacing_wait_over_cap_raises_instead_of_sleeping(monkeypatch):
+    """When the pacing wait exceeds max_sleep_s, RAISE (don't sleep).
+
+    Regression for 'chain gets stuck on groq rate limit': the limiter used
+    to sleep up to ~60s, so the resilient chain never fell over to the next
+    model. With a cap it raises a per-minute RateLimitError immediately.
+    """
+    slept: list[float] = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr("price_predictor.llm.rate_limiter.asyncio.sleep", fake_sleep)
+    # rpm=2, tiny cap: the 3rd call would need to wait ~60s >> 5s cap.
+    lim = ProviderRateLimiter("groq", rpm=2, rpd=0, max_sleep_s=5.0)
+    await lim.acquire()
+    await lim.acquire()
+    with pytest.raises(RateLimitError) as ei:
+        await lim.acquire()
+    # Never slept -- it bailed instead.
+    assert slept == []
+    assert lim.total_paced_sleeps == 0
+    assert lim.total_pacing_fallthroughs == 1
+    # Message must be PER-MINUTE flavoured: no 'daily'/'quota' substrings,
+    # so ResilientModel picks the 60s short cooldown (not until-midnight).
+    msg = str(ei.value).lower()
+    assert "daily" not in msg and "quota" not in msg
+    assert "falling over" in msg
+
+
+@pytest.mark.asyncio
+async def test_pacing_wait_under_cap_still_sleeps(monkeypatch):
+    """A short wait (<= cap) still sleeps -- pacing behavior preserved."""
+    slept: list[float] = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr("price_predictor.llm.rate_limiter.asyncio.sleep", fake_sleep)
+    # Generous cap so the ~60s wait is under it -> sleeps as before.
+    lim = ProviderRateLimiter("groq", rpm=2, rpd=0, max_sleep_s=120.0)
+    await lim.acquire()
+    await lim.acquire()
+    await lim.acquire()
+    assert len(slept) == 1
+    assert lim.total_paced_sleeps == 1
+    assert lim.total_pacing_fallthroughs == 0
+
+
+@pytest.mark.asyncio
+async def test_cap_zero_never_caps(monkeypatch):
+    """max_sleep_s=0 preserves the original 'always sleep' behavior."""
+    slept: list[float] = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr("price_predictor.llm.rate_limiter.asyncio.sleep", fake_sleep)
+    lim = ProviderRateLimiter("groq", rpm=1, rpd=0, max_sleep_s=0.0)
+    await lim.acquire()
+    await lim.acquire()  # would raise if capping were active
+    assert len(slept) == 1
+    assert lim.total_pacing_fallthroughs == 0
+
+
+def test_negative_max_sleep_rejected():
+    with pytest.raises(ValueError):
+        ProviderRateLimiter("x", rpm=1, rpd=0, max_sleep_s=-1.0)
 @pytest.mark.asyncio
 async def test_rpd_exhaustion_raises_ratelimit():
     """Hitting RPD must raise litellm.RateLimitError so caller can fall over."""
