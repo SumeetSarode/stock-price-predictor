@@ -482,3 +482,49 @@ class TestRssFallback:
         ), pytest.raises(ValueError, match="bad query"):
             asyncio.run(tmp_snapshot.get_or_fetch("X", date.today(), 7))
         assert fake.fetch_called is False
+
+    def test_fresh_window_tells_gdelt_to_fail_fast(self, tmp_snapshot):
+        """Live window + RSS enabled => GDELT called with 0 retries so a 429
+        falls over to RSS in <1s instead of sleeping ~15s."""
+        today = date.today()
+        good = _rss_df(pd.Timestamp(today, tz="UTC") - pd.Timedelta(days=1))
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, return_value=good,
+        ) as mock_fetch:
+            asyncio.run(tmp_snapshot.get_or_fetch("Reliance", today, 7))
+        kwargs = mock_fetch.call_args.kwargs
+        assert kwargs["rate_limit_retries"] == 0
+        assert kwargs["network_retries"] == 0
+
+    def test_stale_window_keeps_gdelt_retries(self, tmp_snapshot):
+        """Backtest window (RSS can't help) => GDELT keeps its full patient
+        retry budget (None => module default)."""
+        old = date(2019, 3, 14)
+        good = _rss_df(pd.Timestamp("2019-03-13", tz="UTC"))
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, return_value=good,
+        ) as mock_fetch:
+            asyncio.run(tmp_snapshot.get_or_fetch("Reliance", old, 7))
+        kwargs = mock_fetch.call_args.kwargs
+        assert kwargs["rate_limit_retries"] is None
+        assert kwargs["network_retries"] is None
+
+    def test_disabled_fallback_keeps_gdelt_retries(
+        self, tmp_snapshot, monkeypatch,
+    ):
+        """RSS disabled => no fast fallback to lean on => keep GDELT retries
+        even on a fresh window."""
+        from price_predictor.config.settings import settings as _settings
+        monkeypatch.setattr(_settings, "news_rss_fallback_enabled", False)
+        today = date.today()
+        good = _rss_df(pd.Timestamp(today, tz="UTC") - pd.Timedelta(days=1))
+        with patch(
+            "price_predictor.data.news_snapshot.fetch_news",
+            new_callable=AsyncMock, return_value=good,
+        ) as mock_fetch:
+            asyncio.run(tmp_snapshot.get_or_fetch("Reliance", today, 7))
+        kwargs = mock_fetch.call_args.kwargs
+        assert kwargs["rate_limit_retries"] is None
+        assert kwargs["network_retries"] is None

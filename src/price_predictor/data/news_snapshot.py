@@ -59,6 +59,7 @@ from loguru import logger
 from price_predictor.data.news import NewsFetchError, fetch_news
 from price_predictor.data.news_providers import GoogleNewsRssProvider
 from price_predictor.data.news_providers import NewsFetchError as RssFetchError
+from price_predictor.data.news_providers.base import NewsProviderCoverage
 
 # Hash truncation length. 16 hex chars = 64 bits = collision probability
 # is negligible at our scale (< 1M cached queries per as_of). Filenames
@@ -236,6 +237,29 @@ class NewsSnapshot:
     # ─────────────────────────────────────────────────────────
     # The one-shot public API
     # ─────────────────────────────────────────────────────────
+    def _rss_can_catch(self, as_of: date) -> bool:
+        """Will the live RSS fallback be able to serve this window?
+
+        True iff the fallback is enabled AND the window ends within RSS's
+        freshness horizon (the look-ahead guard -- RSS is live-only, so it
+        must never answer for a backtest date).
+
+        This is the SINGLE source of truth for two decisions:
+          1. Whether to tell GDELT to fail FAST (skip its ~15s retry sleep)
+             because a fast fallback is standing by.
+          2. Whether _rss_fallback() should even attempt RSS.
+        Keeping both off one predicate means they can never disagree.
+        """
+        from price_predictor.config.settings import settings
+
+        if not settings.news_rss_fallback_enabled:
+            return False
+        cov = NewsProviderCoverage(
+            historical=False, freshness_days=settings.news_rss_freshness_days
+        )
+        end_dt = pd.Timestamp(as_of, tz="UTC").to_pydatetime()
+        return cov.can_serve_end(end_dt)
+
     async def _rss_fallback(
         self,
         query: str,
@@ -261,21 +285,18 @@ class NewsSnapshot:
         """
         from price_predictor.config.settings import settings
 
-        if not settings.news_rss_fallback_enabled:
+        if not self._rss_can_catch(as_of):
+            logger.warning(
+                f"news RSS fallback SKIPPED (disabled, or window ends {as_of} "
+                f"older than {settings.news_rss_freshness_days}d horizon -- "
+                f"backtest, not live); re-raising GDELT error for "
+                f"query={query!r}"
+            )
             raise gdelt_err
 
         provider = GoogleNewsRssProvider(
             freshness_days=settings.news_rss_freshness_days
         )
-        end_dt = pd.Timestamp(as_of, tz="UTC").to_pydatetime()
-        if not provider.coverage.can_serve_end(end_dt):
-            logger.warning(
-                f"news RSS fallback SKIPPED (window ends {as_of}, older than "
-                f"{settings.news_rss_freshness_days}d horizon -- backtest, not "
-                f"live); re-raising GDELT error for query={query!r}"
-            )
-            raise gdelt_err
-
         logger.info(
             f"news RSS fallback: GDELT failed ({gdelt_err}); trying "
             f"{provider.name} for query={query!r} as_of={as_of}"
@@ -351,10 +372,19 @@ class NewsSnapshot:
         end = as_of
         start = as_of - pd.Timedelta(days=lookback_days).to_pytimedelta()
 
+        # If RSS can catch us (live window + fallback enabled), tell GDELT to
+        # fail FAST -- skip its ~15s retry sleep on a 429/blip so we fall over
+        # to RSS (~0.3s) immediately. When RSS can't help (backtest window),
+        # keep GDELT's full patient retry budget since it's our only source.
+        fast_fail = self._rss_can_catch(as_of)
+        gdelt_retries = 0 if fast_fail else None  # None => module default
+
         try:
             df = await fetch_news(
                 query, start.isoformat(), end.isoformat(), lang=lang,
                 exact_phrase=exact_phrase,
+                rate_limit_retries=gdelt_retries,
+                network_retries=gdelt_retries,
             )
         except ValueError:
             # Caller's bad input -- no fallback would help.

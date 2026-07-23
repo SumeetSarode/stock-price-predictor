@@ -399,6 +399,47 @@ class TestFetchNews:
         assert route.call_count == news_mod.GDELT_NETWORK_RETRIES + 1
 
     @respx.mock
+    async def test_rate_limit_retries_zero_fails_fast(self):
+        """rate_limit_retries=0 => a 429 raises on the FIRST attempt, no sleep.
+        This is what the snapshot layer passes for live windows so the RSS
+        fallback takes over in <1s instead of after ~15s of GDELT backoff."""
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [httpx.Response(429)] * 5
+        with pytest.raises(NewsFetchError, match="GDELT request failed"):
+            await fetch_news(
+                "Reliance", "2024-01-01", "2024-01-31",
+                rate_limit_retries=0,
+            )
+        assert route.call_count == 1  # no retry => fast fail
+
+    @respx.mock
+    async def test_network_retries_zero_fails_fast(self):
+        """network_retries=0 => a network blip raises on the FIRST attempt."""
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [httpx.ConnectTimeout("nope")] * 5
+        with pytest.raises(NewsFetchError, match="GDELT request failed"):
+            await fetch_news(
+                "Reliance", "2024-01-01", "2024-01-31",
+                network_retries=0,
+            )
+        assert route.call_count == 1  # no retry => fast fail
+
+    @respx.mock
+    async def test_explicit_retries_override_module_default(self, monkeypatch):
+        """An explicit retry count beats the module default (env-tunable)."""
+        import price_predictor.data.news as news_mod
+
+        monkeypatch.setattr(news_mod, "GDELT_RATE_LIMIT_BACKOFF_S", 0.0)
+        route = respx.get(GDELT_DOC_URL)
+        route.side_effect = [httpx.Response(429)] * 5
+        with pytest.raises(NewsFetchError):
+            await fetch_news(
+                "Reliance", "2024-01-01", "2024-01-31",
+                rate_limit_retries=1,
+            )
+        assert route.call_count == 2  # 1 retry => 2 attempts
+
+    @respx.mock
     async def test_timeout_raises(self):
         respx.get(GDELT_DOC_URL).mock(side_effect=httpx.TimeoutException("timeout"))
         with pytest.raises(NewsFetchError, match="GDELT request failed"):

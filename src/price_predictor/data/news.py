@@ -40,6 +40,7 @@ Date handling:
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -63,7 +64,14 @@ DEFAULT_USER_AGENT = "price-predictor/0.1 (+https://github.com/sumeet-s2597)"
 # that run's news. Retry a 429 a few times with linear backoff; every other
 # failure still raises immediately. Backoff is deliberately >= GDELT's ~5s
 # window so the retry actually lands after the limit resets.
-GDELT_RATE_LIMIT_RETRIES = 2
+#
+# Env-tunable (GDELT_RATE_LIMIT_RETRIES / GDELT_NETWORK_RETRIES): dial GDELT's
+# patience without touching code. NOTE: for LIVE predictions the snapshot layer
+# OVERRIDES these to 0 when the RSS fallback can catch us -- see
+# news_snapshot._rss_fallback -- so a 429 falls over to RSS in <1s instead of
+# sleeping ~15s. These defaults still apply to backtests (RSS-forbidden by the
+# look-ahead guard) and any direct fetch_news() caller.
+GDELT_RATE_LIMIT_RETRIES = int(os.getenv("GDELT_RATE_LIMIT_RETRIES", "2"))
 GDELT_RATE_LIMIT_BACKOFF_S = 5.0
 
 # Transient network faults (ConnectTimeout / ReadTimeout / ConnectError) are
@@ -71,7 +79,7 @@ GDELT_RATE_LIMIT_BACKOFF_S = 5.0
 # throttling. Retry them a couple times with a SHORT backoff (no point waiting
 # 5s for a network hiccup). Seen in the wild: a machine's connection blinked
 # and BOTH company + sector news timed out simultaneously.
-GDELT_NETWORK_RETRIES = 2
+GDELT_NETWORK_RETRIES = int(os.getenv("GDELT_NETWORK_RETRIES", "2"))
 GDELT_NETWORK_BACKOFF_S = 2.0
 
 NEWS_DF_COLUMNS = ["title", "url", "published_at", "source", "language"]
@@ -228,6 +236,8 @@ async def _gdelt_get_json(
     query: str,
     start: str,
     end: str,
+    rate_limit_retries: int = GDELT_RATE_LIMIT_RETRIES,
+    network_retries: int = GDELT_NETWORK_RETRIES,
 ) -> Any:
     """GET the GDELT Doc API with bounded retry on transient failures.
 
@@ -255,7 +265,7 @@ async def _gdelt_get_json(
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             is_429 = e.response.status_code == 429
-            if is_429 and rate_limit_attempts < GDELT_RATE_LIMIT_RETRIES:
+            if is_429 and rate_limit_attempts < rate_limit_retries:
                 rate_limit_attempts += 1
                 backoff = GDELT_RATE_LIMIT_BACKOFF_S * rate_limit_attempts
                 logger.debug(
@@ -270,7 +280,7 @@ async def _gdelt_get_json(
             ) from e
         except httpx.TransportError as e:
             # ConnectTimeout / ReadTimeout / ConnectError -- transient blip.
-            if network_attempts < GDELT_NETWORK_RETRIES:
+            if network_attempts < network_retries:
                 network_attempts += 1
                 backoff = GDELT_NETWORK_BACKOFF_S * network_attempts
                 logger.debug(
@@ -309,6 +319,8 @@ async def fetch_news(
     client: httpx.AsyncClient | None = None,
     exact_phrase: bool = True,
     source_country: str | None = None,
+    rate_limit_retries: int | None = None,
+    network_retries: int | None = None,
 ) -> pd.DataFrame:
     """Fetch news article metadata from GDELT Doc API 2.0.
 
@@ -324,6 +336,13 @@ async def fetch_news(
         exact_phrase: Wrap the query in quotes for whole-phrase matching
                 (default True — kills loose-token false positives).
         source_country: Optional GDELT sourcecountry bias (e.g. 'IN').
+        rate_limit_retries: Override the 429 retry budget. None => module
+                default (GDELT_RATE_LIMIT_RETRIES, env-tunable). Pass 0 to
+                fail FAST on the first 429 -- used by the snapshot layer for
+                live windows where RSS can catch us in <1s (no point sleeping
+                ~15s hoping GDELT recovers when a fallback is ready).
+        network_retries: Override the network-fault retry budget. None =>
+                module default (GDELT_NETWORK_RETRIES, env-tunable).
 
     Returns:
         DataFrame with columns: title, url, published_at (tz-aware UTC),
@@ -348,6 +367,14 @@ async def fetch_news(
     try:
         payload = await _gdelt_get_json(
             client, params, query=query, start=start, end=end,
+            rate_limit_retries=(
+                GDELT_RATE_LIMIT_RETRIES if rate_limit_retries is None
+                else rate_limit_retries
+            ),
+            network_retries=(
+                GDELT_NETWORK_RETRIES if network_retries is None
+                else network_retries
+            ),
         )
     finally:
         if owns_client:
