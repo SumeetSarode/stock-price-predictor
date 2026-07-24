@@ -411,6 +411,8 @@ async def fetch_news_relevant(
     max_records: int = 250,
     timeout: float = DEFAULT_TIMEOUT_S,
     client: httpx.AsyncClient | None = None,
+    rate_limit_retries: int | None = None,
+    network_retries: int | None = None,
 ) -> pd.DataFrame:
     """Fetch news, trading precision for recall only when needed.
 
@@ -439,6 +441,8 @@ async def fetch_news_relevant(
                 lang=lang, max_records=max_records, timeout=timeout,
                 client=client, exact_phrase=exact_phrase,
                 source_country=country,
+                rate_limit_retries=rate_limit_retries,
+                network_retries=network_retries,
             )
             if not df.empty:
                 return df

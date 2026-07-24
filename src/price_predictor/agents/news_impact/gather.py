@@ -43,11 +43,8 @@ from price_predictor.agents.news_impact.sectors import (
 from price_predictor.agents.price_agent.agent import fetch_prices_tool
 from price_predictor.data.estimates import EstimatesFetchError, fetch_estimates
 from price_predictor.data.filings import FilingsFetchError, fetch_filings
-from price_predictor.data.news import (
-    NewsFetchError,
-    fetch_news,
-    fetch_news_relevant,
-)
+from price_predictor.data.news import NewsFetchError
+from price_predictor.data.news_resilient import fetch_news_resilient
 from price_predictor.data.news_snapshot import (
     NewsSnapshotError,
     get_news_snapshot,
@@ -141,9 +138,10 @@ async def _fetch_news_rows(query: str, days_back: int, as_of, cap: int) -> list[
     if as_of is not None and snapshot is not None:
         df = await snapshot.get_or_fetch(query, as_of, days_back)
     else:
-        # Live path: use the relevance ladder (exact phrase + India bias,
-        # relaxed only if a tier finds nothing).
-        df = await fetch_news_relevant(query, start, end)
+        # Live path: relevance ladder (exact phrase + India bias, relaxed
+        # only if a tier finds nothing) with a GDELT->RSS fallback so a
+        # GDELT outage still returns fresh headlines instead of nothing.
+        df = await fetch_news_resilient(query, start, end, use_ladder=True)
     rows = df.head(cap)
     return [
         {
@@ -169,8 +167,9 @@ async def _fetch_sector_news_rows(query: str, days_back: int, as_of, cap: int) -
     if as_of is not None and snapshot is not None:
         df = await snapshot.get_or_fetch(query, as_of, days_back, exact_phrase=False)
     else:
-        df = await fetch_news(
-            query, start, end, exact_phrase=False, source_country=None,
+        df = await fetch_news_resilient(
+            query, start, end,
+            use_ladder=False, exact_phrase=False, source_country=None,
         )
     rows = df.head(cap)
     return [

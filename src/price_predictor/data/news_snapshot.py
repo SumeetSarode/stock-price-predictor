@@ -59,7 +59,6 @@ from loguru import logger
 from price_predictor.data.news import NewsFetchError, fetch_news
 from price_predictor.data.news_providers import GoogleNewsRssProvider
 from price_predictor.data.news_providers import NewsFetchError as RssFetchError
-from price_predictor.data.news_providers.base import NewsProviderCoverage
 
 # Hash truncation length. 16 hex chars = 64 bits = collision probability
 # is negligible at our scale (< 1M cached queries per as_of). Filenames
@@ -240,25 +239,17 @@ class NewsSnapshot:
     def _rss_can_catch(self, as_of: date) -> bool:
         """Will the live RSS fallback be able to serve this window?
 
-        True iff the fallback is enabled AND the window ends within RSS's
-        freshness horizon (the look-ahead guard -- RSS is live-only, so it
-        must never answer for a backtest date).
+        Thin delegate to the shared ``news_resilient.rss_can_catch`` predicate
+        so the backtest layer and the live fetcher can never disagree about
+        when RSS is permitted (enabled + within freshness horizon).
 
-        This is the SINGLE source of truth for two decisions:
-          1. Whether to tell GDELT to fail FAST (skip its ~15s retry sleep)
-             because a fast fallback is standing by.
+        Drives two decisions off one truth:
+          1. Whether to tell GDELT to fail FAST (skip its ~15s retry sleep).
           2. Whether _rss_fallback() should even attempt RSS.
-        Keeping both off one predicate means they can never disagree.
         """
-        from price_predictor.config.settings import settings
+        from price_predictor.data.news_resilient import rss_can_catch
 
-        if not settings.news_rss_fallback_enabled:
-            return False
-        cov = NewsProviderCoverage(
-            historical=False, freshness_days=settings.news_rss_freshness_days
-        )
-        end_dt = pd.Timestamp(as_of, tz="UTC").to_pydatetime()
-        return cov.can_serve_end(end_dt)
+        return rss_can_catch(as_of)
 
     async def _rss_fallback(
         self,

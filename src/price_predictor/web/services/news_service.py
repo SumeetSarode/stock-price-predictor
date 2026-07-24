@@ -14,24 +14,18 @@ Boundary
 """
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from loguru import logger
 
-from price_predictor.data.news import NewsFetchError, fetch_news
+from price_predictor.data.news import NewsFetchError
+from price_predictor.data.news_resilient import fetch_news_resilient
 from price_predictor.web.services.search_service import get_by_ticker
 
 _DEFAULT_DAYS = 7
 _MAX_HEADLINES = 25  # cap render volume; GDELT can return up to 250
-# GDELT is flaky under load -- it often answers a rate-limited request
-# with a non-JSON HTML page (surfaced as NewsFetchError). A couple of
-# short retries with backoff turns most of those transient failures into
-# successful loads. Backoff list length == number of RETRIES after the
-# first attempt, so 2 entries = up to 3 total attempts.
-_RETRY_BACKOFF_S = (0.6, 1.4)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,29 +93,19 @@ def _age_label(published: datetime, now: datetime) -> str:
 
 
 async def _fetch_with_retry(query: str, start: str, end: str) -> Any:
-    """Call GDELT, retrying transient failures with backoff.
+    """Fetch live headlines with the GDELT->RSS fallback.
 
-    Returns the articles DataFrame on success. Re-raises the LAST
-    NewsFetchError only after every attempt is exhausted, so the caller
-    still gets a clean soft-error to show.
+    Delegates to ``fetch_news_resilient``: GDELT first, and on failure (a
+    fresh window, which the News tab always is) falls over to Google News
+    RSS in <1s instead of burning ~15s of GDELT backoff. Re-raises
+    NewsFetchError only if BOTH sources fail, so the caller still gets a
+    clean soft-error to show.
     """
-    attempts = len(_RETRY_BACKOFF_S) + 1
-    last_exc: Exception | None = None
-    for i in range(attempts):
-        try:
-            return await fetch_news(query, start, end, max_records=_MAX_HEADLINES)
-        except (NewsFetchError, ValueError) as exc:
-            last_exc = exc
-            if i < len(_RETRY_BACKOFF_S):
-                backoff = _RETRY_BACKOFF_S[i]
-                logger.warning(
-                    "news: GDELT attempt {}/{} failed for {!r} ({}); "
-                    "retrying in {}s",
-                    i + 1, attempts, query, type(exc).__name__, backoff,
-                )
-                await asyncio.sleep(backoff)
-    assert last_exc is not None  # unreachable: loop always sets it on failure
-    raise last_exc
+    return await fetch_news_resilient(
+        query, start, end,
+        max_records=_MAX_HEADLINES,
+        use_ladder=False, exact_phrase=True, source_country=None,
+    )
 
 
 async def fetch_recent_headlines(
@@ -170,7 +154,7 @@ async def fetch_recent_headlines(
     if df is not None and not df.empty:
         # Newest first — GDELT sometimes orders oldest first.
         df = df.sort_values("published_at", ascending=False).head(_MAX_HEADLINES)
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         for row in df.itertuples(index=False):
             published: Any = row.published_at
             # pandas may hand back numpy/Timestamp; coerce to datetime.

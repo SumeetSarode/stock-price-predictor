@@ -56,19 +56,19 @@ def _stub_index(monkeypatch):
 def happy_fetchers(monkeypatch):
     """Wire all fetchers to succeed. Records calls for assertions.
 
-    Company news flows through fetch_news_relevant (exact-phrase India
-    ladder); sector news flows through fetch_news directly (loose, no
-    country bias). We patch both and record them separately.
+    Both company and sector news now flow through the resilient live
+    fetcher (fetch_news_resilient); use_ladder=True is company, False is
+    sector (loose, no country bias). One fake fans out to both buckets.
     """
     calls = {"news": [], "sector": [], "filings": [], "estimates": [],
              "prices": [], "snapshot": []}
 
-    async def fake_news(query, start, end):
-        calls["news"].append((query, start, end))
-        return _news_df([f"{query} headline"])
-
-    async def fake_sector_news(query, start, end, *, exact_phrase, source_country):
-        calls["sector"].append((query, exact_phrase, source_country))
+    async def fake_resilient(query, start, end, *, use_ladder=True,
+                             exact_phrase=True, source_country="IN", **kw):
+        if use_ladder:
+            calls["news"].append((query, start, end))
+        else:
+            calls["sector"].append((query, exact_phrase, source_country))
         return _news_df([f"{query} headline"])
 
     async def fake_filings(sym, start, end):
@@ -83,8 +83,7 @@ def happy_fetchers(monkeypatch):
         calls["prices"].append((tk, start, end))
         return {"status": "success", "last_close": 100.0}
 
-    monkeypatch.setattr(g, "fetch_news_relevant", fake_news)
-    monkeypatch.setattr(g, "fetch_news", fake_sector_news)
+    monkeypatch.setattr(g, "fetch_news_resilient", fake_resilient)
     monkeypatch.setattr(g, "fetch_filings", fake_filings)
     monkeypatch.setattr(g, "fetch_estimates", fake_estimates)
     monkeypatch.setattr(g, "fetch_prices_tool", fake_prices)
@@ -178,8 +177,7 @@ class TestSoftFail:
         def boom_sync(*a, **k):
             raise RuntimeError("down")
 
-        monkeypatch.setattr(g, "fetch_news_relevant", boom)
-        monkeypatch.setattr(g, "fetch_news", boom)
+        monkeypatch.setattr(g, "fetch_news_resilient", boom)
         monkeypatch.setattr(g, "fetch_filings", boom)
         monkeypatch.setattr(g, "fetch_estimates", boom)
         monkeypatch.setattr(g, "fetch_prices_tool", boom_sync)
