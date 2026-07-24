@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -785,3 +785,74 @@ class TestNewsImpactGate:
         with pytest.raises(PredictionError):
             asyncio.run(run_news_impact_agent("X.NS"))
         assert mock_llm.call_count == 1
+
+
+# ─────────────────────────────────────────────────────────────
+# Guardrail retry rotates the model (reach Ollama on repeated trips)
+# ─────────────────────────────────────────────────────────────
+class TestGuardrailRetryRotatesModel:
+    """A guardrail trip must penalize the culprit model so the NEXT
+    attempt falls over to the next model in the chain (ultimately Ollama).
+
+    A HallucinationError is an HTTP-200 'success' to the model layer, so
+    ResilientModel won't rotate on its own. synthesize_with_guardrails must
+    do it explicitly. Without this, every retry re-hits the same model and
+    the chain never reaches the offline Ollama tail.
+    """
+
+    @patch("price_predictor.prediction.predictor._penalize_agent_model")
+    @patch("price_predictor.prediction.predictor.validate_all")
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_guardrail_trip_penalizes_then_retry_succeeds(
+        self, mock_synth, mock_validate, mock_penalize,
+    ):
+        from price_predictor.prediction.guardrails import HallucinationError
+        from price_predictor.prediction.predictor import (
+            synthesize_with_guardrails,
+        )
+
+        mock_synth.return_value = _sample_prediction()
+        # Attempt 1 trips a guardrail; attempt 2 validates clean.
+        mock_validate.side_effect = [
+            HallucinationError("consistency", "no directional cluster"),
+            None,
+        ]
+        mock_penalize.return_value = "groq/openai/gpt-oss-120b"
+
+        result = asyncio.run(synthesize_with_guardrails(MagicMock()))
+
+        assert result is mock_synth.return_value
+        # The critical assertion: the guardrail trip penalized the model so
+        # the retry rotates off it (toward Ollama).
+        mock_penalize.assert_called_once()
+        assert "guardrail failure" in mock_penalize.call_args.args[1]
+        # And it actually retried (didn't give up after one trip).
+        assert mock_synth.await_count == 2
+
+    @patch("price_predictor.prediction.predictor._penalize_agent_model")
+    @patch("price_predictor.prediction.predictor.validate_all")
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_persistent_guardrail_trip_penalizes_each_attempt(
+        self, mock_synth, mock_validate, mock_penalize,
+    ):
+        """Every attempt that trips penalizes -> chain walks toward Ollama."""
+        from price_predictor.prediction.guardrails import HallucinationError
+        from price_predictor.prediction.predictor import (
+            PredictionError,
+            _MAX_GUARDRAIL_ATTEMPTS,
+            synthesize_with_guardrails,
+        )
+
+        mock_synth.return_value = _sample_prediction()
+        mock_validate.side_effect = HallucinationError("grounding", "bad ATR")
+        mock_penalize.return_value = "groq/openai/gpt-oss-120b"
+
+        with pytest.raises(PredictionError):
+            asyncio.run(synthesize_with_guardrails(MagicMock()))
+
+        # Penalized on every attempt EXCEPT the last (no retry after the
+        # final attempt), so it rotates through the chain toward Ollama.
+        assert mock_penalize.call_count == _MAX_GUARDRAIL_ATTEMPTS - 1
+        assert mock_synth.await_count == _MAX_GUARDRAIL_ATTEMPTS
