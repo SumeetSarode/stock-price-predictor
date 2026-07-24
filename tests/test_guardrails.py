@@ -467,13 +467,20 @@ class TestSynthesizeWithGuardrails:
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
            new_callable=AsyncMock)
-    def test_three_failures_raise_prediction_error(self, mock_synth):
+    def test_persistent_failures_raise_prediction_error(self, mock_synth):
+        # Budget is sized to the model chain so a persistent guardrail trip
+        # rotates through EVERY model (incl. the Ollama tail) before giving
+        # up -- so exhaust exactly that many attempts, not a hardcoded 3.
+        from price_predictor.prediction.predictor import (
+            _guardrail_attempt_budget,
+        )
+        budget = _guardrail_attempt_budget()
         bad = _make_pred(target_value=1599.0)
-        mock_synth.side_effect = [bad, bad, bad]
+        mock_synth.side_effect = [bad] * budget
 
-        with pytest.raises(PredictionError, match="3×"):
+        with pytest.raises(PredictionError, match="Synthesizer failed"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert mock_synth.await_count == 3  # tried 3×, then gave up
+        assert mock_synth.await_count == budget  # tried whole chain, gave up
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
            new_callable=AsyncMock)
@@ -541,14 +548,18 @@ class TestSynthesizeWithGuardrails:
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
            new_callable=AsyncMock)
-    def test_three_parse_failures_raise_prediction_error(self, mock_synth):
+    def test_persistent_parse_failures_raise_prediction_error(self, mock_synth):
         """If every attempt yields unparseable JSON, give up with context."""
+        from price_predictor.prediction.predictor import (
+            _guardrail_attempt_budget,
+        )
+        budget = _guardrail_attempt_budget()
         parse_err = SynthesisParseError("unparseable")
-        mock_synth.side_effect = [parse_err, parse_err, parse_err]
+        mock_synth.side_effect = [parse_err] * budget
 
-        with pytest.raises(PredictionError, match="3×"):
+        with pytest.raises(PredictionError, match="Synthesizer failed"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert mock_synth.await_count == 3
+        assert mock_synth.await_count == budget
 
 
 # ────────────────────────────────────────────

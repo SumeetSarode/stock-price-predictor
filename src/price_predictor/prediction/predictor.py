@@ -283,6 +283,29 @@ def _penalize_agent_model(agent: LlmAgent, reason: str) -> str | None:
     return None
 
 
+def _synthesizer_chain_len() -> int:
+    """Number of models in the synthesizer's fallback chain (1 if not resilient)."""
+    model = getattr(_synthesizer_agent, "model", None)
+    if isinstance(model, ResilientModel):
+        return len(model.inner_models)
+    return 1
+
+
+def _guardrail_attempt_budget() -> int:
+    """How many synthesizer attempts synthesize_with_guardrails() allows.
+
+    MUST be >= the chain length. Each guardrail trip penalizes the model
+    that served it, so the NEXT attempt rotates to the next model. With a
+    4-model chain (…→ollama_chat) but only 3 attempts, a persistent
+    guardrail trip would stop on the 3rd model and NEVER reach the offline
+    Ollama tail -- exactly the 'doesn't fall through to Ollama' bug. Sizing
+    the budget to the chain guarantees every model, Ollama included, gets a
+    shot. Never below _MAX_GUARDRAIL_ATTEMPTS so short chains still get
+    stochastic-resampling retries.
+    """
+    return max(_MAX_GUARDRAIL_ATTEMPTS, _synthesizer_chain_len())
+
+
 async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
     """Gather impact inputs (pure code) then synthesize with ONE LLM call.
 
@@ -460,7 +483,11 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
             f"{joined}"
         )
 
-    for attempt in range(1, _MAX_GUARDRAIL_ATTEMPTS + 1):
+    # Size the retry budget to the model chain so a persistent guardrail
+    # trip can rotate through EVERY model (each trip penalizes the last) and
+    # actually reach the offline Ollama tail instead of stopping short.
+    max_attempts = _guardrail_attempt_budget()
+    for attempt in range(1, max_attempts + 1):
         try:
             prediction = await run_synthesizer_agent(si, feedback=feedback)
             validate_all(prediction, si)
@@ -479,15 +506,15 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
                 f"schema. No markdown fences, no commentary, no leading or "
                 f"trailing text."
             )
-            if attempt < _MAX_GUARDRAIL_ATTEMPTS:
+            if attempt < max_attempts:
                 logger.warning(
                     f"synthesizer parse failure on attempt {attempt}: {e}. "
-                    f"Retrying (attempt {attempt + 1}/{_MAX_GUARDRAIL_ATTEMPTS})."
+                    f"Retrying (attempt {attempt + 1}/{max_attempts})."
                 )
         except HallucinationError as e:
             last_error = e
             feedback = _cumulative_feedback(str(e))
-            if attempt < _MAX_GUARDRAIL_ATTEMPTS:
+            if attempt < max_attempts:
                 # A guardrail trip is an HTTP-200 "success" to the model
                 # layer, so the resilient chain won't fall over on its own.
                 # Penalize the culprit so the NEXT attempt rotates to the
@@ -501,13 +528,13 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
                 logger.warning(
                     f"guardrail tripped on attempt {attempt}: {e}. "
                     + (f"penalized {penalized}; " if penalized else "")
-                    + f"Retrying (attempt {attempt + 1}/{_MAX_GUARDRAIL_ATTEMPTS})."
+                    + f"Retrying (attempt {attempt + 1}/{max_attempts})."
                 )
 
     # All attempts exhausted.
     assert last_error is not None  # loop body always sets it on the failure path
     raise PredictionError(
-        f"Synthesizer failed {_MAX_GUARDRAIL_ATTEMPTS}×. "
+        f"Synthesizer failed {max_attempts}×. "
         f"Last error: {last_error}"
     ) from last_error
 
