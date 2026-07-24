@@ -47,6 +47,22 @@ _API_KEY_GETTERS: dict[str, Callable[[], str]] = {
 # has no quota and no rate limit. See settings.ollama_api_base.
 _KEYLESS_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "ollama_chat"})
 
+# FAIL-FAST tuning. LiteLLM's DEFAULT behavior is to retry transient errors
+# (429/500/timeout) ITSELF, with exponential backoff, BEFORE the exception
+# ever reaches our ResilientModel wrapper. That produces the classic
+# "Retrying request... sleeping Ns" hang where a rate-limited Groq call
+# blocks for many seconds and the chain never falls over to Ollama.
+#
+# We own fallback (ResilientModel) and pacing (rate_limiter), so we want
+# LiteLLM to fail IMMEDIATELY and hand control back to us:
+#   - num_retries=0  -> no internal retry loop; surface the error at once
+#   - timeout        -> a wedged connection can't hang the whole prediction
+# Hosted providers get a short timeout (fall over fast). Ollama gets a
+# generous one because local reasoning_effort='high' is legitimately slow.
+_HOSTED_TIMEOUT_S = 60
+_OLLAMA_TIMEOUT_S = 300
+_NO_INTERNAL_RETRY = 0
+
 
 def make_model(model_name: str) -> LiteLlm:
     """Build a LiteLLM-wrapped model for ADK use. ONE specific model only.
@@ -89,6 +105,8 @@ def make_model(model_name: str) -> LiteLlm:
             model=model_name,
             api_base=settings.ollama_api_base,
             reasoning_effort="high",
+            num_retries=_NO_INTERNAL_RETRY,
+            timeout=_OLLAMA_TIMEOUT_S,
         )
 
     if provider not in _API_KEY_GETTERS:
@@ -98,7 +116,12 @@ def make_model(model_name: str) -> LiteLlm:
             f"Supported: {supported}. "
             f"Add an API key + getter to factory.py to enable."
         )
-    return LiteLlm(model=model_name, api_key=_API_KEY_GETTERS[provider]())
+    return LiteLlm(
+        model=model_name,
+        api_key=_API_KEY_GETTERS[provider](),
+        num_retries=_NO_INTERNAL_RETRY,
+        timeout=_HOSTED_TIMEOUT_S,
+    )
 
 
 def make_resilient_model(profile: str = "agentic") -> ResilientModel:

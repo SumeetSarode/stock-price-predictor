@@ -488,9 +488,20 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
             last_error = e
             feedback = _cumulative_feedback(str(e))
             if attempt < _MAX_GUARDRAIL_ATTEMPTS:
+                # A guardrail trip is an HTTP-200 "success" to the model
+                # layer, so the resilient chain won't fall over on its own.
+                # Penalize the culprit so the NEXT attempt rotates to the
+                # next model in the chain (ultimately Ollama) -- a different
+                # model may produce a grounded/consistent output where this
+                # one kept violating the same tier. Without this, all
+                # attempts re-hit the same model and never reach Ollama.
+                penalized = _penalize_agent_model(
+                    _synthesizer_agent, f"guardrail failure: {e}"
+                )
                 logger.warning(
                     f"guardrail tripped on attempt {attempt}: {e}. "
-                    f"Retrying (attempt {attempt + 1}/{_MAX_GUARDRAIL_ATTEMPTS})."
+                    + (f"penalized {penalized}; " if penalized else "")
+                    + f"Retrying (attempt {attempt + 1}/{_MAX_GUARDRAIL_ATTEMPTS})."
                 )
 
     # All attempts exhausted.

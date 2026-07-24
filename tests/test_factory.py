@@ -52,6 +52,34 @@ class TestKeylessLocalProvider:
         assert m._additional_args["api_base"] == "http://192.168.1.50:11434"
 
 
+class TestFailFastConfig:
+    """LiteLLM must NOT retry internally -- we own fallback + pacing.
+
+    Regression guard for the 'stuck on Retrying...' hang: without
+    num_retries=0, LiteLLM retries transient errors (429/500/timeout)
+    with exponential backoff BEFORE our ResilientModel ever sees the
+    error, so a rate-limited Groq call blocks for many seconds and never
+    falls over to Ollama. A bounded timeout stops a wedged connection
+    from hanging the whole prediction.
+    """
+
+    def test_hosted_model_disables_internal_retry_and_sets_timeout(self):
+        m = make_model("groq/openai/gpt-oss-120b")
+        assert m._additional_args["num_retries"] == 0
+        assert m._additional_args["timeout"] == factory._HOSTED_TIMEOUT_S
+
+    def test_gemini_model_disables_internal_retry(self):
+        m = make_model("gemini/gemini-flash-latest")
+        assert m._additional_args["num_retries"] == 0
+        assert m._additional_args["timeout"] == factory._HOSTED_TIMEOUT_S
+
+    def test_ollama_model_disables_internal_retry_with_generous_timeout(self):
+        m = make_model("ollama_chat/qwen3:8b")
+        assert m._additional_args["num_retries"] == 0
+        # Local reasoning_effort='high' is slow -> generous timeout.
+        assert m._additional_args["timeout"] == factory._OLLAMA_TIMEOUT_S
+
+
 class TestHostedProviderStillWorks:
     """The keyed path (groq/gemini) is unchanged."""
 
