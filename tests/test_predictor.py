@@ -837,13 +837,23 @@ class TestGuardrailRetryRotatesModel:
     def test_persistent_guardrail_trip_penalizes_each_attempt(
         self, mock_synth, mock_validate, mock_penalize,
     ):
-        """Every attempt that trips penalizes -> chain walks toward Ollama."""
+        """Every attempt that trips penalizes -> chain walks toward Ollama.
+
+        The attempt budget is sized to the model chain, so a persistent
+        trip rotates through EVERY model (including the offline Ollama tail)
+        rather than stopping short on a fixed 3-attempt budget.
+        """
         from price_predictor.prediction.guardrails import HallucinationError
         from price_predictor.prediction.predictor import (
             PredictionError,
-            _MAX_GUARDRAIL_ATTEMPTS,
+            _guardrail_attempt_budget,
+            _synthesizer_chain_len,
             synthesize_with_guardrails,
         )
+
+        budget = _guardrail_attempt_budget()
+        # Budget must cover the whole chain -- otherwise Ollama is unreachable.
+        assert budget >= _synthesizer_chain_len()
 
         mock_synth.return_value = _sample_prediction()
         mock_validate.side_effect = HallucinationError("grounding", "bad ATR")
@@ -853,6 +863,6 @@ class TestGuardrailRetryRotatesModel:
             asyncio.run(synthesize_with_guardrails(MagicMock()))
 
         # Penalized on every attempt EXCEPT the last (no retry after the
-        # final attempt), so it rotates through the chain toward Ollama.
-        assert mock_penalize.call_count == _MAX_GUARDRAIL_ATTEMPTS - 1
-        assert mock_synth.await_count == _MAX_GUARDRAIL_ATTEMPTS
+        # final attempt), so it rotates through the whole chain to Ollama.
+        assert mock_penalize.call_count == budget - 1
+        assert mock_synth.await_count == budget
