@@ -246,6 +246,10 @@ class ResilientModel(BaseLlm):
     inner_models: list[BaseLlm] = Field(default_factory=list)
     # name -> cooldown_expires_at (in-memory state)
     cooldowns: dict[str, datetime] = Field(default_factory=dict)
+    # Name of the model that served the most recent successful call. Lets a
+    # downstream parser (which alone knows the OUTPUT was garbage) tell us
+    # which model to penalize so a retry falls over to the next one.
+    last_used_model: str | None = None
 
     def __init__(self, inner_models: list[BaseLlm], **kwargs) -> None:
         if not inner_models:
@@ -258,6 +262,33 @@ class ResilientModel(BaseLlm):
             cooldowns={},
             **kwargs,
         )
+
+    # ─────────────────────────────────────────────────────────
+    # Bad-output penalty (driven by downstream parse failures)
+    # ─────────────────────────────────────────────────────────
+    _BAD_OUTPUT_COOLDOWN = timedelta(seconds=90)
+
+    def penalize_last_used(self, reason: str) -> str | None:
+        """Cool the model that served the last call so a retry skips it.
+
+        A model can return HTTP 200 with unparseable / schema-invalid text
+        (e.g. a reasoning model narrating instead of emitting JSON). That's a
+        'success' to generate_content_async but garbage to the caller. Only
+        the downstream parser knows -- so it calls this to knock the culprit
+        out of rotation for a short window, forcing the next attempt onto the
+        next model in the chain (ultimately Ollama).
+
+        Returns the penalized model name (or None if nothing was recorded).
+        """
+        name = self.last_used_model
+        if name is None:
+            return None
+        self.cooldowns[name] = datetime.now(UTC) + self._BAD_OUTPUT_COOLDOWN
+        logger.warning(
+            "[resilient] bad-output penalty: model=%s cooled %ss (%s)",
+            name, int(self._BAD_OUTPUT_COOLDOWN.total_seconds()), reason,
+        )
+        return name
 
     # ─────────────────────────────────────────────────────────
     # Cooldown helpers
@@ -335,6 +366,7 @@ class ResilientModel(BaseLlm):
                     async for response in model.generate_content_async(llm_request, stream):
                         yield response
                     logger.info("[resilient] success model=%s", model.model)
+                    self.last_used_model = model.model
                     return
                 except BadRequestError as e:
                     # Sub-classify: model-specific problem -> fall back;

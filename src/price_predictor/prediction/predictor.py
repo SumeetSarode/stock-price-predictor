@@ -80,6 +80,7 @@ from price_predictor.data.news_snapshot import (
     set_news_snapshot,
 )
 from price_predictor.llm.json_extract import extract_json
+from price_predictor.llm.resilient import ResilientModel
 from price_predictor.prediction.guardrails import (
     HallucinationError,
     validate_all,
@@ -168,6 +169,14 @@ def _degraded_impact(ticker: str, error_msg: str) -> ImpactAssessment:
 # failure to the caller. 1 initial + 2 retries with feedback. See
 # `synthesize_with_guardrails` docstring for rationale.
 _MAX_GUARDRAIL_ATTEMPTS = 3
+
+# How many times to re-run an agent when it returns a 200-OK response that
+# is UNPARSEABLE (e.g. a reasoning model narrating prose instead of JSON).
+# A bad response isn't an exception, so the resilient chain thinks it
+# 'succeeded' and never falls over -- we penalize the offending model and
+# retry so the next attempt lands on the next model in the chain (ultimately
+# the offline Ollama tier). 3 = enough to skip a couple of bad providers.
+_PARSE_MAX_ATTEMPTS = 3
 
 # ─────────────────────────────────────────────────────────────
 # Errors
@@ -258,6 +267,22 @@ async def _run_agent_for_text(
     return final_text
 
 
+def _penalize_agent_model(agent: LlmAgent, reason: str) -> str | None:
+    """Knock the model that just produced garbage out of rotation.
+
+    A 200-OK-but-unparseable response is invisible to ResilientModel (it
+    counts as a success), so the chain won't fall over on its own. Only the
+    downstream parser knows the output was bad -- so we reach into the agent's
+    ResilientModel and penalize whichever model served the last call, forcing
+    the NEXT attempt onto the next model in the chain. No-op (returns None) if
+    the agent isn't backed by a ResilientModel (e.g. under test).
+    """
+    model = getattr(agent, "model", None)
+    if isinstance(model, ResilientModel):
+        return model.penalize_last_used(reason)
+    return None
+
+
 async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
     """Gather impact inputs (pure code) then synthesize with ONE LLM call.
 
@@ -293,16 +318,38 @@ async def run_news_impact_agent(ticker: str) -> ImpactAssessment:
         return neutral_impact_assessment(ticker)
 
     prompt = build_news_impact_prompt(inputs)
-    raw = await _run_agent_for_text(_news_impact_agent, prompt)
-    # Small local fallback models (qwen3) narrate reasoning around the JSON;
-    # strip it so parsing sees only the object. No-op for clean hosted output.
-    cleaned = extract_json(raw)
-    try:
-        return ImpactAssessment.model_validate_json(cleaned)
-    except Exception as e:
-        raise PredictionError(
-            f"news_impact agent returned invalid ImpactAssessment JSON: {e}"
-        ) from e
+    # Parse-with-fallover: a model can return 200 OK with unparseable prose
+    # (reasoning models narrating instead of emitting JSON). That's not an
+    # exception, so the resilient chain won't fall over by itself -- we
+    # penalize the culprit and retry so the next attempt uses the next model
+    # (ultimately Ollama). Only after exhausting attempts do we degrade.
+    last_err: Exception | None = None
+    for attempt in range(1, _PARSE_MAX_ATTEMPTS + 1):
+        raw = await _run_agent_for_text(_news_impact_agent, prompt)
+        # Small local fallback models (qwen3) narrate reasoning around the
+        # JSON; strip it so parsing sees only the object. No-op for clean
+        # hosted output.
+        cleaned = extract_json(raw)
+        try:
+            return ImpactAssessment.model_validate_json(cleaned)
+        except Exception as e:
+            last_err = e
+            penalized = _penalize_agent_model(
+                _news_impact_agent, "news_impact parse failure"
+            )
+            logger.warning(
+                f"news_impact: unparseable LLM output on attempt "
+                f"{attempt}/{_PARSE_MAX_ATTEMPTS} ({e})"
+                + (f"; penalized {penalized}, retrying"
+                   if penalized and attempt < _PARSE_MAX_ATTEMPTS else "")
+            )
+            # Can't fall over (no resilient chain, e.g. under test) -- don't
+            # spin re-calling the same model; fail now.
+            if penalized is None:
+                break
+    raise PredictionError(
+        f"news_impact agent returned invalid ImpactAssessment JSON: {last_err}"
+    ) from last_err
 
 
 async def run_synthesizer_agent(
@@ -341,6 +388,16 @@ async def run_synthesizer_agent(
     try:
         return Prediction.model_validate_json(cleaned)
     except Exception as e:
+        # Penalize the model that produced this garbage so the guardrail
+        # retry loop's next attempt falls over to the next model in the
+        # chain (ultimately Ollama) instead of re-hitting the same one.
+        penalized = _penalize_agent_model(
+            _synthesizer_agent, "synthesizer parse failure"
+        )
+        logger.warning(
+            f"synthesizer: unparseable LLM output ({e})"
+            + (f"; penalized {penalized}" if penalized else "")
+        )
         raise SynthesisParseError(
             f"synthesizer agent returned invalid Prediction JSON: {e}"
         ) from e

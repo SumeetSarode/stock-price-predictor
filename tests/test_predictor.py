@@ -727,3 +727,61 @@ class TestNewsImpactGate:
         out = asyncio.run(run_news_impact_agent("X.NS"))
         mock_llm.assert_called_once()            # LLM invoked exactly once
         assert isinstance(out, ImpactAssessment)
+
+    @patch("price_predictor.prediction.predictor._run_agent_for_text",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.gather_news_impact_inputs",
+           new_callable=AsyncMock)
+    def test_unparseable_output_retries_and_falls_over(
+        self, mock_gather, mock_llm, monkeypatch,
+    ):
+        """A 200-OK-but-unparseable response (reasoning prose) penalizes the
+        model and retries down the chain, up to _PARSE_MAX_ATTEMPTS."""
+        from price_predictor.llm.resilient import ResilientModel
+        from price_predictor.prediction import predictor as P
+        from price_predictor.prediction.predictor import (
+            _PARSE_MAX_ATTEMPTS,
+            PredictionError,
+            run_news_impact_agent,
+        )
+        mock_gather.return_value = self._inputs(
+            company_news=[{"title": "Big", "url": "u",
+                           "published_at": "2026-01-05", "source": "ET"}],
+        )
+        mock_llm.return_value = "We need to synthesize... Let's craft."  # no JSON
+        assert isinstance(P._news_impact_agent.model, ResilientModel)
+        # Simulate a resilient chain that just served this (bad) response, so
+        # the penalty has a culprit to cool -> retries fire.
+        monkeypatch.setattr(
+            P._news_impact_agent.model, "last_used_model", "gemini/x",
+        )
+        with pytest.raises(PredictionError, match="invalid ImpactAssessment"):
+            asyncio.run(run_news_impact_agent("X.NS"))
+        assert mock_llm.call_count == _PARSE_MAX_ATTEMPTS  # retried, not 1
+
+    @patch("price_predictor.prediction.predictor._run_agent_for_text",
+           new_callable=AsyncMock)
+    @patch("price_predictor.prediction.predictor.gather_news_impact_inputs",
+           new_callable=AsyncMock)
+    def test_unparseable_output_without_culprit_fails_fast(
+        self, mock_gather, mock_llm, monkeypatch,
+    ):
+        """No penalizable model recorded => single attempt, no spinning."""
+        from price_predictor.llm.resilient import ResilientModel
+        from price_predictor.prediction import predictor as P
+        from price_predictor.prediction.predictor import (
+            PredictionError,
+            run_news_impact_agent,
+        )
+        mock_gather.return_value = self._inputs(
+            company_news=[{"title": "Big", "url": "u",
+                           "published_at": "2026-01-05", "source": "ET"}],
+        )
+        mock_llm.return_value = "garbage"
+        if isinstance(P._news_impact_agent.model, ResilientModel):
+            monkeypatch.setattr(
+                P._news_impact_agent.model, "last_used_model", None,
+            )
+        with pytest.raises(PredictionError):
+            asyncio.run(run_news_impact_agent("X.NS"))
+        assert mock_llm.call_count == 1

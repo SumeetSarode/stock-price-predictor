@@ -766,3 +766,45 @@ class TestLlmRequestModelPatching:
                 pass
 
         assert req.model == "resilient[2]"
+
+
+# ─────────────────────────────────────────────────────────────
+# Bad-output penalty — parse failures cool the culprit model
+# ─────────────────────────────────────────────────────────────
+async def _drain(model, req=None) -> None:
+    """Drive generate_content_async to completion, discarding responses."""
+    async for _ in model.generate_content_async(req or _make_request()):
+        pass
+
+
+class TestBadOutputPenalty:
+    @pytest.mark.asyncio
+    async def test_last_used_model_recorded_on_success(self):
+        a = _make_fake("a")
+        m = ResilientModel(inner_models=[a])
+        await _drain(m)
+        assert m.last_used_model == "a"
+
+    @pytest.mark.asyncio
+    async def test_penalize_cools_last_used_and_falls_over(self):
+        """A garbage-output penalty on model A makes the NEXT call use B."""
+        a = _make_fake("a")
+        b = _make_fake("b")
+        m = ResilientModel(inner_models=[a, b])
+
+        await _drain(m)                       # A serves first
+        assert m.last_used_model == "a"
+
+        penalized = m.penalize_last_used("bad json")
+        assert penalized == "a"
+        assert m._is_available("a") is False  # A now cooled
+        assert m._is_available("b") is True
+
+        await _drain(m)                       # A skipped -> B serves
+        assert m.last_used_model == "b"
+        assert b.call_count == 1
+
+    def test_penalize_with_no_prior_call_is_noop(self):
+        m = ResilientModel(inner_models=[_make_fake("a")])
+        assert m.penalize_last_used("x") is None
+        assert m.cooldowns == {}
