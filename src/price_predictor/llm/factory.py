@@ -72,15 +72,23 @@ def make_model(model_name: str) -> LiteLlm:
     # pointing at the running Ollama server. This is what lets the resilient
     # chain fall over to an offline model when hosted providers are exhausted.
     if provider in _KEYLESS_LOCAL_PROVIDERS:
-        # Disable qwen3-style "thinking": litellm maps reasoning_effort='none'
-        # to Ollama's think=False, so the model emits the JSON answer directly
-        # instead of narrating its reasoning as prose (which then fails
-        # ImpactAssessment / Prediction JSON parsing). See llm/json_extract.py
-        # for the defence-in-depth that recovers JSON if a model ignores this.
+        # Keep qwen3's "thinking" ON for quality. This tier is NOT a rare
+        # last resort -- when the free-tier hosted quotas (Gemini/Groq) are
+        # exhausted, which happens fast under batch load, the local model
+        # does the BULK of the work. So its reasoning matters as much as any
+        # tier's, and we refuse to trade prediction quality for speed.
+        #
+        # litellm maps reasoning_effort='high' -> Ollama think=True. The two
+        # defences that keep the reasoning output parseable:
+        #   1. llm/json_extract.py strips <think>...</think> blocks and any
+        #      reasoning preamble, leaving only the JSON object.
+        #   2. predictor.py penalizes + falls over if a response is STILL
+        #      unparseable (e.g. reasoning truncated before the JSON), so a
+        #      bad reasoning dump never silently degrades a prediction.
         return LiteLlm(
             model=model_name,
             api_base=settings.ollama_api_base,
-            reasoning_effort="none",
+            reasoning_effort="high",
         )
 
     if provider not in _API_KEY_GETTERS:

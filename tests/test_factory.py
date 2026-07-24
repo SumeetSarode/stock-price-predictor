@@ -29,17 +29,20 @@ class TestKeylessLocalProvider:
         m = make_model("ollama/llama3.1:8b")
         assert m._additional_args["api_base"] == settings.ollama_api_base
 
-    def test_ollama_disables_thinking(self):
-        # qwen3 narrates its reasoning as prose unless thinking is off, which
-        # breaks JSON parsing. litellm maps reasoning_effort='none' -> Ollama
-        # think=False. Regression for the HINDUNILVR.NS 'We need to produce
-        # Impac...' parse failure.
+    def test_ollama_keeps_thinking_on_for_quality(self):
+        # The local tier is the de-facto workhorse once free-tier hosted
+        # quotas are exhausted, so we keep qwen3 reasoning ON for prediction
+        # quality. litellm maps reasoning_effort='high' -> Ollama think=True.
+        # Parseability is guaranteed by json_extract (strips <think> blocks)
+        # + predictor's penalize-and-fall-over on any still-unparseable reply.
         m = make_model("ollama_chat/qwen3:8b")
-        assert m._additional_args["reasoning_effort"] == "none"
+        assert m._additional_args["reasoning_effort"] == "high"
 
     def test_hosted_models_do_not_get_reasoning_effort(self):
-        # Only the local tier gets the thinking-off knob; hosted models are
-        # left exactly as before.
+        # Hosted models reason at their own provider defaults (gpt-oss reasons
+        # at 'medium' out of the box). We don't override them: forcing 'high'
+        # burns more tokens and trips Groq's free-tier rate/size limits sooner
+        # (proven via live probe), causing needless fallover.
         m = make_model("groq/openai/gpt-oss-120b")
         assert "reasoning_effort" not in m._additional_args
 
