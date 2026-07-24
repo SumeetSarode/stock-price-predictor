@@ -104,6 +104,40 @@ def test_fetch_ohlcv_happy_path():
     )
 
 
+def test_fetch_ohlcv_strips_trailing_nan_close_bar():
+    """Regression: yfinance's in-progress TODAY bar has NaN close.
+
+    If that NaN row survives into the DataFrame, every technical cluster
+    reads df['close'].iloc[-1] -> None -> SMA/ATR/ADX collapse -> all four
+    clusters go 'neutral' -> the consistency guardrail forbids any
+    directional call -> EVERY prediction is forced NEUTRAL (and neutral is
+    the only direction where the schema lets the target sit inside the
+    entry zone). One NaN row, pipeline-wide blast radius. fetch_ohlcv MUST
+    drop it at the source so no downstream consumer can be poisoned.
+    """
+    import numpy as np
+
+    ticker = "RELIANCE.NS"
+    resp = _make_yf_response(ticker=ticker, rows=5)
+    # Poison the LAST row's Close with NaN, exactly like a live TODAY bar.
+    resp.loc[resp.index[-1], ("Close", ticker)] = np.nan
+
+    with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
+        mock_dl.return_value = resp
+        result = fetch_ohlcv(ticker, date(2024, 1, 1), date(2024, 1, 5))
+
+    assert len(result) == 4, (
+        f"Trailing NaN-close bar must be stripped: expected 4 rows, got {len(result)}"
+    )
+    assert result["close"].isna().sum() == 0, (
+        "No NaN-close rows may survive fetch_ohlcv"
+    )
+    # The 'latest' bar every indicator reads must be a real, complete bar.
+    assert result["close"].iloc[-1] == 2450.0, (
+        f"iloc[-1] must be the last COMPLETE bar, got {result['close'].iloc[-1]}"
+    )
+
+
 def test_fetch_ohlcv_empty_raises():
     """When yfinance returns an empty DataFrame, fetch_ohlcv raises PriceFetchError."""
     with patch("price_predictor.data.providers.yfinance_provider.yf.download") as mock_dl:
