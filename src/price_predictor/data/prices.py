@@ -98,8 +98,24 @@ def fetch_ohlcv(
         PriceFetchError:               All providers in the chain failed.
         AllProvidersExhaustedError:    (subclass of PriceFetchError) -- the
                                        chain was exhausted; check .last_error.
+
+    DATA HYGIENE -- trailing NaN-close bars
+    =======================================
+    yfinance returns a row for TODAY's still-open session with NaN OHLC
+    until the market closes. Every technical indicator reads the LAST
+    bar (df['close'].iloc[-1]); a NaN there poisons SMA/ATR/ADX -> the
+    trend/momentum/volatility/levels clusters all collapse to 'neutral'
+    -> the consistency guardrail forbids any directional call -> every
+    prediction is forced NEUTRAL. That is a ONE-ROW bug with pipeline-
+    wide blast radius, so we strip it HERE -- the single choke point all
+    consumers (4 cluster tools, close/bar helper, web services) share --
+    rather than relying on each caller to remember. Dropping a bar whose
+    close is NaN is always safe: it carries no usable price information.
     """
-    return _get_default_fetcher().fetch_ohlcv(ticker, start, end, interval)
+    df = _get_default_fetcher().fetch_ohlcv(ticker, start, end, interval)
+    if not df.empty and df["close"].isna().any():
+        df = df[df["close"].notna()]
+    return df
 
 
 # Re-export so existing `from price_predictor.data.prices import PriceFetchError`
