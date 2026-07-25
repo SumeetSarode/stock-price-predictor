@@ -101,10 +101,17 @@ def make_model(model_name: str) -> LiteLlm:
         #   2. predictor.py penalizes + falls over if a response is STILL
         #      unparseable (e.g. reasoning truncated before the JSON), so a
         #      bad reasoning dump never silently degrades a prediction.
+        #
+        # num_ctx: Ollama defaults the context window to 2048 tokens no
+        # matter the model capacity, so a big prediction prompt overflows
+        # it and litellm raises ContextWindowExceededError, hard-failing
+        # as an LLM token limit error. Set it explicitly so the offline
+        # fallback is actually usable.
         return LiteLlm(
             model=model_name,
             api_base=settings.ollama_api_base,
             reasoning_effort="high",
+            num_ctx=settings.ollama_num_ctx,
             num_retries=_NO_INTERNAL_RETRY,
             timeout=_OLLAMA_TIMEOUT_S,
         )

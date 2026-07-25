@@ -51,6 +51,27 @@ class TestKeylessLocalProvider:
         m = make_model("ollama_chat/qwen3:8b")
         assert m._additional_args["api_base"] == "http://192.168.1.50:11434"
 
+    def test_ollama_sets_num_ctx_from_settings(self):
+        # Ollama defaults num_ctx to 2048 regardless of the model's real
+        # capacity, so a big prediction prompt overflows it and litellm
+        # raises ContextWindowExceededError -- surfaced as an "LLM token
+        # limit" error even though Ollama has no quota. We MUST set num_ctx
+        # explicitly for the offline fallback to be usable.
+        m = make_model("ollama_chat/qwen3:8b")
+        assert m._additional_args["num_ctx"] == settings.ollama_num_ctx
+        assert settings.ollama_num_ctx >= 8192  # comfortably above a real prompt
+
+    def test_num_ctx_follows_settings_override(self, monkeypatch):
+        monkeypatch.setattr(settings, "ollama_num_ctx", 16384)
+        m = make_model("ollama_chat/qwen3:8b")
+        assert m._additional_args["num_ctx"] == 16384
+
+    def test_hosted_models_do_not_get_num_ctx(self):
+        # num_ctx is an Ollama-only knob; hosted providers manage their own
+        # (much larger) context windows.
+        m = make_model("groq/openai/gpt-oss-120b")
+        assert "num_ctx" not in m._additional_args
+
 
 class TestFailFastConfig:
     """LiteLLM must NOT retry internally -- we own fallback + pacing.
