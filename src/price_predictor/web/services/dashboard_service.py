@@ -16,6 +16,7 @@ break the dashboard.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -24,7 +25,11 @@ import pandas as pd
 from loguru import logger
 
 from price_predictor.data.prices import PriceFetchError, fetch_ohlcv
-from price_predictor.web.services.search_service import Stock, all_nifty50
+from price_predictor.web.services.search_service import (
+    Stock,
+    all_nifty50,
+    get_by_ticker,
+)
 from price_predictor.web.services.watchlist_service import watchlist_tickers
 
 # India Standard Time, UTC+5:30. We use IST for the cache key because
@@ -296,7 +301,85 @@ def snapshot_with_watchlist(snapshot: DashboardSnapshot) -> DashboardSnapshot:
     )
 
 
+# ── Single-ticker quotes (works for ANY ticker, not just Nifty 50) ───
+#
+# The dashboard batch snapshot only covers Nifty 50. Watched stocks and
+# detail pages for the ~450 non-N50 names in nifty500.csv still need a
+# price. get_quote() serves them: it piggybacks the N50 snapshot when the
+# ticker is in it (free), otherwise fetches that one ticker on demand and
+# caches it per IST trading day. Without this, non-N50 stocks show no
+# price at all.
+
+_quote_cache: dict[str, DashboardRow] = {}
+_quote_cache_day: date | None = None
+
+
+def _quote_cache_for_today() -> dict[str, DashboardRow]:
+    """Return the per-ticker quote cache, clearing it on an IST day roll."""
+    global _quote_cache_day
+    today = _today_ist()
+    if _quote_cache_day != today:
+        _quote_cache.clear()
+        _quote_cache_day = today
+    return _quote_cache
+
+
+async def get_quote(
+    ticker: str, force_refresh: bool = False
+) -> DashboardRow | None:
+    """Latest close / change for ANY ticker (Nifty 50 or not).
+
+    Resolution order:
+      1. N50 batch snapshot (free) if the ticker is already in it.
+      2. Per-ticker cache (this IST day) unless force_refresh.
+      3. On-demand single fetch, then cache.
+
+    Returns None only when we have no Stock metadata for the ticker
+    (i.e. it isn't in the search index at all). A failed price fetch
+    still returns a DashboardRow with ``error`` set and close=None, so
+    the UI shows a friendly em-dash rather than nothing.
+    """
+    if not force_refresh and _cache_is_fresh(_cache):
+        row = next((r for r in _cache.rows if r.ticker == ticker), None)
+        if row is not None:
+            return row
+
+    cache = _quote_cache_for_today()
+    if not force_refresh:
+        cached = cache.get(ticker)
+        if cached is not None:
+            return cached
+
+    stock = get_by_ticker(ticker)
+    if stock is None:
+        return None
+
+    row = await asyncio.to_thread(_fetch_one_sync, stock)
+    cache[ticker] = row
+    return row
+
+
+async def get_quotes(tickers: Iterable[str]) -> dict[str, DashboardRow]:
+    """Bulk get_quote with bounded parallelism. Missing tickers omitted.
+
+    N50 tickers resolve for free from the snapshot; only the non-N50
+    extras trigger an actual fetch, bounded by the same semaphore the
+    dashboard uses so we stay polite to NSE.
+    """
+    unique = list(dict.fromkeys(tickers))
+    sem = asyncio.Semaphore(_MAX_CONCURRENT_FETCHES)
+
+    async def _bounded(t: str) -> tuple[str, DashboardRow | None]:
+        async with sem:
+            return t, await get_quote(t)
+
+    pairs = await asyncio.gather(*[_bounded(t) for t in unique])
+    return {t: row for t, row in pairs if row is not None}
+
+
 def reset_cache_for_tests() -> None:
-    """Drop the in-memory snapshot. Used by tests."""
-    global _cache
+    """Drop the in-memory snapshot + per-ticker quote cache. Used by tests."""
+    global _cache, _quote_cache_day
     _cache = None
+    _quote_cache.clear()
+    _quote_cache_day = None
