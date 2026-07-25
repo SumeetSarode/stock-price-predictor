@@ -18,7 +18,7 @@ from typing import Any
 
 from price_predictor.web.services.dashboard_service import (
     DashboardRow,
-    get_dashboard,
+    get_quote,
 )
 from price_predictor.web.services.prediction_cache import (
     CachedPrediction,
@@ -97,10 +97,7 @@ async def get_stock_detail(ticker: str, horizon: str = "weekly") -> StockDetail:
     sector = stock.sector if stock else "Unknown"
     is_n50 = stock.is_nifty50 if stock else False
 
-    snapshot = await get_dashboard()
-    price_row: DashboardRow | None = next(
-        (r for r in snapshot.rows if r.ticker == t), None
-    )
+    
 
     cached = get_latest(t, h)
     view = cached.view if cached else None

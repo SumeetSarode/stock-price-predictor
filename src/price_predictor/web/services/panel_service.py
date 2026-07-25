@@ -19,7 +19,8 @@ from dataclasses import dataclass
 
 from price_predictor.web.services.dashboard_service import (
     DashboardRow,
-    get_dashboard,
+    get_quote,
+    get_quotes,
 )
 from price_predictor.web.services.prediction_cache import (
     CachedPrediction,
@@ -84,12 +85,7 @@ async def get_panel_cards(horizon: str = "weekly") -> list[PanelCard]:
 
     # Use the dashboard snapshot for current prices. Don't force_refresh —
     # if the dashboard is cold for this process, we'd block for ~5-10s.
-    snapshot = await get_dashboard()
-    price_lookup: dict[str, DashboardRow] = {r.ticker: r for r in snapshot.rows}
-
-    # Bulk-fetch cached predictions for all watched tickers, one DB hit.
-    tickers = [e.ticker for e in entries]
-    prediction_lookup = get_latest_many(tickers, horizon)
+    
 
     cards: list[PanelCard] = []
     for entry in entries:
@@ -132,8 +128,7 @@ async def get_one_card(ticker: str, horizon: str = "weekly") -> PanelCard:
     sector = stock.sector if stock else "—"
     is_n50 = stock.is_nifty50 if stock else False
 
-    snapshot = await get_dashboard()
-    price_row = next((r for r in snapshot.rows if r.ticker == t), None)
+    price_row = await get_quote(t)
 
     cached = get_latest_many([t], horizon).get(t)
 
