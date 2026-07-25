@@ -97,7 +97,10 @@ async def get_stock_detail(ticker: str, horizon: str = "weekly") -> StockDetail:
     sector = stock.sector if stock else "Unknown"
     is_n50 = stock.is_nifty50 if stock else False
 
-    
+    # Quote for ANY ticker in the ~2364-name index -- N50 comes free from
+    # the snapshot, non-N50 extras are fetched on demand. Previously this
+    # read the N50-only snapshot, so non-N50 detail pages showed no price.
+    price_row: DashboardRow | None = await get_quote(t)
 
     cached = get_latest(t, h)
     view = cached.view if cached else None
