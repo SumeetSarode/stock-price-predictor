@@ -127,6 +127,18 @@ class Settings(BaseSettings):
         default="http://localhost:11434", validation_alias="OLLAMA_API_BASE"
     )
 
+    # Ollama context window (num_ctx), in tokens. CRITICAL: Ollama defaults
+    # num_ctx to just 2048 REGARDLESS of the model's real capacity, so a
+    # large prediction prompt (technical view + news + filings + retry
+    # feedback + reasoning) overflows it and litellm raises
+    # ContextWindowExceededError -- surfaced to users as an "LLM token
+    # limit" error even though Ollama has no quota/rate limit. qwen3:8b
+    # supports up to 32768 natively, so we default there. Tune down only if
+    # RAM/VRAM constrained (a bigger window costs memory).
+    ollama_num_ctx: int = Field(
+        default=32768, validation_alias="OLLAMA_NUM_CTX"
+    )
+
     # ── Per-provider request rate limits (used by llm.rate_limiter) ──────
     # Defaults are slightly under each provider's free-tier ceiling so we
     # leave headroom for clock drift / other tooling sharing the API key.
