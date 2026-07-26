@@ -62,9 +62,9 @@ class TestKeylessLocalProvider:
         assert settings.ollama_num_ctx >= 8192  # comfortably above a real prompt
 
     def test_num_ctx_follows_settings_override(self, monkeypatch):
-        monkeypatch.setattr(settings, "ollama_num_ctx", 16384)
+        monkeypatch.setattr(settings, "ollama_num_ctx", 8192)
         m = make_model("ollama_chat/qwen3:8b")
-        assert m._additional_args["num_ctx"] == 16384
+        assert m._additional_args["num_ctx"] == 8192
 
     def test_hosted_models_do_not_get_num_ctx(self):
         # num_ctx is an Ollama-only knob; hosted providers manage their own
