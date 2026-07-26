@@ -17,6 +17,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from litellm import (  # structural LLM failures surfaced verbatim to the user
+    AuthenticationError as LLMAuthenticationError,
+    ContextWindowExceededError as LLMContextWindowExceededError,
+)
 from price_predictor.llm.resilient import AllModelsExhaustedError
 from price_predictor.prediction import (
     Prediction,
@@ -148,6 +152,34 @@ async def run_prediction(ticker: str, horizon: str) -> dict[str, Any]:
         raise PredictionServiceError(
             str(exc),
             hint=_hint_for_error(exc),
+        ) from exc
+    except LLMAuthenticationError as exc:
+        # A hosted provider rejected the API key. STRUCTURAL: the
+        # resilient chain (correctly) does NOT fall back on auth errors,
+        # so name the exact cause instead of a vague 'unexpected error'.
+        model = getattr(exc, "model", None)
+        where = f" (model: {model})" if model else ""
+        raise PredictionServiceError(
+            f"An LLM provider rejected the request as unauthenticated{where}.",
+            hint=(
+                "A hosted model's API key is missing, invalid, or expired. "
+                "Check GEMINI_API_KEY and GROQ_API_KEY in your .env, then "
+                "restart. This is NOT a token/quota issue."
+            ),
+        ) from exc
+    except LLMContextWindowExceededError as exc:
+        # A model said the prompt is bigger than its context window.
+        # For the local Ollama tier this is tunable via OLLAMA_NUM_CTX;
+        # for a hosted model it means an unusually large request.
+        model = getattr(exc, "model", None)
+        where = f" (model: {model})" if model else ""
+        raise PredictionServiceError(
+            f"A model reported the prompt exceeded its context window{where}.",
+            hint=(
+                "If this is the local Ollama tier, raise OLLAMA_NUM_CTX in "
+                "your .env and restart. If it's a hosted model, the request "
+                "is unusually large -- please report it."
+            ),
         ) from exc
     except Exception as exc:
         # Defensive — anything we didn't anticipate. Don't leak the
