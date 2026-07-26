@@ -133,10 +133,15 @@ class Settings(BaseSettings):
     # feedback + reasoning) overflows it and litellm raises
     # ContextWindowExceededError -- surfaced to users as an "LLM token
     # limit" error even though Ollama has no quota/rate limit. qwen3:8b
-    # supports up to 32768 natively, so we default there. Tune down only if
-    # RAM/VRAM constrained (a bigger window costs memory).
+    # Sizing: a bigger num_ctx costs proportionally more KV-cache RAM/VRAM
+    # AND slows prompt processing, so we do NOT just max it out. A real
+    # prediction prompt (view + news + filings + retry feedback) plus qwen3
+    # reasoning lands well under 16k tokens, so 16384 gives comfortable
+    # headroom without the memory/latency tax of qwen3 32768 ceiling.
+    # Raise via OLLAMA_NUM_CTX only if you actually see a token-limit error;
+    # lower it if RAM-constrained.
     ollama_num_ctx: int = Field(
-        default=32768, validation_alias="OLLAMA_NUM_CTX"
+        default=16384, validation_alias="OLLAMA_NUM_CTX"
     )
 
     # ── Per-provider request rate limits (used by llm.rate_limiter) ──────
