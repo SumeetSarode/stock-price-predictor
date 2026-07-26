@@ -43,7 +43,9 @@ _REDACTIONS: tuple[tuple[re.Pattern[str], str], ...] = (
     # Groq keys: start with "gsk_".
     (re.compile(r"gsk_[0-9A-Za-z]{10,}"), "gsk_***REDACTED***"),
     # OpenAI-style: "sk-...".
-    (re.compile(r"sk-[0-9A-Za-z]{10,}"), "sk-***REDACTED***"),
+    (re.compile(r"sk-[0-9A-Za-z_\-]{10,}"), "sk-***REDACTED***"),
+    # JWTs / bearer-ish tokens appearing bare (diagnose=True can dump them).
+    (re.compile(r"eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}"), "***REDACTED_JWT***"),
     # Bearer tokens -- MUST run before the generic key=value rule below,
     # otherwise that rule redacts the word "Bearer" and leaves the token.
     (re.compile(r"(?i)(bearer\s+)([A-Za-z0-9._\-]{10,})"), r"\1***REDACTED***"),
