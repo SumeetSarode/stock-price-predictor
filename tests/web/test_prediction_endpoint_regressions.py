@@ -157,3 +157,59 @@ class TestAllModelsExhaustedHandling:
         assert excinfo.value.message == (
             "An unexpected error occurred while running the prediction."
         )
+
+
+# ─────────────────────────────────────────────────────────────
+# Structural LLM errors → precise, self-reporting messages
+# (so users never have to read server logs to learn the cause)
+# ─────────────────────────────────────────────────────────────
+class TestStructuralLLMErrorsSurfacePrecisely:
+    """AuthenticationError / ContextWindowExceededError are STRUCTURAL:
+    the resilient chain does not fall back on them, so they propagate
+    raw. They must NOT hit the generic 'unexpected error' arm."""
+
+    async def test_auth_error_names_the_cause(self, monkeypatch):
+        from litellm import AuthenticationError
+
+        async def _auth(ticker, horizons):
+            raise AuthenticationError(
+                message="invalid api key",
+                llm_provider="gemini",
+                model="gemini/gemini-flash-latest",
+            )
+
+        monkeypatch.setattr(
+            "price_predictor.web.services.prediction_service.predict", _auth
+        )
+        with pytest.raises(PredictionServiceError) as excinfo:
+            await run_prediction("RELIANCE.NS", "weekly")
+
+        err = excinfo.value
+        assert "unauthenticated" in err.message.lower()
+        assert err.message != "An unexpected error occurred while running the prediction."
+        assert err.hint is not None
+        assert "api key" in err.hint.lower()
+        # Must be explicit that this is NOT a token/quota problem.
+        assert "token" in err.hint.lower() or "quota" in err.hint.lower()
+
+    async def test_context_window_error_points_at_num_ctx(self, monkeypatch):
+        from litellm import ContextWindowExceededError
+
+        async def _ctx(ticker, horizons):
+            raise ContextWindowExceededError(
+                message="prompt is too long",
+                model="ollama_chat/qwen3:8b",
+                llm_provider="ollama_chat",
+            )
+
+        monkeypatch.setattr(
+            "price_predictor.web.services.prediction_service.predict", _ctx
+        )
+        with pytest.raises(PredictionServiceError) as excinfo:
+            await run_prediction("RELIANCE.NS", "weekly")
+
+        err = excinfo.value
+        assert "context window" in err.message.lower()
+        assert err.message != "An unexpected error occurred while running the prediction."
+        assert err.hint is not None
+        assert "ollama_num_ctx" in err.hint.lower()
