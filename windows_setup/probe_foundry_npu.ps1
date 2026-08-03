@@ -89,35 +89,35 @@ Ok ("foundry present: " + (foundry --version 2>&1 | Select-Object -First 1))
 Write-Host ""
 
 # ---- 2. First `model list` downloads the EPs for this hardware ---------------
-Info "Listing models (first run downloads the QNN execution provider for your NPU -- can take a minute)..."
+Info "Listing models (first run downloads execution providers for your hardware)..."
 foundry model list | Out-Host
 Write-Host ""
 
-# ---- 3. GATE 1: which models have an NPU build on THIS box -------------------
-Write-Host "------------------------- NPU CATALOG ------------------------------" -ForegroundColor Magenta
-$npu = foundry model list --filter device=npu 2>&1
-$npu | Out-Host
+# ---- 2b. NPU driver check (QNN needs Hexagon driver >= 30.0.140.0) -----------
+Write-Host "----------------------- NPU / ACCELERATOR DRIVERS ------------------" -ForegroundColor Magenta
+Get-CimInstance Win32_PnPSignedDriver 2>$null |
+  Where-Object { $_.DeviceName -match "NPU|Hexagon|Neural|Adreno|Qualcomm" } |
+  Select-Object DeviceName, DriverVersion, DriverDate |
+  Format-Table -AutoSize | Out-Host
 Write-Host "--------------------------------------------------------------------" -ForegroundColor Magenta
 Write-Host ""
 
-# ---- 4. Pick a model to time --------------------------------------------------
-if (-not $Model) {
-  # Prefer a good-at-JSON family from the NPU list: qwen -> phi -> deepseek.
-  foreach ($pat in @("qwen","phi","deepseek")) {
-    $hit = $npu | Select-String -Pattern $pat | Select-Object -First 1
-    if ($hit) {
-      # crude token grab: first whitespace-delimited word that contains the pattern
-      $Model = ($hit.ToString() -split "\s+" | Where-Object { $_ -match $pat } | Select-Object -First 1)
-      if ($Model) { break }
-    }
-  }
-}
-if (-not $Model) {
-  Err "No Qwen/Phi/DeepSeek NPU build detected in the catalog for this machine."
-  Warn "Gate 1 = FAIL. Send me the NPU CATALOG block above; we'll pick another route."
-  Finish 0
-}
-Ok "Testing model: $Model"
+# ---- 3. GATE 1: ALL hardware variants (NPU / GPU / CPU) for good models ------
+# v0.10.2 has no --filter; --variants lists every hardware-specific build.
+Write-Host "------------------ HARDWARE VARIANTS (--variants) ------------------" -ForegroundColor Magenta
+$variants = foundry model list --variants 2>&1
+$variants | Out-Host
+Write-Host "--------------------------------------------------------------------" -ForegroundColor Magenta
+Write-Host ""
+Write-Host "[*] NPU/GPU-accelerated variants found (if any):" -ForegroundColor Cyan
+$accel = $variants | Select-String -Pattern "npu|qnn|gpu|cuda|webgpu|dml|directml"
+if ($accel) { $accel | Out-Host } else { Warn "None -- every variant is CPU on this box." }
+Write-Host ""
+
+# ---- 4. Pick a model to time -------------------------------------------------
+# Default to a good-at-JSON 7-8B that IS in the catalog. Override with -Model.
+if (-not $Model) { $Model = "qwen2.5-7b" }
+Ok "Testing model: $Model  (override with -Model <id> from the variants list above)"
 Write-Host ""
 
 # ---- 5. Load model + find the OpenAI endpoint port ---------------------------
@@ -126,9 +126,11 @@ foundry model download $Model | Out-Host
 foundry model load $Model | Out-Host
 
 $status = (foundry service status 2>&1) -join "`n"
-$port = [regex]::Match($status, ":(\d{3,5})").Groups[1].Value
-if (-not $port) { $port = "5273" }  # common Foundry default; adjust if wrong
-$endpoint = "http://localhost:$port/v1/chat/completions"
+$port = [regex]::Match($status, "127\.0\.0\.1:(\d{3,5})").Groups[1].Value
+if (-not $port) { $port = [regex]::Match($status, ":(\d{3,5})").Groups[1].Value }
+if (-not $port) { $port = "5273" }  # fallback; your run showed 127.0.0.1:58380
+$endpoint = "http://127.0.0.1:$port/v1/chat/completions"
+Info "Service status:"; Write-Host $status
 Info "Using endpoint: $endpoint"
 Write-Host ""
 
@@ -143,8 +145,9 @@ $body = @{
   stream = $false
 } | ConvertTo-Json -Depth 6
 
-Warn ">>> WATCH: open Task Manager -> Performance -> NPU while this runs. If the"
-Warn "    NPU graph spikes, the model is truly on the Hexagon (not CPU fallback)."
+Warn ">>> WATCH: open Task Manager -> Performance. Watch the NPU *and* GPU graphs"
+Warn "    while this runs. Whichever spikes is where the model actually ran"
+Warn "    (if only CPU moves, Foundry is CPU-only on this box -- same as Ollama)."
 Write-Host ""
 Info "Sending timed request..."
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -172,7 +175,7 @@ Write-Host "  Wall time        : $secs s"
 Write-Host "  Completion tokens: $ctoks"
 Write-Host "  Throughput       : $tps tok/s   (compare: Ollama-CPU qwen3:8b ~5-15)"
 Write-Host "  Valid JSON       : $validJson"
-Write-Host "  NPU used?        : check the Task Manager NPU graph you watched"
+Write-Host "  Ran on           : check which Task Manager graph spiked (NPU / GPU / CPU)"
 Write-Host "--------------------------------------------------------------------" -ForegroundColor Magenta
 Write-Host ""
 Write-Host "Raw model output:" -ForegroundColor DarkGray
