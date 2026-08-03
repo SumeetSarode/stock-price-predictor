@@ -3,28 +3,38 @@
 
   PURPOSE
   =======
-  Answer three questions that ONLY your Snapdragon X laptop can answer, before
+  Answer the questions that ONLY your Snapdragon X laptop can answer, before
   we invest in wiring Foundry Local into the app:
 
-    Gate 1  Does the Foundry catalog offer an NPU (QNN) build of a good-at-JSON
-            model (Qwen / Phi / DeepSeek) for THIS machine?
-    Gate 2  Is it actually faster than the current Ollama-CPU qwen3:8b tier?
+    Gate 1  Does Foundry ship an NPU (QNN) or GPU build of a good-at-JSON model
+            (Qwen / Phi) for THIS machine, or is CPU the only option?
+            -> answered by the 'HARDWARE VARIANTS (--variants)' block.
+    Gate 2  Is Foundry actually faster than the current Ollama-CPU qwen3:8b tier?
+            -> answered by the throughput (tok/s) in the RESULT block.
     Gate 3  Does it produce VALID JSON (what the prediction pipeline needs)?
+            -> answered by 'Valid JSON' in the RESULT block.
 
   It changes NOTHING in the app. It only installs Foundry Local (if missing),
   lists models, and runs one timed test prompt. Safe to delete afterwards.
+
+  Verified against Foundry Local CLI v0.10.2 + REST reference:
+    - uses 'foundry server status' (NOT 'service'; 'service' doesn't exist)
+    - uses 'model list --variants' (NOT '--filter'; --filter isn't in 0.10.2)
+    - the /v1/chat/completions 'model' field is the FULL variant id resolved
+      from GET /openai/loadedmodels (NOT the alias -- alias 404s)
+    - the service port is PARSED from server status (it's dynamic, e.g. 58380)
 
   USAGE
   =====
     powershell -ExecutionPolicy Bypass -File .\windows_setup\probe_foundry_npu.ps1
 
-    # or force a specific model id you saw in the NPU list:
-    powershell -ExecutionPolicy Bypass -File .\windows_setup\probe_foundry_npu.ps1 -Model qwen2.5-7b-instruct-qnn-npu
+    # or force a specific alias/variant you saw in the --variants block:
+    powershell -ExecutionPolicy Bypass -File .\windows_setup\probe_foundry_npu.ps1 -Model qwen3-8b
 
   WHAT TO SEND BACK
   =================
-    Copy the whole terminal output. The "NPU CATALOG" block + the "RESULT"
-    block at the end are what I need to make the call.
+    Just drag the diagnostics\foundry_probe_<ts>.txt file into chat. The
+    'HARDWARE VARIANTS' block + the 'RESULT' block are what I need.
 #>
 
 param(
@@ -120,23 +130,49 @@ if (-not $Model) { $Model = "qwen2.5-7b" }
 Ok "Testing model: $Model  (override with -Model <id> from the variants list above)"
 Write-Host ""
 
-# ---- 5. Load model + find the OpenAI endpoint port ---------------------------
-Info "Downloading + loading (one-time model download may be several GB)..."
+# ---- 5. Load model, resolve its REAL variant id, find the endpoint ----------
+Info "Downloading + loading '$Model' (one-time model download may be several GB)..."
 foundry model download $Model | Out-Host
 foundry model load $Model | Out-Host
 
-$status = (foundry service status 2>&1) -join "`n"
-$port = [regex]::Match($status, "127\.0\.0\.1:(\d{3,5})").Groups[1].Value
+# Endpoint: NEVER hardcode the port -- parse it from 'foundry server status'
+# ('server', not 'service'; v0.10.2 has no 'service' subcommand). Your first
+# run bound to a dynamic port (127.0.0.1:58380), so parsing is mandatory.
+$status = (foundry server status 2>&1) -join "`n"
+Info "server status:"; Write-Host $status
+$port = [regex]::Match($status, "http://(?:127\.0\.0\.1|localhost):(\d{3,5})").Groups[1].Value
 if (-not $port) { $port = [regex]::Match($status, ":(\d{3,5})").Groups[1].Value }
-if (-not $port) { $port = "5273" }  # fallback; your run showed 127.0.0.1:58380
-$endpoint = "http://127.0.0.1:$port/v1/chat/completions"
-Info "Service status:"; Write-Host $status
-Info "Using endpoint: $endpoint"
+if (-not $port) {
+  Err "Couldn't parse the service port from 'foundry server status' (output above). Aborting."
+  Finish 1
+}
+$base     = "http://127.0.0.1:$port"
+$endpoint = "$base/v1/chat/completions"
+Info "Endpoint: $endpoint"
+
+# The /v1/chat/completions 'model' field needs the FULL variant id
+# (e.g. qwen2.5-7b-instruct-generic-cpu), NOT the alias. Ask the service.
+$modelId = $null
+try {
+  $loaded = Invoke-RestMethod -Uri "$base/openai/loadedmodels" -TimeoutSec 30
+  if ($loaded) { $modelId = @($loaded)[0] }
+} catch { Warn "Could not query /openai/loadedmodels: $($_.Exception.Message)" }
+if (-not $modelId) {
+  try {
+    $cached  = Invoke-RestMethod -Uri "$base/openai/models" -TimeoutSec 30
+    $modelId = @($cached | Where-Object { $_ -match [regex]::Escape($Model) })[0]
+  } catch { Warn "Could not query /openai/models: $($_.Exception.Message)" }
+}
+if (-not $modelId) {
+  Err "Couldn't resolve the loaded model id from the service. Aborting before the timed test."
+  Finish 1
+}
+Ok "Resolved model id for API: $modelId"
 Write-Host ""
 
 # ---- 6. GATE 2 + 3: timed JSON generation -----------------------------------
 $body = @{
-  model    = $Model
+  model    = $modelId
   messages = @(
     @{ role = "system"; content = "You are a JSON API. Reply with ONLY a JSON object, no prose." },
     @{ role = "user";   content = "Give a mock 1-day stock prediction for TCS as JSON with keys: direction (up/down), confidence (0-1), target_price (number), rationale (short string)." }
@@ -155,7 +191,7 @@ try {
   $resp = Invoke-RestMethod -Uri $endpoint -Method Post -ContentType "application/json" -Body $body -TimeoutSec 300
 } catch {
   Err "Request failed: $($_.Exception.Message)"
-  Warn "If it's a connection error, run 'foundry service status' and re-run with the right port."
+  Warn "If it's a connection error, run 'foundry server status' and re-run with the right port."
   Finish 1
 }
 $sw.Stop()
@@ -170,7 +206,8 @@ try { $null = ($text | ConvertFrom-Json); $validJson = $true } catch { $validJso
 
 Write-Host ""
 Write-Host "----------------------------- RESULT -------------------------------" -ForegroundColor Magenta
-Write-Host "  Model            : $Model"
+Write-Host "  Model (alias)    : $Model"
+Write-Host "  Model (variant)  : $modelId"
 Write-Host "  Wall time        : $secs s"
 Write-Host "  Completion tokens: $ctoks"
 Write-Host "  Throughput       : $tps tok/s   (compare: Ollama-CPU qwen3:8b ~5-15)"
