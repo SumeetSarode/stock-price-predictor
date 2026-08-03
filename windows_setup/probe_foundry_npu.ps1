@@ -38,6 +38,26 @@ function Ok($m)   { Write-Host "[OK] $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "[!] $m" -ForegroundColor Yellow }
 function Err($m)  { Write-Host "[X] $m" -ForegroundColor Red }
 
+# ---- Capture EVERYTHING to one shareable file -------------------------------
+# The whole console session is teed to diagnostics\foundry_probe_<ts>.txt so
+# you can drag ONE file into chat instead of copy-pasting the terminal.
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot  = Split-Path -Parent $scriptDir
+$diagDir   = Join-Path $repoRoot "diagnostics"
+if (-not (Test-Path $diagDir)) { New-Item -ItemType Directory -Path $diagDir | Out-Null }
+$stamp     = (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss") + "Z"
+$OutFile   = Join-Path $diagDir "foundry_probe_$stamp.txt"
+try { Start-Transcript -Path $OutFile -Force | Out-Null } catch { Warn "Transcript unavailable: $($_.Exception.Message)" }
+
+function Finish($code) {
+  try { Stop-Transcript | Out-Null } catch {}
+  Write-Host ""
+  Write-Host "Saved full report to:" -ForegroundColor Green
+  Write-Host "    $OutFile" -ForegroundColor Green
+  Write-Host "Drag THAT file into the chat with Thor. That's all I need." -ForegroundColor Green
+  exit $code
+}
+
 Write-Host "==================================================================="
 Write-Host " Foundry Local NPU feasibility probe  (Snapdragon X / Hexagon NPU)"
 Write-Host "==================================================================="
@@ -62,7 +82,7 @@ if (-not (Get-Command foundry -ErrorAction SilentlyContinue)) {
   }
   if (-not (Get-Command foundry -ErrorAction SilentlyContinue)) {
     Err "foundry still not on PATH. Close/reopen PowerShell and re-run, or install manually from https://learn.microsoft.com/azure/ai-foundry/foundry-local/get-started"
-    exit 1
+    Finish 1
   }
 }
 Ok ("foundry present: " + (foundry --version 2>&1 | Select-Object -First 1))
@@ -95,7 +115,7 @@ if (-not $Model) {
 if (-not $Model) {
   Err "No Qwen/Phi/DeepSeek NPU build detected in the catalog for this machine."
   Warn "Gate 1 = FAIL. Send me the NPU CATALOG block above; we'll pick another route."
-  exit 0
+  Finish 0
 }
 Ok "Testing model: $Model"
 Write-Host ""
@@ -133,7 +153,7 @@ try {
 } catch {
   Err "Request failed: $($_.Exception.Message)"
   Warn "If it's a connection error, run 'foundry service status' and re-run with the right port."
-  exit 1
+  Finish 1
 }
 $sw.Stop()
 
@@ -158,4 +178,9 @@ Write-Host ""
 Write-Host "Raw model output:" -ForegroundColor DarkGray
 Write-Host $text
 Write-Host ""
-Ok "Done. Copy this whole output back to Thor."
+
+try { Stop-Transcript | Out-Null } catch {}
+Write-Host ""
+Ok "Saved full report to:"
+Write-Host "    $OutFile" -ForegroundColor Green
+Write-Host "Drag THAT file into the chat with Thor. That's all I need." -ForegroundColor Green
