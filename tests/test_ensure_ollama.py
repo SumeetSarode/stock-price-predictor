@@ -72,3 +72,56 @@ class TestEnsure:
         monkeypatch.setattr(mod, "_try_winget_install", lambda: False)
         mod.ensure()  # must not raise
         assert "ollama.com/download" in capsys.readouterr().out
+
+
+class TestPerfFlags:
+    """The three accuracy-neutral server perf flags (flash attn, q8 KV,
+    keep-alive) must be applied to the server we spawn AND persisted when
+    a server is already running."""
+
+    def test_perf_flags_are_the_expected_three(self):
+        assert mod._OLLAMA_PERF_FLAGS == {
+            "OLLAMA_FLASH_ATTENTION": "1",
+            "OLLAMA_KV_CACHE_TYPE": "q8_0",
+            "OLLAMA_KEEP_ALIVE": "-1",
+        }
+
+    def test_perf_env_overlays_flags_on_os_environ(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/usr/bin")  # some real inherited var
+        env = mod._perf_env()
+        assert env["PATH"] == "/usr/bin"  # inheritance preserved
+        for key, value in mod._OLLAMA_PERF_FLAGS.items():
+            assert env[key] == value  # flags overlaid
+
+    def test_start_server_passes_perf_env(self, monkeypatch):
+        captured = {}
+
+        def fake_popen(args, **kwargs):
+            captured["args"] = args
+            captured["env"] = kwargs.get("env")
+            return object()
+
+        monkeypatch.setattr(mod.subprocess, "Popen", fake_popen)
+        mod._start_server()
+        assert captured["args"] == ["ollama", "serve"]
+        assert captured["env"]["OLLAMA_FLASH_ATTENTION"] == "1"
+        assert captured["env"]["OLLAMA_KV_CACHE_TYPE"] == "q8_0"
+        assert captured["env"]["OLLAMA_KEEP_ALIVE"] == "-1"
+
+    def test_already_running_persists_on_windows(self, monkeypatch):
+        monkeypatch.setattr(mod.platform, "system", lambda: "Windows")
+        monkeypatch.setattr(mod.shutil, "which", lambda name: "C:/setx.exe")
+        calls = []
+        monkeypatch.setattr(
+            mod.subprocess, "run",
+            lambda args, **kw: calls.append(args) or None,
+        )
+        mod._apply_perf_to_running_server()
+        set_keys = {c[1] for c in calls if c[0] == "setx"}
+        assert set_keys == set(mod._OLLAMA_PERF_FLAGS)
+
+    def test_already_running_non_windows_just_advises(self, monkeypatch, capsys):
+        monkeypatch.setattr(mod.platform, "system", lambda: "Darwin")
+        mod._apply_perf_to_running_server()  # must not raise / no setx
+        out = capsys.readouterr().out
+        assert "OLLAMA_FLASH_ATTENTION=1" in out

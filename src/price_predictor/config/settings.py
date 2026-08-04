@@ -144,6 +144,19 @@ class Settings(BaseSettings):
         default=16384, validation_alias="OLLAMA_NUM_CTX"
     )
 
+    # Ollama reasoning effort -> litellm maps this to Ollama's `think` flag.
+    # CRITICAL nuance (verified against litellm ollama/chat/transformation.py):
+    # for NON-gpt-oss models (i.e. qwen3), litellm does
+    #     think = reasoning_effort in {"low", "medium", "high"}
+    # so "low"/"medium"/"high" are IDENTICAL (all -> think=True) and ANY other
+    # value (e.g. "none") -> think=False (thinking OFF). qwen3 has no middle
+    # gear: it's think-on or think-off. Default "high" keeps reasoning ON for
+    # prediction quality. Set OLLAMA_REASONING_EFFORT=none to benchmark the
+    # faster think-off mode (validate accuracy on the backtest first).
+    ollama_reasoning_effort: str = Field(
+        default="high", validation_alias="OLLAMA_REASONING_EFFORT"
+    )
+
     # ── Per-provider request rate limits (used by llm.rate_limiter) ──────
     # Defaults are slightly under each provider's free-tier ceiling so we
     # leave headroom for clock drift / other tooling sharing the API key.
