@@ -20,6 +20,7 @@ setup step must NEVER stop the app from starting on its primary providers.
 """
 from __future__ import annotations
 
+import os
 import platform
 import shutil
 import subprocess
@@ -31,6 +32,66 @@ from price_predictor.llm.ollama_guard import (
     _pulled_models,
     ollama_tags_in_chain,
 )
+
+
+# Accuracy-neutral Ollama SERVER perf flags. These are read by `ollama
+# serve` at process startup (NOT per-request litellm params), so they only
+# take effect for a server launched WITH them in its environment:
+#   OLLAMA_FLASH_ATTENTION=1  -> faster attention + lower memory (neutral)
+#   OLLAMA_KV_CACHE_TYPE=q8_0 -> ~half the KV-cache RAM (q8 is imperceptible;
+#                                needs flash attention on, which we set)
+#   OLLAMA_KEEP_ALIVE=-1      -> keep the model resident, skip the multi-
+#                                second reload between calls
+# GOTCHA: an already-running tray-app / service Ollama will NOT inherit
+# these -- see _apply_perf_to_running_server().
+_OLLAMA_PERF_FLAGS: dict[str, str] = {
+    "OLLAMA_FLASH_ATTENTION": "1",
+    "OLLAMA_KV_CACHE_TYPE": "q8_0",
+    "OLLAMA_KEEP_ALIVE": "-1",
+}
+
+
+def _perf_env() -> dict:
+    """os.environ overlaid with the perf flags (flags win).
+
+    Used as the environment for the `ollama serve` process WE spawn so it
+    starts with flash attention / q8 KV cache / keep-alive enabled.
+    """
+    env = dict(os.environ)
+    env.update(_OLLAMA_PERF_FLAGS)
+    return env
+
+
+def _apply_perf_to_running_server() -> None:
+    """Best-effort: make the perf flags stick when Ollama is ALREADY up.
+
+    We didn't start the running server, so it may lack the flags. We can't
+    hot-apply them to a live process, so on Windows we persist them to the
+    user environment via `setx` -- a future Ollama start (next login or a
+    manual restart) inherits them. Then we tell the user how to apply them
+    now. Non-fatal end to end.
+    """
+    if platform.system() == "Windows" and shutil.which("setx") is not None:
+        for key, value in _OLLAMA_PERF_FLAGS.items():
+            try:
+                subprocess.run(
+                    ["setx", key, value], check=False,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+            except Exception:  # never fatal
+                pass
+        print(
+            "[ollama] Ollama was already running, so the accuracy-neutral "
+            "perf flags (flash attention, q8 KV cache, keep-alive) were "
+            "PERSISTED for next start. To apply them now: fully quit Ollama "
+            "from the system tray and rerun launch (or reboot once)."
+        )
+    else:
+        flags = " ".join(f"{k}={v}" for k, v in _OLLAMA_PERF_FLAGS.items())
+        print(
+            "[ollama] Ollama was already running WITHOUT the perf flags. "
+            f"To enable them, restart `ollama serve` with: {flags}"
+        )
 
 
 def ollama_installed() -> bool:
@@ -61,9 +122,13 @@ def _try_winget_install() -> bool:
 
 
 def _start_server() -> None:
-    """Launch `ollama serve` detached so it outlives this script."""
-    print("[ollama] Starting the Ollama server...")
-    kwargs: dict = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    """Launch `ollama serve` detached (with perf flags) so it outlives us."""
+    print("[ollama] Starting the Ollama server (flash attn + q8 KV + keep-alive)...")
+    kwargs: dict = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "env": _perf_env(),
+    }
     if platform.system() == "Windows":
         # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP -> survives console close.
         kwargs["creationflags"] = 0x00000008 | 0x00000200
@@ -115,7 +180,7 @@ def ensure() -> None:
         )
         return
 
-    # 2. Server reachable? Start it if not.
+    # 2. Server reachable? Start it (with perf flags) if not.
     pulled = _pulled_models(base_url)
     if pulled is None:
         _start_server()
@@ -126,6 +191,10 @@ def ensure() -> None:
                 "The app will still run on its hosted providers."
             )
             return
+    else:
+        # Server was already up -- we didn't start it, so it may be running
+        # without the accuracy-neutral perf flags. Persist + advise.
+        _apply_perf_to_running_server()
 
     # 3. Pull any missing models.
     missing = models_to_pull(tags, pulled)

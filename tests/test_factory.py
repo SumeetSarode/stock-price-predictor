@@ -31,12 +31,21 @@ class TestKeylessLocalProvider:
 
     def test_ollama_keeps_thinking_on_for_quality(self):
         # The local tier is the de-facto workhorse once free-tier hosted
-        # quotas are exhausted, so we keep qwen3 reasoning ON for prediction
-        # quality. litellm maps reasoning_effort='high' -> Ollama think=True.
-        # Parseability is guaranteed by json_extract (strips <think> blocks)
-        # + predictor's penalize-and-fall-over on any still-unparseable reply.
+        # quotas are exhausted, so we DEFAULT qwen3 reasoning ON for
+        # prediction quality. litellm maps reasoning_effort='high' ->
+        # Ollama think=True. Parseability is guaranteed by json_extract
+        # (strips <think> blocks) + predictor's penalize-and-fall-over.
         m = make_model("ollama_chat/qwen3:8b")
         assert m._additional_args["reasoning_effort"] == "high"
+
+    def test_reasoning_effort_follows_settings_override(self, monkeypatch):
+        # The benchmark (bench_ollama_configs.py) flips this to 'none' to
+        # measure the faster think-off mode. For qwen3, litellm maps any
+        # value NOT in {low,medium,high} -> think=False. Verify the factory
+        # threads the setting through rather than hardcoding 'high'.
+        monkeypatch.setattr(settings, "ollama_reasoning_effort", "none")
+        m = make_model("ollama_chat/qwen3:8b")
+        assert m._additional_args["reasoning_effort"] == "none"
 
     def test_hosted_models_do_not_get_reasoning_effort(self):
         # Hosted models reason at their own provider defaults (gpt-oss reasons

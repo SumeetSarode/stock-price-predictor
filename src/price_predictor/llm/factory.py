@@ -88,14 +88,16 @@ def make_model(model_name: str) -> LiteLlm:
     # pointing at the running Ollama server. This is what lets the resilient
     # chain fall over to an offline model when hosted providers are exhausted.
     if provider in _KEYLESS_LOCAL_PROVIDERS:
-        # Keep qwen3's "thinking" ON for quality. This tier is NOT a rare
-        # last resort -- when the free-tier hosted quotas (Gemini/Groq) are
+        # reasoning_effort comes from settings.ollama_reasoning_effort
+        # (default "high" -> think=True). This tier is NOT a rare last
+        # resort -- when the free-tier hosted quotas (Gemini/Groq) are
         # exhausted, which happens fast under batch load, the local model
-        # does the BULK of the work. So its reasoning matters as much as any
-        # tier's, and we refuse to trade prediction quality for speed.
+        # does the BULK of the work, so its reasoning quality matters. We
+        # default to reasoning ON and only turn it off (OLLAMA_REASONING_
+        # EFFORT=none) once the backtest proves accuracy holds without it.
         #
-        # litellm maps reasoning_effort='high' -> Ollama think=True. The two
-        # defences that keep the reasoning output parseable:
+        # litellm maps reasoning_effort in {low,medium,high} -> think=True
+        # for qwen3 (any other value -> think=False). The two defences that keep the reasoning output parseable:
         #   1. llm/json_extract.py strips <think>...</think> blocks and any
         #      reasoning preamble, leaving only the JSON object.
         #   2. predictor.py penalizes + falls over if a response is STILL
@@ -110,7 +112,7 @@ def make_model(model_name: str) -> LiteLlm:
         return LiteLlm(
             model=model_name,
             api_base=settings.ollama_api_base,
-            reasoning_effort="high",
+            reasoning_effort=settings.ollama_reasoning_effort,
             num_ctx=settings.ollama_num_ctx,
             num_retries=_NO_INTERNAL_RETRY,
             timeout=_OLLAMA_TIMEOUT_S,
