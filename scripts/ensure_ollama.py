@@ -24,6 +24,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import time
 
 from price_predictor.config.settings import settings
@@ -62,24 +63,39 @@ def _perf_env() -> dict:
     return env
 
 
+def _persist_perf_flags_windows() -> bool:
+    """Persist the perf flags to the USER environment via `setx` (Windows).
+
+    ONE source of truth for the flags is _OLLAMA_PERF_FLAGS above -- this is
+    the only place they get written to the persistent environment, so both
+    install (`--persist-perf`) and the already-running launch path share it.
+
+    Returns True if it ran setx (Windows + setx available), else False.
+    Non-fatal: individual setx failures are swallowed.
+    """
+    if platform.system() != "Windows" or shutil.which("setx") is None:
+        return False
+    for key, value in _OLLAMA_PERF_FLAGS.items():
+        try:
+            subprocess.run(
+                ["setx", key, value], check=False,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception:  # never fatal
+            pass
+    return True
+
+
 def _apply_perf_to_running_server() -> None:
     """Best-effort: make the perf flags stick when Ollama is ALREADY up.
 
     We didn't start the running server, so it may lack the flags. We can't
     hot-apply them to a live process, so on Windows we persist them to the
-    user environment via `setx` -- a future Ollama start (next login or a
+    user environment (setx) -- a future Ollama start (next login or a
     manual restart) inherits them. Then we tell the user how to apply them
     now. Non-fatal end to end.
     """
-    if platform.system() == "Windows" and shutil.which("setx") is not None:
-        for key, value in _OLLAMA_PERF_FLAGS.items():
-            try:
-                subprocess.run(
-                    ["setx", key, value], check=False,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-            except Exception:  # never fatal
-                pass
+    if _persist_perf_flags_windows():
         print(
             "[ollama] Ollama was already running, so the accuracy-neutral "
             "perf flags (flash attention, q8 KV cache, keep-alive) were "
@@ -215,6 +231,17 @@ def ensure() -> None:
 
 
 def main() -> None:
+    # `--persist-perf`: install-time hook. Just write the accuracy-neutral
+    # perf flags to the persistent user environment (setx) and exit -- no
+    # server start, no model pull. Called once by install.ps1 so the flags
+    # bind on the very next launch. Non-fatal on non-Windows (no-op).
+    if "--persist-perf" in sys.argv:
+        if _persist_perf_flags_windows():
+            flags = ", ".join(f"{k}={v}" for k, v in _OLLAMA_PERF_FLAGS.items())
+            print(f"[ollama] Persisted perf flags to user environment: {flags}")
+        else:
+            print("[ollama] Perf-flag persistence is Windows-only; skipped.")
+        return
     ensure()
 
 

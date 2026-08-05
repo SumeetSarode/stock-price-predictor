@@ -125,3 +125,44 @@ class TestPerfFlags:
         mod._apply_perf_to_running_server()  # must not raise / no setx
         out = capsys.readouterr().out
         assert "OLLAMA_FLASH_ATTENTION=1" in out
+
+
+class TestPersistPerfCli:
+    """`--persist-perf` is the install-time hook: persist flags, no server
+    work."""
+
+    def test_persist_perf_mode_persists_and_skips_ensure(self, monkeypatch):
+        monkeypatch.setattr(mod.sys, "argv", ["ensure_ollama.py", "--persist-perf"])
+        persisted = []
+        monkeypatch.setattr(
+            mod, "_persist_perf_flags_windows",
+            lambda: persisted.append(True) or True,
+        )
+        ensured = []
+        monkeypatch.setattr(mod, "ensure", lambda: ensured.append(True))
+        mod.main()
+        assert persisted == [True]
+        assert ensured == []  # install hook must NOT start servers / pull
+
+    def test_normal_mode_runs_ensure(self, monkeypatch):
+        monkeypatch.setattr(mod.sys, "argv", ["ensure_ollama.py"])
+        ensured = []
+        monkeypatch.setattr(mod, "ensure", lambda: ensured.append(True))
+        mod.main()
+        assert ensured == [True]
+
+    def test_persist_helper_uses_setx_on_windows(self, monkeypatch):
+        monkeypatch.setattr(mod.platform, "system", lambda: "Windows")
+        monkeypatch.setattr(mod.shutil, "which", lambda name: "C:/setx.exe")
+        calls = []
+        monkeypatch.setattr(
+            mod.subprocess, "run",
+            lambda args, **kw: calls.append(args) or None,
+        )
+        assert mod._persist_perf_flags_windows() is True
+        set_keys = {c[1] for c in calls if c[0] == "setx"}
+        assert set_keys == set(mod._OLLAMA_PERF_FLAGS)
+
+    def test_persist_helper_noop_off_windows(self, monkeypatch):
+        monkeypatch.setattr(mod.platform, "system", lambda: "Darwin")
+        assert mod._persist_perf_flags_windows() is False
