@@ -116,6 +116,31 @@ if ($outside -match '^(y|Y|yes|YES)$') {
 }
 
 # ----------------------------------------------------------------------------
+# 4c. Ollama performance flags (accuracy-neutral speedups for the local tier)
+#     Persist three server-level env vars so `ollama serve` starts faster:
+#       OLLAMA_FLASH_ATTENTION=1  - faster attention + lower memory
+#       OLLAMA_KV_CACHE_TYPE=q8_0 - ~half the KV-cache RAM (imperceptible)
+#       OLLAMA_KEEP_ALIVE=-1      - keep the model resident (skip reloads)
+#     These are read by Ollama only at process START, so we persist them via
+#     setx (single source of truth is scripts\ensure_ollama.py) and then stop
+#     any already-running Ollama -> the next launch starts it fresh WITH the
+#     flags. Zero prediction-accuracy impact. Fully non-fatal.
+# ----------------------------------------------------------------------------
+Step "Applying Ollama performance flags (accuracy-neutral)..."
+try {
+    uv run python scripts\ensure_ollama.py --persist-perf
+    # Stop a stale server so the flags bind on the next launch (not just a
+    # future reboot). Ignore errors - it may not be running at all.
+    Get-Process -Name "ollama" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if (Get-Command ollama -ErrorAction SilentlyContinue) {
+        ollama stop 2>$null | Out-Null
+    }
+    Ok "Perf flags persisted; Ollama will start with them on next launch."
+} catch {
+    Warn "Could not persist Ollama perf flags (non-fatal). $($_.Exception.Message)"
+}
+
+# ----------------------------------------------------------------------------
 # 5. Desktop shortcut -> launch.bat
 # ----------------------------------------------------------------------------
 Step "Creating desktop shortcut..."
