@@ -76,7 +76,7 @@ from price_predictor.prediction.trading_calendar import (
 #   missing field.
 #
 # ...which 400s the WHOLE structured-output prediction. Confirmed live via
-# scripts/diagnose.py end-to-end probe. Fix: keep the tuple type (so
+# an end-to-end probe run. Fix: keep the tuple type (so
 # runtime behaviour + hashability are unchanged) but override the emitted
 # JSON Schema to the homogeneous ``items`` form Gemini understands. A JSON
 # array [lo, hi] still validates back into a 2-tuple exactly as before.

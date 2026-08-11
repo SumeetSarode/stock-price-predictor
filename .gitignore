@@ -50,16 +50,3 @@ reports/
 
 # Smoke-test transcripts (transient; regenerated on each run)
 scripts/smoke_chain_output.txt
-
-# Diagnostic runs: ignore the many timestamped ones, but ALLOW latest.* so
-# the user can commit+push a single result file for review.
-diagnostics/diag_*
-!diagnostics/latest.txt
-!diagnostics/latest.json
-diagnostics/free_tier_test_*
-!diagnostics/free_tier_test_latest.txt
-
-# scripts/bench_ollama_configs.py output -- one timestamped file per manual
-# run, never auto-generated (not wired into launch.bat). Transient, no
-# 'latest' variant needed since these are one-off measurement runs.
-diagnostics/ollama_bench_*
