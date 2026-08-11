@@ -95,6 +95,18 @@ if errorlevel 1 (
     echo   [info] Stock list refresh skipped/failed - using the built-in list.
 )
 
+REM -- 2c. Candidate-LLM-provider free-tier check (Nemotron-3-Ultra via
+REM    OpenRouter, GLM-5.2 via Zenmux/Zhipu). Purely diagnostic -- NOT part
+REM    of the app's actual model chain. Skips instantly (no network calls)
+REM    unless you've added one of OPENROUTER_API_KEY / ZENMUX_API_KEY /
+REM    ZAI_API_KEY to .env. Result is written to diagnostics\ so you can
+REM    copy it straight into chat. Fully non-fatal.
+echo   Checking candidate-provider free tiers...
+uv run python scripts\test_free_tier_access.py
+if errorlevel 1 (
+    echo   [info] Free-tier check skipped/failed - see diagnostics\free_tier_test_latest.txt if it exists.
+)
+
 REM -- 3. Launch. Scheduler ON so predictions auto-grade while the app is open,
 REM    which keeps your history meaningful over time.
 set WEB_ENABLE_SCHEDULER=true
