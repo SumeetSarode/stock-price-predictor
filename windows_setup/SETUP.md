@@ -278,7 +278,7 @@ in `.env.example`, promote to `release`, done. Their next launch picks it up.
 | App won't update | Confirm the laptop has internet, and that you actually pushed to the `release` branch (Phase 3 + "Shipping updates"). |
 | Running `launch.bat` shows "cannot check for updates" | It's just offline — the app still starts with the last version it has. |
 | "Stock list refresh skipped/failed - using the built-in list" | Harmless. The laptop couldn't reach NSE (offline, or a temporary NSE hiccup), so search falls back to the ~2,300-stock list that ships with the app. It'll refresh on the next launch that has a connection. |
-| **News headlines won't load** / "couldn't reach the news service" | News comes from GDELT (a free external service). Run `uv run python scripts\check_news.py` in the app folder for a plain-English diagnosis. Usually it's a corporate network/VPN blocking GDELT — set `HTTPS_PROXY` in `.env` and relaunch. **Predictions still work without news** — news only enriches them, it never blocks a prediction. |
+| **News headlines won't load** / "couldn't reach the news service" | News comes from GDELT (a free external service). Usually it's a corporate network/VPN blocking GDELT direct access — set `HTTPS_PROXY` (and `HTTP_PROXY`) in `.env` to your network's proxy and relaunch. **Predictions still work without news** — news only enriches them, it never blocks a prediction. |
 
 ---
 
