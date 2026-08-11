@@ -58,3 +58,8 @@ diagnostics/diag_*
 !diagnostics/latest.json
 diagnostics/free_tier_test_*
 !diagnostics/free_tier_test_latest.txt
+
+# scripts/bench_ollama_configs.py output -- one timestamped file per manual
+# run, never auto-generated (not wired into launch.bat). Transient, no
+# 'latest' variant needed since these are one-off measurement runs.
+diagnostics/ollama_bench_*
