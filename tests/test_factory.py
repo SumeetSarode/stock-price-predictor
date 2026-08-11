@@ -39,7 +39,7 @@ class TestKeylessLocalProvider:
         assert m._additional_args["reasoning_effort"] == "high"
 
     def test_reasoning_effort_follows_settings_override(self, monkeypatch):
-        # The benchmark (bench_ollama_configs.py) flips this to 'none' to
+        # A speed-tuning workflow might flip this to 'none' to
         # measure the faster think-off mode. For qwen3, litellm maps any
         # value NOT in {low,medium,high} -> think=False. Verify the factory
         # threads the setting through rather than hardcoding 'high'.

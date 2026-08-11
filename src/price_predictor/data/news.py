@@ -123,7 +123,7 @@ def _to_gdelt_datetime(dt: datetime, *, end_of_day: bool) -> str:
 # JSON parsing). Short NSE names are common: ITC, MRF, DLF, ACC, PVR, IEX,
 # IOC ... all 3 chars.
 #
-# PROVEN LIVE (scripts/diagnose.py floor probe, off-VPN):
+# PROVEN LIVE (empirical off-VPN probe):
 #   "IT"                      -> REJECTED (too short)
 #   "ITCXYZ"                  -> ACCEPTED
 #   ("ITC" OR "ITC Limited")  -> REJECTED (too short)   <-- key finding
