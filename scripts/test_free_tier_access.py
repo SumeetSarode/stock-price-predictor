@@ -1,42 +1,39 @@
-"""OFF-VPN diagnostic: prove (or disprove) free-tier access to two candidate
-LLM providers with REAL API calls, and save the result so it can be copied
-back into chat.
+"""OFF-VPN diagnostic: prove (or disprove) free-tier access to NVIDIA
+Nemotron-3-Ultra with a REAL API call, and save the result so it can be
+copied back into chat.
 
 CONTEXT: this repo's fallback chain (see src/price_predictor/llm/factory.py
 and config/settings.py) currently goes
     gemini -> groq (x2) -> ollama_chat/qwen3:8b (local)
 We're evaluating whether to add NVIDIA Nemotron-3-Ultra:free (via OpenRouter)
-and/or GLM-5.2 (via Zenmux or Zhipu's own api.z.ai) as extra tiers between
-Groq and Ollama. Docs/ToS research suggested Nemotron has a real working free
-tier and GLM-5.2 does not (Zenmux's "-free" slug redirects to the paid
-model) -- this script proves it with live calls instead of relying on that.
+as an extra tier between Groq and Ollama. A live call confirmed it works
+(HTTP 200, real completion) as of 2026-08-11 -- this script exists to keep
+proving that stays true, since NVIDIA's own Trial Terms of Service say they
+can end/paywall it at any time with zero notice (it's an explicitly
+credit-metered trial, not a stable free tier like Groq/Gemini).
+
+(GLM-5.2 was evaluated the same way and dropped entirely: confirmed, three
+independent ways, to have no free API access anywhere -- Zenmux's "-free"
+slug redirects to the paid model, Zenmux's own docs say their free tier is
+Studio-Chat-only with no API access, and Zhipu's own direct api.z.ai
+endpoint returned "Insufficient balance or no resource package" on a live
+call. Not revisiting unless a genuinely new free path turns up.)
 
 Runs automatically, non-fatally, every launch (see windows_setup/launch.bat)
 -- but costs nothing and does nothing beyond an instant skip unless you've
-actually added one of the three optional keys below to your .env.
+added OPENROUTER_API_KEY to your .env.
 
     uv run python scripts/test_free_tier_access.py
 
-WHAT YOU NEED TO PROVIDE (I cannot get these myself -- they're tied to your
+WHAT YOU NEED TO PROVIDE (I cannot get this myself -- it's tied to your
 identity, not the app's):
 
   OPENROUTER_API_KEY  -- for Nemotron-3-Ultra:free
       Sign up (free, ~1 min, no card): https://openrouter.ai/keys
 
-  ZENMUX_API_KEY      -- for GLM-5.2 via Zenmux (both the "-free" slug the
-                          blog claimed, and the standard paid slug, for
-                          comparison)
-      Sign up (free, ~1 min): https://zenmux.ai -> Create API Key
-
-  ZAI_API_KEY         -- for GLM-5.2 via Zhipu's own direct API
-      Sign up: https://z.ai or https://open.bigmodel.cn -> API Keys
-      NOTE: may require phone verification (Chinese platform) -- not a
-      script bug if that takes longer than the other two.
-
-Add whichever you have to .env (see .env.example) -- any missing key just
-skips that one test, the rest still run. None of this touches the app's
-actual chain; it's a pure read-only diagnostic, same category as
-scripts/diagnose.py or scripts/ensure_ollama.py.
+Leave it unset to skip the test entirely (near-instant, no network call).
+None of this touches the app's actual chain; it's a pure read-only
+diagnostic, same category as scripts/diagnose.py or scripts/ensure_ollama.py.
 
 OUTPUT: diagnostics/free_tier_test_<UTC-timestamp>.txt AND
 diagnostics/free_tier_test_latest.txt (always overwritten) -- copy either
@@ -54,7 +51,7 @@ from pathlib import Path
 
 TIMEOUT = 30
 _OUT_DIR = Path("diagnostics")
-_ENV_KEYS = ("OPENROUTER_API_KEY", "ZENMUX_API_KEY", "ZAI_API_KEY")
+_ENV_KEY = "OPENROUTER_API_KEY"
 
 TINY_PROMPT = {
     "messages": [{"role": "user", "content": "Reply with just the word OK."}],
@@ -62,25 +59,21 @@ TINY_PROMPT = {
 }
 
 
-def _load_keys() -> dict[str, str | None]:
-    """env var s; falls back to .env (same pattern as
-    scripts/list_gemini_models.py). Placeholder values (your_..._here) are
-    treated as unset, same convention as the rest of this repo's tooling."""
-    found: dict[str, str | None] = dict.fromkeys(_ENV_KEYS)
-    for name in _ENV_KEYS:
-        val = os.environ.get(name)
-        if val and not val.startswith("your_"):
-            found[name] = val
+def _load_key() -> str | None:
+    """Env var first; falls back to .env (same pattern as
+    scripts/list_gemini_models.py). A placeholder value (empty or
+    "your_..._here") is treated as unset, same convention as the rest of
+    this repo's tooling."""
+    val = os.environ.get(_ENV_KEY)
+    if val and not val.startswith("your_"):
+        return val
     env_path = Path(".env")
     if env_path.exists():
         text = env_path.read_text(encoding="utf-8")
-        for name in _ENV_KEYS:
-            if found[name]:
-                continue
-            m = re.search(rf"^{name}=(.+)$", text, re.MULTILINE)
-            if m and not m.group(1).strip().startswith("your_"):
-                found[name] = m.group(1).strip()
-    return found
+        m = re.search(rf"^{_ENV_KEY}=(.+)$", text, re.MULTILINE)
+        if m and not m.group(1).strip().startswith("your_"):
+            return m.group(1).strip()
+    return None
 
 
 def _post_json(url: str, headers: dict[str, str], payload: dict) -> tuple[int, str]:
@@ -100,6 +93,13 @@ def _post_json(url: str, headers: dict[str, str], payload: dict) -> tuple[int, s
 
 
 def _verdict(status: int, body: str) -> str:
+    """Translate an HTTP status into a plain-English verdict.
+
+    NOTE: a status code alone can mislead -- e.g. some providers use 429 as
+    a billing wall rather than a rate limit (seen with Zhipu's direct API:
+    429 + "Insufficient balance"). Always read the raw body too, not just
+    this line, before trusting a verdict.
+    """
     if status == -1:
         return f"CONNECTION FAILED ({body}) -- can't reach the endpoint from here"
     if status == 200:
@@ -111,15 +111,23 @@ def _verdict(status: int, body: str) -> str:
     if status == 404:
         return "MODEL NOT FOUND -- this model id/slug does not exist on this platform"
     if status == 429:
-        return "RATE LIMITED -- key is VALID and tier EXISTS, just throttled right now (counts as proof the free tier is real)"
+        return (
+            "RATE LIMITED OR BILLING WALL -- key is valid but check the raw "
+            "body below: a real quota throttle counts as proof the free "
+            "tier exists, but some providers (e.g. Zhipu) return 429 to "
+            "mean 'no balance', not 'too many requests'."
+        )
     return f"UNEXPECTED STATUS {status} -- inspect the raw body below"
 
 
-def _run_test(log: list[str], label: str, key: str | None, url: str, model: str) -> None:
+def _run_test(log: list[str], key: str | None) -> None:
+    label = "Nemotron-3-Ultra:free via OpenRouter"
     log.append(f"\n=== {label} ===")
     if not key:
-        log.append("  SKIPPED -- no API key configured for this one (see .env.example)")
+        log.append(f"  SKIPPED -- no {_ENV_KEY} configured (see .env.example)")
         return
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    model = "nvidia/nemotron-3-ultra-550b-a55b:free"
     payload = {"model": model, **TINY_PROMPT}
     status, body = _post_json(url, {"Authorization": f"Bearer {key}"}, payload)
     log.append(f"  URL:     {url}")
@@ -142,48 +150,13 @@ def _write(log: list[str]) -> tuple[Path, Path]:
 
 
 def main() -> None:
-    keys = _load_keys()
+    key = _load_key()
     log: list[str] = [
         "Empirical free-tier test -- real HTTP calls, real response codes.",
         f"Run (UTC): {datetime.now(UTC).isoformat()}",
-        "Any test without its API key configured is skipped, not failed.",
+        "Skipped (not failed) if OPENROUTER_API_KEY isn't configured.",
     ]
-
-    if not any(keys.values()):
-        log.append(
-            "\nNo optional keys found (OPENROUTER_API_KEY / ZENMUX_API_KEY / "
-            "ZAI_API_KEY) -- all tests skipped. Add one to .env to actually "
-            "test a provider. See the module docstring for signup links."
-        )
-    else:
-        _run_test(
-            log,
-            "Nemotron-3-Ultra:free via OpenRouter",
-            keys["OPENROUTER_API_KEY"],
-            "https://openrouter.ai/api/v1/chat/completions",
-            "nvidia/nemotron-3-ultra-550b-a55b:free",
-        )
-        _run_test(
-            log,
-            "GLM-5.2-free via Zenmux (the exact slug the blog claimed)",
-            keys["ZENMUX_API_KEY"],
-            "https://zenmux.ai/api/v1/chat/completions",
-            "z-ai/glm-5.2-free",
-        )
-        _run_test(
-            log,
-            "GLM-5.2 STANDARD (paid) via Zenmux -- comparison only",
-            keys["ZENMUX_API_KEY"],
-            "https://zenmux.ai/api/v1/chat/completions",
-            "z-ai/glm-5.2",
-        )
-        _run_test(
-            log,
-            "GLM-5.2 via Zhipu's own direct API (api.z.ai)",
-            keys["ZAI_API_KEY"],
-            "https://api.z.ai/api/paas/v4/chat/completions",
-            "glm-5.2",
-        )
+    _run_test(log, key)
 
     timestamped, latest = _write(log)
     print("\n".join(log))
