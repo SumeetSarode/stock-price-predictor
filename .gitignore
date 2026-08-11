@@ -56,3 +56,5 @@ scripts/smoke_chain_output.txt
 diagnostics/diag_*
 !diagnostics/latest.txt
 !diagnostics/latest.json
+diagnostics/free_tier_test_*
+!diagnostics/free_tier_test_latest.txt
