@@ -416,9 +416,13 @@ numpy==2.2.6
     #   ta-lib
     #   yfinance
 openai==2.24.0 ; python_full_version < '3.14'
-    # via litellm
+    # via
+    #   litellm
+    #   price-predictor
 openai==2.32.0 ; python_full_version >= '3.14'
-    # via litellm
+    # via
+    #   litellm
+    #   price-predictor
 opentelemetry-api==1.38.0
     # via
     #   google-adk

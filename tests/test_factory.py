@@ -91,23 +91,41 @@ class TestFailFastConfig:
     error, so a rate-limited Groq call blocks for many seconds and never
     falls over to Ollama. A bounded timeout stops a wedged connection
     from hanging the whole prediction.
+
+    Timeout is a SPLIT openai.Timeout (connect vs read/write/pool), not one
+    flat number -- see factory.py's _HOSTED_CONNECT_TIMEOUT_S comment for
+    why: a dead/unreachable connection (connect leg) should fail fast, but
+    a real non-streaming generation response (read leg) legitimately needs
+    the full budget.
     """
 
     def test_hosted_model_disables_internal_retry_and_sets_timeout(self):
         m = make_model("groq/openai/gpt-oss-120b")
         assert m._additional_args["num_retries"] == 0
-        assert m._additional_args["timeout"] == factory._HOSTED_TIMEOUT_S
+        t = m._additional_args["timeout"]
+        assert t.connect == factory._HOSTED_CONNECT_TIMEOUT_S
+        assert t.read == factory._HOSTED_TIMEOUT_S
 
     def test_gemini_model_disables_internal_retry(self):
         m = make_model("gemini/gemini-flash-latest")
         assert m._additional_args["num_retries"] == 0
-        assert m._additional_args["timeout"] == factory._HOSTED_TIMEOUT_S
+        t = m._additional_args["timeout"]
+        assert t.connect == factory._HOSTED_CONNECT_TIMEOUT_S
+        assert t.read == factory._HOSTED_TIMEOUT_S
+
+    def test_hosted_connect_timeout_is_much_shorter_than_read_timeout(self):
+        # The whole point: a dead socket must fail MUCH faster than we'd
+        # wait for a real (slow but alive) generation to finish.
+        assert factory._HOSTED_CONNECT_TIMEOUT_S < factory._HOSTED_TIMEOUT_S
 
     def test_ollama_model_disables_internal_retry_with_generous_timeout(self):
         m = make_model("ollama_chat/qwen3:8b")
         assert m._additional_args["num_retries"] == 0
-        # Local reasoning_effort='high' is slow -> generous timeout.
-        assert m._additional_args["timeout"] == factory._OLLAMA_TIMEOUT_S
+        t = m._additional_args["timeout"]
+        # Local reasoning_effort='high' is slow -> generous READ timeout,
+        # but connect (is Ollama even reachable?) still fails fast.
+        assert t.connect == factory._OLLAMA_CONNECT_TIMEOUT_S
+        assert t.read == factory._OLLAMA_TIMEOUT_S
 
 
 class TestHostedProviderStillWorks:
@@ -139,7 +157,9 @@ class TestOpenRouterProvider:
 
     def test_openrouter_uses_hosted_timeout_and_no_internal_retry(self):
         m = make_model("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free")
-        assert m._additional_args["timeout"] == factory._HOSTED_TIMEOUT_S
+        t = m._additional_args["timeout"]
+        assert t.connect == factory._HOSTED_CONNECT_TIMEOUT_S
+        assert t.read == factory._HOSTED_TIMEOUT_S
         assert m._additional_args["num_retries"] == factory._NO_INTERNAL_RETRY
 
 

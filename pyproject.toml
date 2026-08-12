@@ -15,6 +15,7 @@ dependencies = [
     "jugaad-data>=0.33.1",
     "litellm>=1.83.0",
     "loguru>=0.7.3",
+    "openai>=2.24.0",
     "pandas>=2.3.3",
     "pandas-market-calendars>=5.3.2",
     "pandas-ta>=0.4.71b0",

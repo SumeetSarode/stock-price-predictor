@@ -26,6 +26,7 @@ Adding a new profile:
 """
 from collections.abc import Callable
 
+import openai
 from google.adk.models.lite_llm import LiteLlm
 
 from price_predictor.config.settings import settings
@@ -58,10 +59,33 @@ _KEYLESS_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "ollama_chat"})
 # LiteLLM to fail IMMEDIATELY and hand control back to us:
 #   - num_retries=0  -> no internal retry loop; surface the error at once
 #   - timeout        -> a wedged connection can't hang the whole prediction
-# Hosted providers get a short timeout (fall over fast). Ollama gets a
-# generous one because local reasoning_effort='high' is legitimately slow.
+#
+# TIMEOUT IS SPLIT into connect vs. everything-else (read/write/pool), not
+# one flat number, because those two failure modes are NOT the same thing:
+#   - CONNECT (dead socket / blackholed network / unreachable host): the
+#     provider never even answers the TCP/TLS handshake. Nothing is being
+#     computed, so there's no reason to wait anywhere near as long as we'd
+#     tolerate for a real generation -- a short connect timeout detects this
+#     and falls over fast.
+#   - READ (connected fine, provider is just slow to finish generating):
+#     the app runs ADK in NON-streaming mode (StreamingMode.NONE is ADK's
+#     default and nothing overrides it -- see llm/resilient.py's single
+#     blocking generate_content_async call), so the ENTIRE response has to
+#     arrive before we see anything. A real reasoning-heavy prediction call
+#     can legitimately take tens of seconds -- shrinking THIS number risks
+#     killing genuinely-in-progress calls and causing MORE fallbacks, not
+#     fewer. Only the connect leg is safe to make aggressive.
+#
+# Hosted providers get a short read/write/pool timeout (fall over fast on a
+# truly wedged response) but a much shorter CONNECT timeout (fall over
+# almost immediately on a dead/unreachable connection). Ollama gets a
+# generous read timeout because local reasoning_effort='high' is
+# legitimately slow, but the same fast connect timeout -- a misconfigured
+# or unreachable OLLAMA_API_BASE shouldn't hang either.
 _HOSTED_TIMEOUT_S = 60
+_HOSTED_CONNECT_TIMEOUT_S = 10
 _OLLAMA_TIMEOUT_S = 300
+_OLLAMA_CONNECT_TIMEOUT_S = 10
 _NO_INTERNAL_RETRY = 0
 
 
@@ -116,7 +140,9 @@ def make_model(model_name: str) -> LiteLlm:
             reasoning_effort=settings.ollama_reasoning_effort,
             num_ctx=settings.ollama_num_ctx,
             num_retries=_NO_INTERNAL_RETRY,
-            timeout=_OLLAMA_TIMEOUT_S,
+            timeout=openai.Timeout(
+                _OLLAMA_TIMEOUT_S, connect=_OLLAMA_CONNECT_TIMEOUT_S
+            ),
         )
 
     if provider not in _API_KEY_GETTERS:
@@ -130,7 +156,9 @@ def make_model(model_name: str) -> LiteLlm:
         model=model_name,
         api_key=_API_KEY_GETTERS[provider](),
         num_retries=_NO_INTERNAL_RETRY,
-        timeout=_HOSTED_TIMEOUT_S,
+        timeout=openai.Timeout(
+            _HOSTED_TIMEOUT_S, connect=_HOSTED_CONNECT_TIMEOUT_S
+        ),
     )
 
 
