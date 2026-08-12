@@ -106,7 +106,14 @@ They live only on this laptop and are **never** committed to git.
 1. Go to **https://aistudio.google.com/app/apikey** and sign in.
 2. Click **Create API key** and **copy it**.
 
-### 4c. Create the `.env` file
+### 4c. (Optional, recommended) Get a free OpenRouter key
+This unlocks one extra free fallback model (Nemotron-3-Ultra) already in
+the default chain — skip this step and it's just silently left out, no
+harm done.
+1. Go to **https://openrouter.ai/settings/keys** and sign in.
+2. Click **Create Key** and **copy it** (it starts with `sk-or-...`).
+
+### 4d. Create the `.env` file
 In PowerShell (still inside the `price_predictor` folder):
 
 ```powershell
@@ -114,12 +121,13 @@ copy .env.example .env
 notepad .env
 ```
 
-Notepad opens. Find these two lines and replace the placeholder text with
-your real keys:
+Notepad opens. Find these lines and replace the placeholder text with
+your real keys (the OpenRouter line can stay blank if you skipped 4c):
 
 ```
 GROQ_API_KEY=your_groq_key_here
 GEMINI_API_KEY=your_gemini_key_here
+OPENROUTER_API_KEY=
 ```
 
 becomes (example):
@@ -127,6 +135,7 @@ becomes (example):
 ```
 GROQ_API_KEY=gsk_abc123realkeyhere
 GEMINI_API_KEY=AIzaSyRealKeyHere
+OPENROUTER_API_KEY=sk-or-realkeyhere
 ```
 
 **Save** (Ctrl+S) and **close** Notepad. Leave everything else in the file

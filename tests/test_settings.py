@@ -61,6 +61,57 @@ class TestChainParsing:
         assert s.effective_chain("agentic") == ["groq/openai/gpt-oss-120b"]
 
 
+class TestOptionalKeyProviders:
+    """openrouter is skipped, not crashed, when its key is unconfigured.
+
+    See Settings._optional_key_missing's docstring for WHY: an
+    AuthenticationError is a STRUCTURAL error in llm.resilient -- it does
+    NOT fall through to the next model, so an unset optional key sitting
+    in the chain would otherwise hard-crash every single prediction.
+    """
+
+    def test_openrouter_skipped_when_key_blank(self, monkeypatch):
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC="gemini/gemini-2.5-flash,openrouter/some-model:free,groq/openai/gpt-oss-120b",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "groq/openai/gpt-oss-120b",
+        ]
+
+    def test_openrouter_included_when_key_set(self, monkeypatch):
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC="gemini/gemini-2.5-flash,openrouter/some-model:free,groq/openai/gpt-oss-120b",
+            OPENROUTER_API_KEY="sk-or-a-real-looking-key",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "openrouter/some-model:free",
+            "groq/openai/gpt-oss-120b",
+        ]
+
+    def test_required_providers_untouched_by_skip_path(self, monkeypatch):
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC="groq/a,gemini/b,ollama_chat/qwen3:8b",
+        )
+        assert s.effective_chain("agentic") == [
+            "groq/a",
+            "gemini/b",
+            "ollama_chat/qwen3:8b",
+        ]
+
+    def test_blank_openrouter_key_is_not_a_placeholder_violation(self, monkeypatch):
+        s = _build_settings(monkeypatch, OPENROUTER_API_KEY="")
+        assert s.openrouter_api_key.get_secret_value() == ""
+
+    def test_openrouter_placeholder_key_rejected(self, monkeypatch):
+        with pytest.raises(ValidationError, match="Placeholder"):
+            _build_settings(monkeypatch, OPENROUTER_API_KEY="your_openrouter_key_here")
+
+
 # ─────────────────────────────────────────────────────────────
 # Profile resolution
 # ─────────────────────────────────────────────────────────────

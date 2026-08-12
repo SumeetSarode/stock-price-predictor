@@ -124,6 +124,25 @@ class TestHostedProviderStillWorks:
         assert "ollama" in str(exc.value)
 
 
+class TestOpenRouterProvider:
+    """openrouter is a hosted, keyed provider -- same shape as groq/gemini.
+
+    Its key is OPTIONAL at the settings layer (Settings.effective_chain
+    silently drops an openrouter chain entry if unconfigured -- see
+    test_settings.py::TestOptionalKeyProviders), but make_model() itself
+    just builds whatever it's given, same as any other keyed provider.
+    """
+
+    def test_openrouter_builds_with_key(self):
+        m = make_model("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free")
+        assert m.model == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+
+    def test_openrouter_uses_hosted_timeout_and_no_internal_retry(self):
+        m = make_model("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free")
+        assert m._additional_args["timeout"] == factory._HOSTED_TIMEOUT_S
+        assert m._additional_args["num_retries"] == factory._NO_INTERNAL_RETRY
+
+
 class TestResilientChainWithLocalTail:
     """A chain ending in Ollama builds into a ResilientModel (offline tail)."""
 

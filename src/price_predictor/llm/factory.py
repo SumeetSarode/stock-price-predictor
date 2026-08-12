@@ -37,6 +37,7 @@ from price_predictor.llm.resilient import ResilientModel
 _API_KEY_GETTERS: dict[str, Callable[[], str]] = {
     "groq": lambda: settings.groq_api_key.get_secret_value(),
     "gemini": lambda: settings.gemini_api_key.get_secret_value(),
+    "openrouter": lambda: settings.openrouter_api_key.get_secret_value(),
 }
 
 # Providers that run LOCALLY and need NO API key -- they need an `api_base`
