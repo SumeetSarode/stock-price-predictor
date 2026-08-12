@@ -32,6 +32,9 @@ anyio==4.13.0
     #   openai
     #   sse-starlette
     #   starlette
+    #   watchfiles
+appdirs==1.4.4
+    # via jugaad-data
 attrs==26.1.0
     # via
     #   aiohttp
@@ -39,40 +42,58 @@ attrs==26.1.0
     #   referencing
 authlib==1.7.0
     # via google-adk
+babel==2.18.0
+    # via courlan
 beautifulsoup4==4.14.3
-    # via yfinance
+    # via
+    #   jugaad-data
+    #   yfinance
+brotli==1.2.0
+    # via jugaad-data
+build==1.5.0
+    # via ta-lib
 certifi==2026.4.22
     # via
     #   curl-cffi
     #   httpcore
     #   httpx
     #   requests
+    #   trafilatura
 cffi==2.0.0
     # via
     #   cryptography
     #   curl-cffi
 charset-normalizer==3.4.7
-    # via requests
+    # via
+    #   htmldate
+    #   requests
+    #   trafilatura
 click==8.1.8 ; python_full_version < '3.14'
     # via
     #   google-adk
+    #   jugaad-data
     #   litellm
     #   typer
     #   uvicorn
 click==8.3.3 ; python_full_version >= '3.14'
     # via
     #   google-adk
+    #   jugaad-data
     #   litellm
     #   typer
     #   uvicorn
 cloudpickle==3.1.2
     # via google-cloud-aiplatform
-colorama==0.4.6 ; sys_platform == 'win32'
+colorama==0.4.6 ; os_name == 'nt' or sys_platform == 'win32'
     # via
+    #   build
     #   click
     #   loguru
     #   pytest
     #   tqdm
+    #   uvicorn
+courlan==1.3.2
+    # via trafilatura
 coverage==7.13.5
     # via pytest-cov
 cryptography==47.0.0
@@ -84,14 +105,20 @@ cryptography==47.0.0
     #   pyopenssl
 curl-cffi==0.15.0
     # via yfinance
+dateparser==1.4.0
+    # via htmldate
 distro==1.9.0
     # via
     #   google-genai
     #   openai
 docstring-parser==0.18.0
     # via google-cloud-aiplatform
+exchange-calendars==4.13.2
+    # via pandas-market-calendars
 fastapi==0.136.1
-    # via google-adk
+    # via
+    #   google-adk
+    #   price-predictor
 fastuuid==0.14.0
     # via litellm
 filelock==3.29.0
@@ -274,12 +301,16 @@ h11==0.16.0
     #   uvicorn
 hf-xet==1.4.3 ; platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
     # via huggingface-hub
+htmldate==1.9.4
+    # via trafilatura
 httpcore==1.0.9
     # via httpx
 httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
+httptools==0.7.1
+    # via uvicorn
 httpx==0.28.1
     # via
     #   google-adk
@@ -289,6 +320,7 @@ httpx==0.28.1
     #   mcp
     #   openai
     #   price-predictor
+    #   respx
 httpx-sse==0.4.3
     # via mcp
 huggingface-hub==1.12.0
@@ -310,7 +342,9 @@ importlib-metadata==8.7.1 ; python_full_version >= '3.14'
 iniconfig==2.3.0
     # via pytest
 jinja2==3.1.6
-    # via litellm
+    # via
+    #   litellm
+    #   price-predictor
 jiter==0.14.0
     # via openai
 joserfc==1.6.4
@@ -327,6 +361,12 @@ jsonschema==4.26.0 ; python_full_version >= '3.14'
     #   mcp
 jsonschema-specifications==2025.9.1
     # via jsonschema
+jugaad-data==0.33.1
+    # via price-predictor
+justext==3.0.2
+    # via trafilatura
+korean-lunar-calendar==0.3.1
+    # via exchange-calendars
 litellm==1.83.0 ; python_full_version >= '3.14'
     # via price-predictor
 litellm==1.83.14 ; python_full_version < '3.14'
@@ -335,6 +375,15 @@ llvmlite==0.44.0
     # via numba
 loguru==0.7.3
     # via price-predictor
+lxml==6.1.0
+    # via
+    #   htmldate
+    #   jugaad-data
+    #   justext
+    #   lxml-html-clean
+    #   trafilatura
+lxml-html-clean==0.4.4
+    # via lxml
 mako==1.3.11
     # via alembic
 markdown-it-py==4.0.0
@@ -359,9 +408,12 @@ numba==0.61.2
     # via pandas-ta
 numpy==2.2.6
     # via
+    #   exchange-calendars
     #   numba
     #   pandas
     #   pandas-ta
+    #   scipy
+    #   ta-lib
     #   yfinance
 openai==2.24.0 ; python_full_version < '3.14'
     # via litellm
@@ -424,15 +476,20 @@ opentelemetry-semantic-conventions==0.59b0
     #   opentelemetry-sdk
 packaging==26.2
     # via
+    #   build
     #   google-cloud-aiplatform
     #   google-cloud-bigquery
     #   huggingface-hub
     #   pytest
 pandas==2.3.3
     # via
+    #   exchange-calendars
+    #   pandas-market-calendars
     #   pandas-ta
     #   price-predictor
     #   yfinance
+pandas-market-calendars==5.3.2
+    # via price-predictor
 pandas-ta==0.4.71b0
     # via price-predictor
 peewee==4.0.5
@@ -534,10 +591,14 @@ pygments==2.20.0
     #   rich
 pyjwt==2.12.1
     # via mcp
+pyluach==2.3.0
+    # via exchange-calendars
 pyopenssl==26.1.0
     # via google-auth
 pyparsing==3.3.2
     # via httplib2
+pyproject-hooks==1.2.0
+    # via build
 pytest==9.0.3
     # via
     #   price-predictor
@@ -549,8 +610,10 @@ pytest-cov==7.1.0
     # via price-predictor
 python-dateutil==2.9.0.post0
     # via
+    #   dateparser
     #   google-adk
     #   google-cloud-bigquery
+    #   htmldate
     #   pandas
 python-dotenv==1.2.2
     # via
@@ -558,10 +621,14 @@ python-dotenv==1.2.2
     #   litellm
     #   price-predictor
     #   pydantic-settings
+    #   uvicorn
 python-multipart==0.0.27
-    # via mcp
+    # via
+    #   mcp
+    #   price-predictor
 pytz==2026.1.post1
     # via
+    #   dateparser
     #   pandas
     #   yfinance
 pywin32==311 ; sys_platform == 'win32'
@@ -570,12 +637,15 @@ pyyaml==6.0.3
     # via
     #   google-adk
     #   huggingface-hub
+    #   uvicorn
 referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
 regex==2026.4.4
-    # via tiktoken
+    # via
+    #   dateparser
+    #   tiktoken
 requests==2.33.1
     # via
     #   google-adk
@@ -584,10 +654,12 @@ requests==2.33.1
     #   google-cloud-bigquery
     #   google-cloud-storage
     #   google-genai
+    #   jugaad-data
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-resourcedetector-gcp
     #   tiktoken
     #   yfinance
+respx==0.23.1
 rich==15.0.0
     # via
     #   curl-cffi
@@ -597,6 +669,8 @@ rpds-py==0.30.0
     #   jsonschema
     #   referencing
 ruff==0.15.12
+    # via price-predictor
+scipy==1.17.1
     # via price-predictor
 shellingham==1.5.4
     # via typer
@@ -625,21 +699,29 @@ starlette==0.52.1
     #   google-adk
     #   mcp
     #   sse-starlette
+ta-lib==0.6.8
+    # via price-predictor
 tenacity==9.1.4
     # via
     #   google-adk
     #   google-genai
 tiktoken==0.12.0
     # via litellm
+tld==0.13.2
+    # via courlan
 tokenizers==0.22.2 ; python_full_version < '3.14'
     # via litellm
 tokenizers==0.23.1 ; python_full_version >= '3.14'
     # via litellm
+toolz==1.1.0
+    # via exchange-calendars
 tqdm==4.67.3
     # via
     #   huggingface-hub
     #   openai
     #   pandas-ta
+trafilatura==2.0.0
+    # via price-predictor
 typer==0.23.1 ; python_full_version < '3.14'
     # via
     #   huggingface-hub
@@ -677,24 +759,37 @@ typing-inspection==0.4.2
     #   pydantic-settings
 tzdata==2026.2
     # via
+    #   exchange-calendars
     #   pandas
     #   tzlocal
 tzlocal==5.3.1
-    # via google-adk
+    # via
+    #   dateparser
+    #   google-adk
 uritemplate==4.2.0
     # via google-api-python-client
 urllib3==2.6.3
-    # via requests
+    # via
+    #   courlan
+    #   htmldate
+    #   requests
+    #   trafilatura
 uvicorn==0.46.0
     # via
     #   google-adk
     #   mcp
+    #   price-predictor
+uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
+    # via uvicorn
 watchdog==6.0.0
     # via google-adk
+watchfiles==1.2.0
+    # via uvicorn
 websockets==15.0.1
     # via
     #   google-adk
     #   google-genai
+    #   uvicorn
     #   yfinance
 win32-setctime==1.2.0 ; sys_platform == 'win32'
     # via loguru
