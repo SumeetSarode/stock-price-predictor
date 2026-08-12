@@ -42,6 +42,12 @@
           <td><a class="text-[#0053e2] underline" href="https://console.groq.com/keys" target="_blank" rel="noopener">Groq Console</a></td>
         </tr>
         <tr>
+          <td><code>OPENROUTER_API_KEY</code></td>
+          <td><span class="tag tag-neut">Optional</span></td>
+          <td>Free tier</td>
+          <td><a class="text-[#0053e2] underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">OpenRouter</a></td>
+        </tr>
+        <tr>
           <td><code>ALPHA_VANTAGE_API_KEY</code></td>
           <td><span class="tag tag-neut">Optional</span></td>
           <td>Free tier</td>
@@ -56,20 +62,25 @@
       </tbody>
     </table>
     <div class="meaning">
-      You only need the <strong>two required</strong> keys (Gemini + Groq). The optional two power
-      price-data providers that are <em>not</em> in the default chain — skip them unless you have a
-      specific reason (see <a class="text-[#0053e2] underline" href="#optional">Optional keys</a> below).
+      You only need the <strong>two required</strong> keys (Gemini + Groq) to run predictions.
+      <code>OPENROUTER_API_KEY</code> is optional but <em>recommended</em> — it enables one extra
+      hosted fallback hop (Nemotron-3-Ultra:free) in the default chain before it drops to a local
+      Ollama model. Skip it and that one hop is silently skipped too (no crash, no missing feature
+      beyond a slightly shorter fallback chain). The other two optional keys power price-data
+      providers that are <em>not</em> in the default chain — skip them unless you have a specific
+      reason (see <a class="text-[#0053e2] underline" href="#optional">Optional keys</a> below).
     </div>
   </section>
 
   <!-- ── Why two ─────────────────────────────────────────── -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">Why two keys?</h2>
+    <h2 class="text-2xl font-bold mb-3">Why a fallback chain?</h2>
     <p>The LLM agents run on a <strong>fallback chain</strong>: Gemini first (best tool-call
-    compatibility), then Groq models as backups when Gemini's free-tier quota is exhausted. Having
-    both keys means a single provider's rate limit never stops you cold — the next hop lands in a
-    fresh quota bucket.</p>
-    <div class="formula">CHAIN_AGENTIC = gemini/gemini-flash-latest → groq/gpt-oss-120b → groq/llama-3.3-70b</div>
+    compatibility), then Groq models as backups when Gemini's free-tier quota is exhausted, then
+    (if you added the optional key) OpenRouter's free Nemotron-3-Ultra as a third independent hosted
+    hop. Having multiple keys means a single provider's rate limit never stops you cold — the next
+    hop lands in a fresh quota bucket.</p>
+    <div class="formula">CHAIN_AGENTIC = gemini/gemini-flash-latest → groq/gpt-oss-120b → groq/llama-3.3-70b → openrouter/nemotron-3-ultra:free</div>
   </section>
 
   <!-- ── Gemini ──────────────────────────────────────────── -->
@@ -105,23 +116,41 @@
     </div>
   </section>
 
-  <!-- ── Where to put them ───────────────────────────────── -->
+  <!-- ── OpenRouter (optional) ──────────────────────── -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">3. Where to paste them</h2>
+    <h2 class="text-2xl font-bold mb-3">3. OpenRouter key (optional, recommended)</h2>
+    <ol class="list-decimal pl-6 space-y-2">
+      <li>Go to <a class="text-[#0053e2] underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a>.</li>
+      <li>Sign in (Google / GitHub / email — no card required for the free tier).</li>
+      <li>Click <mark class="k">Create Key</mark>, give it any name.</li>
+      <li>Copy the key — it starts with <code>sk-or-...</code>. This is the value for
+          <code>OPENROUTER_API_KEY</code>.</li>
+    </ol>
+    <div class="meaning">
+      This unlocks the default chain's fourth hop, <code>openrouter/nvidia/nemotron-3-ultra-550b-a55b:free</code>
+      — one more free hosted model to fall back to before the chain drops to a local Ollama model.
+      Leave <code>OPENROUTER_API_KEY</code> blank and this hop is silently skipped (a logged warning,
+      not an error) — the app works fine either way.
+    </div>
+  </section>
+
+  <!-- ── Where to put them ───────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-2xl font-bold mb-3">4. Where to paste them</h2>
     <p>The app reads keys from a file called <code>.env</code> in the project root. A fresh clone
     doesn't have one (it's deliberately excluded from git), so create it by copying the template:</p>
     <div class="formula">cp .env.example .env</div>
-    <p>Then open <code>.env</code> in any text editor and fill in the two lines:</p>
-    <div class="formula">GEMINI_API_KEY=AIza...your_actual_key...<br>GROQ_API_KEY=gsk_...your_actual_key...</div>
+    <p>Then open <code>.env</code> in any text editor and fill in the required lines (OpenRouter is optional — skip it if you didn't make a key):</p>
+    <div class="formula">GEMINI_API_KEY=AIza...your_actual_key...<br>GROQ_API_KEY=gsk_...your_actual_key...<br>OPENROUTER_API_KEY=sk-or-...your_actual_key... <span class="text-gray-500"># optional</span></div>
     <div class="meaning">
       No quotes, no spaces around the <code>=</code>. Save the file. That's it — the app picks the
       keys up on its next start.
     </div>
   </section>
 
-  <!-- ── Free-tier limits ────────────────────────────────── -->
+  <!-- ── Free-tier limits ──────────────────────── -->
   <section class="mb-10">
-    <h2 class="text-2xl font-bold mb-3">4. Free-tier limits (good to know)</h2>
+    <h2 class="text-2xl font-bold mb-3">5. Free-tier limits (good to know)</h2>
     <p>Both free tiers are generous enough for personal use. The app <em>proactively paces</em>
     itself to stay under these, so you won't get surprise lock-outs:</p>
     <table class="t">
@@ -138,7 +167,7 @@
 
   <!-- ── Optional keys ───────────────────────────────────── -->
   <section class="mb-10" id="optional">
-    <h2 class="text-2xl font-bold mb-3">5. Optional keys (you probably don't need these)</h2>
+    <h2 class="text-2xl font-bold mb-3">6. Optional keys (you probably don't need these)</h2>
     <p>These power price-data providers that are <strong>not</strong> in the default chain. Leave
     them blank unless you have a specific reason:</p>
     <table class="t">

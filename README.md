@@ -64,6 +64,10 @@ cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
 > **API keys:** a fresh clone has no `.env` (it's gitignored). You need
 > your own free-tier keys: Groq (https://console.groq.com/keys) and
 > Gemini (https://aistudio.google.com/app/apikey). Paste them into `.env`.
+> Optional but recommended: an OpenRouter key
+> (https://openrouter.ai/settings/keys) unlocks one extra free hosted
+> fallback hop (Nemotron-3-Ultra:free) already in the default chain —
+> leave `OPENROUTER_API_KEY` blank and that hop is just silently skipped.
 > Step-by-step with screenshots-worth of detail: see
 > **`docs/api_keys.html`** (also linked in-app under *How it works -> API keys*).
 
@@ -81,10 +85,10 @@ cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
 ### Optional: local Ollama fallback (offline, no quota)
 
 The LLM chain can end in a **local Ollama model** as an offline last resort.
-It fires only when every hosted provider (Gemini + Groq) is rate-limited, so
-the app keeps working even when your free-tier quotas run dry. It's already
-wired into `CHAIN_AGENTIC` (the `ollama_chat/qwen3:8b` tail) — you just need
-Ollama installed and the model pulled.
+It fires only when every hosted provider (Gemini + Groq + OpenRouter) is
+rate-limited, so the app keeps working even when your free-tier quotas run
+dry. It's already wired into `CHAIN_AGENTIC` (the `ollama_chat/qwen3:8b`
+tail) — you just need Ollama installed and the model pulled.
 
 1. **Install Ollama** — https://ollama.com/download
    - **macOS:** `brew install ollama` (or the .dmg)

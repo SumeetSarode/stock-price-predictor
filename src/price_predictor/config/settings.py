@@ -12,6 +12,7 @@ Public surface:
 import os
 from pathlib import Path
 
+from loguru import logger
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import (
     BaseSettings,
@@ -72,6 +73,15 @@ class Settings(BaseSettings):
         default=SecretStr(""), validation_alias="STOOQ_API_KEY"
     )
 
+    # OPTIONAL: OpenRouter, used for candidate-model evaluation (e.g.
+    # Nemotron-3-Ultra:free). Empty is fine if you don't use an
+    # 'openrouter/*' entry in CHAIN_AGENTIC -- see effective_chain()'s
+    # optional-key skip logic below for why an unset key here is safe
+    # rather than a hard crash.
+    openrouter_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="OPENROUTER_API_KEY"
+    )
+
     # ── Validators ────────────────────────────────────────────
     @field_validator("groq_api_key", "gemini_api_key")
     @classmethod
@@ -82,21 +92,23 @@ class Settings(BaseSettings):
             raise ValueError("Placeholder API key detected — set a real key in .env")
         return value
 
-    @field_validator("alpha_vantage_api_key", "stooq_api_key")
+    @field_validator("alpha_vantage_api_key", "stooq_api_key", "openrouter_api_key")
     @classmethod
     def reject_placeholder_provider_keys(cls, value: SecretStr) -> SecretStr:
         """Allow EMPTY (provider not used) but reject obvious placeholders.
 
         Why empty is OK: a user who never uses a given provider shouldn't
-        have to set its key. The provider class itself raises a clear
-        PriceFetchError at fetch time if it's invoked without a key.
+        have to set its key. Price providers raise a clear PriceFetchError
+        at fetch time if invoked without a key; LLM providers (openrouter)
+        are silently skipped in effective_chain() if listed without a key
+        -- see that method's optional-key logic.
         """
         raw = value.get_secret_value()
         if raw and raw.startswith("your_"):
             raise ValueError(
-                "Placeholder provider API key detected. Either set a real key, "
-                "remove the provider from PRICE_CHAIN / PRICE_PAID, or leave "
-                "the var unset."
+                "Placeholder provider API key detected. Either set a real "
+                "key, remove the provider from its chain (PRICE_CHAIN / "
+                "PRICE_PAID / CHAIN_AGENTIC), or leave the var unset."
             )
         return value
 
@@ -283,7 +295,37 @@ class Settings(BaseSettings):
         chain_csv, paid_model = self._profile_map[profile]
         if self.use_paid:
             return [paid_model]
-        return [m.strip() for m in chain_csv.split(",") if m.strip()]
+        chain = [m.strip() for m in chain_csv.split(",") if m.strip()]
+        return [m for m in chain if not self._optional_key_missing(m)]
+
+    # Providers with an OPTIONAL key -- unlike groq/gemini, which are
+    # REQUIRED and validated at startup (reject_placeholder_keys), so they
+    # can never silently reach here without a real key.
+    #
+    # WHY THIS EXISTS: llm.resilient.ResilientModel treats AuthenticationError
+    # as a STRUCTURAL error, which does NOT fall through to the next model
+    # in the chain -- it raises immediately (by design: an auth failure is a
+    # config bug, not something retrying elsewhere fixes). So if an optional
+    # provider is listed in CHAIN_AGENTIC without its key configured, EVERY
+    # prediction would hard-crash the instant the chain reached that tier.
+    # Skipping it here (once, at chain-resolution time) means an unconfigured
+    # optional provider just quietly isn't part of your chain -- exactly how
+    # PRICE_CHAIN's optional providers already behave.
+    def _optional_key_missing(self, model_name: str) -> bool:
+        """True if `model_name`'s provider needs a key we don't have."""
+        provider = model_name.split("/", 1)[0]
+        optional_keys = {"openrouter": self.openrouter_api_key}
+        key = optional_keys.get(provider)
+        if key is None:
+            return False  # not an optional-key provider (groq/gemini/ollama)
+        missing = not key.get_secret_value()
+        if missing:
+            logger.warning(
+                "[settings] {!r} in chain has no configured key -- skipping "
+                "it (set OPENROUTER_API_KEY in .env to enable it).",
+                model_name,
+            )
+        return missing
 
     # ── Price-provider chain (parallels the LLM chain pattern above) ─────
     #
