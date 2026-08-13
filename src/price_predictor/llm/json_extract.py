@@ -33,6 +33,14 @@ import re
 
 # Closed reasoning blocks: <think> ... </think> (case-insensitive, spans lines).
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+# An UNCLOSED reasoning block: '<think>' with no matching '</think>'. Happens
+# when a reasoning model is truncated mid-thought (hit max_tokens) or just
+# omits the closing tag. We only drop the TAG ITSELF, never the text after
+# it -- the answer usually follows the reasoning, so deleting to end-of-string
+# would throw away the very object we're looking for. Removing just the tag
+# leaves the reasoning as ordinary prose, which the largest-object scan in
+# _first_json_object() already handles correctly.
+_UNCLOSED_THINK = re.compile(r"</?think>", re.IGNORECASE)
 # A markdown fence, optionally tagged 'json'. Capture the body.
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
 
@@ -46,6 +54,10 @@ def extract_json(raw: str | None) -> str:
     if not raw:
         return ""
     text = _THINK_BLOCK.sub("", raw).strip()
+    # Any <think>/</think> still present is unpaired (truncated or malformed).
+    # Strip the stray tags only -- see _UNCLOSED_THINK for why we must NOT
+    # delete the text after them.
+    text = _UNCLOSED_THINK.sub("", text).strip()
 
     # If the model wrapped its answer in a markdown fence, prefer the body.
     fence = _FENCE.search(text)
@@ -57,16 +69,45 @@ def extract_json(raw: str | None) -> str:
 
 
 def _first_json_object(text: str) -> str | None:
-    """Return the first brace-balanced ``{...}`` substring, or None.
+    """Return the best candidate brace-balanced ``{...}`` substring, or None.
 
-    String-aware: quotes toggle an 'inside string' state so that braces
-    appearing inside string values (e.g. a rationale containing '{') do not
-    corrupt the depth count. Backslash escapes inside strings are honoured.
+    Scans EVERY balanced object in the text and returns the largest one,
+    rather than blindly taking the first.
+
+    WHY NOT JUST THE FIRST: reasoning models narrate before answering, and
+    that narration frequently contains braces -- "We need {x} first. Final:
+    {...real answer...}". Taking the first match returns ``{x}``, which then
+    fails Pydantic validation and surfaces as "unparsable LLM output" even
+    though a perfectly good object was sitting right there. The real payload
+    is the substantial one, so size is the discriminator: a stray brace in
+    prose is tiny next to a populated Prediction/ImpactAssessment object.
+
+    Still string-aware: quotes toggle an 'inside string' state so braces
+    inside string values (e.g. a rationale containing '{') don't corrupt the
+    depth count. Backslash escapes inside strings are honoured.
     """
-    start = text.find("{")
-    if start == -1:
+    candidates: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] != "{":
+            i += 1
+            continue
+        obj = _balanced_from(text, i)
+        if obj is None:
+            # Unbalanced from here (truncated tail) -- no later start can
+            # close either, so stop scanning.
+            break
+        candidates.append(obj)
+        # Resume AFTER this object so we find siblings, not its own children.
+        i += len(obj)
+    if not candidates:
         return None
+    return max(candidates, key=len)
 
+
+def _balanced_from(text: str, start: int) -> str | None:
+    """Return the balanced ``{...}`` beginning at ``start``, or None."""
     depth = 0
     in_str = False
     escaped = False
