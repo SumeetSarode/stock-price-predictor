@@ -12,6 +12,11 @@ wheels/
 
 # Secrets / env
 .env
+# ...and every variant: .env.local, .env.bak, .env.backup_*, .env.20260813 etc.
+# A bare '.env' does NOT cover these, and they hold the same real keys.
+# (.env.example is force-kept below -- it's the template, no secrets.)
+.env.*
+!.env.example
 
 # Data — never commit (PII, large files, regenerable)
 data/cache/
