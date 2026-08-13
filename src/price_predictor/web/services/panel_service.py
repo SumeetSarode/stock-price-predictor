@@ -83,9 +83,15 @@ async def get_panel_cards(horizon: str = "weekly") -> list[PanelCard]:
     if not entries:
         return []
 
-    # Use the dashboard snapshot for current prices. Don't force_refresh —
-    # if the dashboard is cold for this process, we'd block for ~5-10s.
-    
+    # Current prices for every watched ticker in one call. get_quotes()
+    # piggybacks the N50 dashboard snapshot when a ticker is in it (free)
+    # and fetches non-N50 names on demand, cached per IST trading day --
+    # so this stays correct for the ~450 stocks outside the Nifty 50.
+    tickers = [e.ticker for e in entries]
+    price_lookup: dict[str, DashboardRow] = await get_quotes(tickers)
+
+    # Bulk-fetch cached predictions for all watched tickers, one DB hit.
+    prediction_lookup = get_latest_many(tickers, horizon)
 
     cards: list[PanelCard] = []
     for entry in entries:
