@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from loguru import logger
 
 from price_predictor.web.services.analysis_service import (
     AnalysisServiceError,
@@ -288,22 +289,51 @@ async def run_prediction_endpoint(
     except PredictionServiceError as exc:
         error_message = exc.message
 
-    if _is_htmx(request):
-        if context == "detail":
-            detail = await get_stock_detail(ticker, horizon_norm)
-            response = templates.TemplateResponse(
-                request=request,
-                name="components/detail_body.html",
-                context={"detail": detail},
-            )
-        else:
-            card = await get_one_card(ticker, horizon_norm)
-            response = templates.TemplateResponse(
-                request=request,
-                name="components/panel_card.html",
-                context={"card": card, "horizon": horizon_norm},
-            )
+    # Rendering the refreshed partial can ALSO fail (a data-layer call
+    # inside get_one_card/get_stock_detail, a template error, ...). That
+    # happens AFTER the try above, so it used to escape as a bare 500 with
+    # an empty body -- and htmx ignores non-2xx by default, so the user saw
+    # the spinner stop, the button return, and NOTHING else. A silent
+    # failure is the worst outcome: it's indistinguishable from the click
+    # not registering, so people re-click and queue more doomed 60s runs.
+    #
+    # Converting it into a toast means the user always learns something,
+    # even when we can't re-render the card.
+    try:
+        if _is_htmx(request):
+            if context == "detail":
+                detail = await get_stock_detail(ticker, horizon_norm)
+                response = templates.TemplateResponse(
+                    request=request,
+                    name="components/detail_body.html",
+                    context={"detail": detail},
+                )
+            else:
+                card = await get_one_card(ticker, horizon_norm)
+                response = templates.TemplateResponse(
+                    request=request,
+                    name="components/panel_card.html",
+                    context={"card": card, "horizon": horizon_norm},
+                )
+    except Exception:
+        logger.opt(exception=True).error(
+            f"failed to render prediction partial for {ticker!r} "
+            f"(horizon={horizon_norm}, context={context})"
+        )
+        # 200 + a message beats a silent 500: htmx only swaps on 2xx, and
+        # HX-Refresh tells it to reload the page so the user sees whatever
+        # state actually persisted (the prediction may well have SUCCEEDED
+        # and only the re-render failed).
+        return HTMLResponse(
+            content=(
+                "Prediction finished, but the page could not be refreshed. "
+                "Reloading..."
+            ),
+            status_code=200,
+            headers={"HX-Refresh": "true"},
+        )
 
+    if _is_htmx(request):
         if error_message:
             # Inject a data-toast attribute into the first element of
             # the response so toast.js picks it up after the swap.
