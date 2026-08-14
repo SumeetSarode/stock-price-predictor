@@ -14,6 +14,8 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 
+import httpx
+import json
 import pytest
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
@@ -264,18 +266,31 @@ class TestStructuralRaises:
 
     @pytest.mark.asyncio
     async def test_unrelated_value_error_still_raises(self):
-        """We catch ValueError ONLY for the Groq tool_use_failed bug.
-        Any other ValueError must propagate -- it's a real coding bug,
-        not something to silently retry."""
+        """An unrelated ValueError now FALLS BACK rather than propagating.
+
+        This test previously asserted the opposite -- that only the Groq
+        tool_use_failed ValueError was caught and every other ValueError
+        propagated as "a real coding bug". That reasoning doesn't survive
+        contact with production: json.JSONDecodeError IS a ValueError, so a
+        provider returning malformed JSON killed the entire chain (with
+        healthy models still queued) instead of rotating past the one
+        misbehaving model.
+
+        Genuine coding bugs are still visible -- loudly, at ERROR level,
+        tagged UNCLASSIFIED with the exception type -- they just no longer
+        take the user's whole request down with them. Structural errors
+        (auth, context-window) are matched earlier and DO still raise; see
+        TestUnclassifiedErrorFallback.test_structural_errors_still_raise_loud.
+        """
         a = _make_fake("a", error=ValueError("something completely unrelated"))
         b = _make_fake("b")
         m = ResilientModel(inner_models=[a, b])
 
-        with pytest.raises(ValueError, match="completely unrelated"):
-            async for _ in m.generate_content_async(_make_request()):
-                pass
+        async for _ in m.generate_content_async(_make_request()):
+            pass
 
-        assert b.call_count == 0, "unrelated ValueError must NOT trigger fallback"
+        assert b.call_count == 1, "unrelated ValueError should now fall back"
+        assert "a" in m.cooldowns
 
 
 # ──────────────────────────────────────────────────────────────
@@ -808,3 +823,97 @@ class TestBadOutputPenalty:
         m = ResilientModel(inner_models=[_make_fake("a")])
         assert m.penalize_last_used("x") is None
         assert m.cooldowns == {}
+
+
+# ─────────────────────────────────────────────────────────────
+# Catch-all fallback: unknown errors must DEGRADE, not kill the chain
+# ─────────────────────────────────────────────────────────────
+class TestUnclassifiedErrorFallback:
+    """Any exception the taxonomy doesn't name must still fall back.
+
+    Before the catch-all existed, every `except` named specific types, so
+    an unlisted exception escaped and killed the WHOLE chain while healthy
+    models sat unused behind it. Verified at the time: TypeError, KeyError,
+    JSONDecodeError, AttributeError, RuntimeError and httpx.ConnectError
+    all escaped with the next model never called once -- meaning a
+    transient DNS blip on hop 1 wiped out four working fallbacks.
+
+    This matters most for the errors we CAN'T predict: a provider SDK only
+    has to invent one new exception class to silently break resilience.
+    """
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            pytest.param(TypeError("unexpected kwarg"), id="TypeError"),
+            pytest.param(KeyError("missing field"), id="KeyError"),
+            pytest.param(AttributeError("no attr"), id="AttributeError"),
+            pytest.param(RuntimeError("boom"), id="RuntimeError"),
+            pytest.param(json.JSONDecodeError("x", "y", 0), id="JSONDecodeError"),
+            pytest.param(httpx.ConnectError("dns failure"), id="httpx.ConnectError"),
+            pytest.param(OSError("socket died"), id="OSError"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_unclassified_error_falls_back(self, error):
+        bad = _make_fake("bad/model", error=error)
+        good = _make_fake("good/model")
+        m = ResilientModel(inner_models=[bad, good])
+
+        async for _ in m.generate_content_async(_make_request()):
+            pass
+
+        # The healthy model must actually be REACHED -- not merely "no raise".
+        assert good.call_count == 1, "next model was never tried"
+        assert "bad/model" in m.cooldowns
+
+    @pytest.mark.asyncio
+    async def test_json_decode_error_is_not_swallowed_by_value_error_branch(self):
+        """JSONDecodeError subclasses ValueError -- a real trap.
+
+        The ValueError branch exists for one specific litellm bug and used
+        to re-raise everything else, which quietly took the whole
+        ValueError family (JSONDecodeError included) out of the fallback
+        path. A provider returning malformed JSON killed the chain instead
+        of rotating past the one misbehaving model.
+        """
+        bad = _make_fake("bad/model", error=json.JSONDecodeError("bad", "{", 0))
+        good = _make_fake("good/model")
+        m = ResilientModel(inner_models=[bad, good])
+
+        async for _ in m.generate_content_async(_make_request()):
+            pass
+
+        assert good.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_structural_errors_still_raise_loud(self):
+        """The catch-all must NOT swallow auth failures.
+
+        Silently rotating past a bad API key turns a 2-second config fix
+        into a mystery outage, so these are matched BEFORE the catch-all
+        and must keep failing fast.
+        """
+        bad = _make_fake(
+            "bad/model",
+            error=AuthenticationError("bad key", llm_provider="groq", model="m"),
+        )
+        good = _make_fake("good/model")
+        m = ResilientModel(inner_models=[bad, good])
+
+        with pytest.raises(AuthenticationError):
+            async for _ in m.generate_content_async(_make_request()):
+                pass
+
+        assert good.call_count == 0, "must NOT fall back past an auth error"
+
+    @pytest.mark.asyncio
+    async def test_all_models_unclassified_raises_exhausted(self):
+        """Falling back forever isn't a win -- exhaustion must still surface."""
+        a = _make_fake("a", error=TypeError("x"))
+        b = _make_fake("b", error=RuntimeError("y"))
+        m = ResilientModel(inner_models=[a, b])
+
+        with pytest.raises(AllModelsExhaustedError):
+            async for _ in m.generate_content_async(_make_request()):
+                pass

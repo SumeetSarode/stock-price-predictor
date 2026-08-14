@@ -314,6 +314,27 @@ class ResilientModel(BaseLlm):
             model_name, expiry.isoformat(), type(error).__name__,
         )
 
+    def _log_unclassified_and_cooldown(
+        self, model_name: str, error: Exception
+    ) -> None:
+        """Handle an error the taxonomy doesn't name: cool down + log loudly.
+
+        Shared by the catch-all clause and the non-groq ValueError branch,
+        which can't reach the catch-all (a raise inside one `except` block
+        is never caught by a sibling clause of the same `try`).
+
+        Logged at ERROR, not WARNING: an unclassified error means the
+        taxonomy has a gap worth naming explicitly, even though the request
+        itself recovers by rotating to the next model.
+        """
+        self._set_cooldown(model_name, error)
+        logger.error(
+            "[resilient] UNCLASSIFIED error model=%s type=%s -- falling back "
+            "anyway. Consider adding this type to the error taxonomy. "
+            "underlying error: %s",
+            model_name, type(error).__name__, str(error)[:300],
+        )
+
     def _available_models(self) -> list[BaseLlm]:
         """Return inner models that are NOT currently cooled-down, in order."""
         return [m for m in self.inner_models if self._is_available(m.model)]
@@ -420,10 +441,23 @@ class ResilientModel(BaseLlm):
                 except ValueError as e:
                     # Surgical catch for the LiteLLM MidStreamFallbackError
                     # construction bug (see _is_groq_tool_validation_failure
-                    # docstring). Re-raise any OTHER ValueError -- those are
-                    # real coding bugs we want to surface, not silently swallow.
+                    # docstring), which gets its own clearer log line.
+                    #
+                    # Any OTHER ValueError falls through to the catch-all
+                    # below rather than being re-raised here. It used to
+                    # re-raise, which quietly killed the chain for the whole
+                    # ValueError family -- json.JSONDecodeError is a
+                    # ValueError subclass, so a provider returning malformed
+                    # JSON took out every remaining model instead of just
+                    # rotating past the one that misbehaved.
                     if not _is_groq_tool_validation_failure(e):
-                        raise
+                        # NOT the litellm bug -- treat as unclassified and
+                        # fall back. (A sibling `except Exception` clause
+                        # can't catch a re-raise from inside this block, so
+                        # we call the shared handler directly.)
+                        last_error = e
+                        self._log_unclassified_and_cooldown(model.model, e)
+                        continue
                     last_error = e
                     self._set_cooldown(model.model, e)
                     logger.warning(
@@ -431,6 +465,32 @@ class ResilientModel(BaseLlm):
                         "model=%s -- falling back",
                         model.model,
                     )
+                    continue
+                except Exception as e:  # noqa: BLE001 - deliberate catch-all
+                    # LAST-RESORT FALLBACK.
+                    #
+                    # Every except above names SPECIFIC exception types, so
+                    # anything unlisted escaped and killed the whole chain --
+                    # even with healthy models still queued behind it.
+                    # Verified before this existed: TypeError, KeyError,
+                    # JSONDecodeError, AttributeError, RuntimeError and
+                    # httpx.ConnectError ALL escaped with the next model
+                    # never called once. A transient DNS blip on hop 1 took
+                    # out four working fallbacks.
+                    #
+                    # The taxonomy above still does the real work: it decides
+                    # cooldown length and which errors deserve a loud raise.
+                    # This clause exists so an error nobody anticipated
+                    # DEGRADES (try the next model) instead of failing the
+                    # entire request. A provider SDK only has to invent one
+                    # new exception class to break the old behaviour.
+                    #
+                    # Deliberately placed LAST: STRUCTURAL_ERRORS (auth,
+                    # context-window) are matched earlier and still re-raise
+                    # immediately -- silently rotating past a bad API key
+                    # would turn a 2-second config fix into a mystery.
+                    last_error = e
+                    self._log_unclassified_and_cooldown(model.model, e)
                     continue
 
             # Exhausted all available models transiently
