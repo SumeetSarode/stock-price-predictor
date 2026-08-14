@@ -73,11 +73,35 @@ sys.exit(0 if settings.openrouter_api_key.get_secret_value().strip() else 1)
 fi
 
 # tee so you watch it live AND get a file to send back.
-uv run python scripts/verify_offvpn.py "${ARGS[@]:-}" 2>&1 | tee "$CONSOLE"
+#
+# ${ARGS[@]+"${ARGS[@]}"} -- NOT "${ARGS[@]:-}". Under `set -u` an empty
+# array needs guarding, but the `:-` form substitutes an EMPTY STRING, so
+# running with no flags passed argv=[''] and argparse died with
+# "unrecognized arguments:" before a single check ran. The `+` form expands
+# to nothing at all when the array is empty, which is what we actually want.
+uv run python scripts/verify_offvpn.py ${ARGS[@]+"${ARGS[@]}"} 2>&1 | tee "$CONSOLE"
 STATUS="${PIPESTATUS[0]}"
 
 echo
-echo "─────────────────────────────────────────────────────────────"
+echo "────────────────────────────────────────────────────────────"
+
+# A .md report is written by the Python script for every real run. If it
+# isn't there, the script died before doing ANY work (bad flag, import
+# error, crash) -- say so loudly instead of printing a cheerful summary
+# over a 107-byte log. This exact failure already cost one wasted off-VPN
+# trip when an empty-array expansion sent argv=[''] to argparse.
+if ! ls reports/offvpn_verification_*.md >/dev/null 2>&1; then
+    echo " THE SCRIPT DID NOT RUN. No report was produced."
+    echo " Console output was:"
+    echo
+    sed 's/^/     /' "$CONSOLE"
+    echo
+    echo " Nothing was verified. Send the above and don't bother re-running"
+    echo " off-VPN until it's fixed."
+    echo "────────────────────────────────────────────────────────────"
+    exit 1
+fi
+
 if [[ "$STATUS" -eq 0 ]]; then
     echo " All checks passed (or were intentionally skipped)."
 else

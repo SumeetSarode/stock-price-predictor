@@ -28,6 +28,21 @@
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Cpath d='M8 22 L13 14 L18 19 L24 10' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 
   {# HTMX — vendored, no CDN at runtime #}
+  {#
+    timeout: htmx's DEFAULT IS 0 = WAIT FOREVER (verified in the vendored
+    1.9.12 source: `timeout:0`). With no ceiling, a stalled prediction left
+    the spinner running indefinitely and the user with no idea anything had
+    gone wrong.
+
+    180000ms (3 min) is deliberately generous: a real prediction is ~30-60s,
+    and the resilient chain may walk several models (each with its own 60s
+    read timeout) before succeeding. Too low would abort work that was about
+    to succeed — worse than waiting. This is a backstop for genuinely hung
+    requests, not a performance target.
+
+    On expiry htmx fires htmx:timeout, which toast.js surfaces to the user.
+  #}
+  <meta name="htmx-config" content='{"timeout": 180000}' />
   <script src="{{ asset('vendor/htmx-1.9.12.min.js') }}" defer></script>
 
   {# Tiny per-feature scripts. Keep these small + focused; each owns ONE
