@@ -62,32 +62,61 @@ class TestChainParsing:
 
 
 class TestOptionalKeyProviders:
-    """Generic optional-key skip infra (see Settings._optional_key_missing).
+    """openrouter is skipped, not crashed, when its key is unconfigured.
 
-    No provider is currently registered as "optional key" -- OpenRouter was
-    the only one and has been removed. This class keeps coverage on the
-    generic mechanism itself so it doesn't silently rot before the next
-    optional-key provider gets added.
-
-    WHY THE MECHANISM EXISTS: an AuthenticationError is a STRUCTURAL error
-    in llm.resilient -- it does NOT fall through to the next model, so an
-    unset optional key sitting in the chain would otherwise hard-crash
-    every single prediction.
+    See Settings._optional_key_missing's docstring for WHY: an
+    AuthenticationError is a STRUCTURAL error in llm.resilient -- it does
+    NOT fall through to the next model, so an unset optional key sitting
+    in the chain would otherwise hard-crash every single prediction.
     """
 
-    def test_unmapped_provider_is_never_optional_missing(self, monkeypatch):
-        """A provider with no entry in optional_keys is always included.
+    def test_openrouter_skipped_when_key_blank(self, monkeypatch):
+        """Blank key => the openrouter hop is dropped from the chain.
 
-        This is the early-return branch every REQUIRED provider (groq,
-        gemini, ollama) relies on -- and, once optional_keys is non-empty
-        again, the one guarding any provider NOT in that mapping.
+        MUST delenv OPENROUTER_API_KEY explicitly. `_env_file=None` stops
+        pydantic reading .env, but it does NOT clean os.environ -- and
+        importing litellm (which any earlier test may have done) loads .env
+        into os.environ as a side effect. Without this delenv the test
+        silently inverted on any machine that actually has a key set: it
+        passed only because nobody had configured one, which is precisely
+        the false confidence that lets a real regression through.
         """
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
         s = _build_settings(
             monkeypatch,
-            CHAIN_AGENTIC="gemini/gemini-2.5-flash,groq/openai/gpt-oss-120b",
+            CHAIN_AGENTIC="gemini/gemini-2.5-flash,openrouter/some-model:free,groq/openai/gpt-oss-120b",
         )
         assert s.effective_chain("agentic") == [
             "gemini/gemini-2.5-flash",
+            "groq/openai/gpt-oss-120b",
+        ]
+
+    def test_openrouter_skipped_when_key_empty_string(self, monkeypatch):
+        """An explicitly EMPTY key is also 'missing' (the .env default state).
+
+        .env ships `OPENROUTER_API_KEY=` (blank) so users can paste a key in.
+        That is a *present but empty* var -- a different code path from the
+        var being absent, and the one real users actually hit.
+        """
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC="gemini/gemini-2.5-flash,openrouter/some-model:free,groq/openai/gpt-oss-120b",
+            OPENROUTER_API_KEY="",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "groq/openai/gpt-oss-120b",
+        ]
+
+    def test_openrouter_included_when_key_set(self, monkeypatch):
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC="gemini/gemini-2.5-flash,openrouter/some-model:free,groq/openai/gpt-oss-120b",
+            OPENROUTER_API_KEY="sk-or-a-real-looking-key",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "openrouter/some-model:free",
             "groq/openai/gpt-oss-120b",
         ]
 
@@ -101,6 +130,14 @@ class TestOptionalKeyProviders:
             "gemini/b",
             "ollama_chat/qwen3:8b",
         ]
+
+    def test_blank_openrouter_key_is_not_a_placeholder_violation(self, monkeypatch):
+        s = _build_settings(monkeypatch, OPENROUTER_API_KEY="")
+        assert s.openrouter_api_key.get_secret_value() == ""
+
+    def test_openrouter_placeholder_key_rejected(self, monkeypatch):
+        with pytest.raises(ValidationError, match="Placeholder"):
+            _build_settings(monkeypatch, OPENROUTER_API_KEY="your_openrouter_key_here")
 
 
 # ──────────────────────────────────────────────

@@ -36,6 +36,7 @@ from price_predictor.llm.resilient import ResilientModel
 # Provider → API key getter (lazy: only unmasks SecretStr when called)
 # ─────────────────────────────────────────────────────────────
 _API_KEY_GETTERS: dict[str, Callable[[], str]] = {
+    "openrouter": lambda: settings.openrouter_api_key.get_secret_value(),
     "groq": lambda: settings.groq_api_key.get_secret_value(),
     "gemini": lambda: settings.gemini_api_key.get_secret_value(),
 }
