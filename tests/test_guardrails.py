@@ -480,7 +480,36 @@ class TestSynthesizeWithGuardrails:
 
         with pytest.raises(PredictionError, match="Synthesizer failed"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert mock_synth.await_count == budget  # tried whole chain, gave up
+        assert mock_synth.await_count == budget
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
+           new_callable=AsyncMock)
+    def test_wall_clock_budget_aborts_a_stuck_run(self, mock_synth, monkeypatch):
+        """Regression: 'spins for minutes, then just stops with no result'.
+
+        Root cause: each attempt's LLM call can legitimately take up to
+        _HOSTED_TIMEOUT_S (60s), and up to _guardrail_attempt_budget()
+        attempts can run. With NO combined ceiling, several real per-call
+        timeouts stacked into multi-minute hangs before this fix. Here we
+        shrink the budget to 0.2s and make every attempt hang for 10s
+        (a stand-in for a real provider timeout) -- the call must still
+        raise PredictionError, and quickly, instead of waiting for every
+        attempt to individually time out.
+        """
+        import price_predictor.prediction.predictor as predictor_mod
+
+        monkeypatch.setattr(predictor_mod, "_GUARDRAIL_WALL_CLOCK_BUDGET_S", 0.2)
+
+        async def _hang(*args, **kwargs):
+            await asyncio.sleep(10)  # would-be per-call timeout stand-in
+            return _make_pred()
+
+        mock_synth.side_effect = _hang
+
+        with pytest.raises(PredictionError, match="wall-clock"):
+            asyncio.run(
+                asyncio.wait_for(synthesize_with_guardrails(_make_si()), timeout=5.0)
+            )  # tried whole chain, gave up
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
            new_callable=AsyncMock)

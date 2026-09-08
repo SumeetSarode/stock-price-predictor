@@ -73,15 +73,6 @@ class Settings(BaseSettings):
         default=SecretStr(""), validation_alias="STOOQ_API_KEY"
     )
 
-    # OPTIONAL: OpenRouter, used for candidate-model evaluation (e.g.
-    # Nemotron-3-Ultra:free). Empty is fine if you don't use an
-    # 'openrouter/*' entry in CHAIN_AGENTIC -- see effective_chain()'s
-    # optional-key skip logic below for why an unset key here is safe
-    # rather than a hard crash.
-    openrouter_api_key: SecretStr = Field(
-        default=SecretStr(""), validation_alias="OPENROUTER_API_KEY"
-    )
-
     # ── Validators ────────────────────────────────────────────
     @field_validator("groq_api_key", "gemini_api_key")
     @classmethod
@@ -92,15 +83,15 @@ class Settings(BaseSettings):
             raise ValueError("Placeholder API key detected — set a real key in .env")
         return value
 
-    @field_validator("alpha_vantage_api_key", "stooq_api_key", "openrouter_api_key")
+    @field_validator("alpha_vantage_api_key", "stooq_api_key")
     @classmethod
     def reject_placeholder_provider_keys(cls, value: SecretStr) -> SecretStr:
         """Allow EMPTY (provider not used) but reject obvious placeholders.
 
         Why empty is OK: a user who never uses a given provider shouldn't
         have to set its key. Price providers raise a clear PriceFetchError
-        at fetch time if invoked without a key; LLM providers (openrouter)
-        are silently skipped in effective_chain() if listed without a key
+        at fetch time if invoked without a key; optional LLM providers are
+        silently skipped in effective_chain() if listed without a key
         -- see that method's optional-key logic.
         """
         raw = value.get_secret_value()
@@ -312,17 +303,22 @@ class Settings(BaseSettings):
     # optional provider just quietly isn't part of your chain -- exactly how
     # PRICE_CHAIN's optional providers already behave.
     def _optional_key_missing(self, model_name: str) -> bool:
-        """True if `model_name`'s provider needs a key we don't have."""
+        """True if `model_name`'s provider needs a key we don't have.
+
+        No providers are currently registered here -- this mechanism is
+        generic infra kept alive for whenever an optional-key provider
+        (e.g. one that shouldn't hard-crash the app if unconfigured) gets
+        added to CHAIN_AGENTIC. Add an entry to `optional_keys` below then.
+        """
         provider = model_name.split("/", 1)[0]
-        optional_keys = {"openrouter": self.openrouter_api_key}
+        optional_keys: dict[str, SecretStr] = {}
         key = optional_keys.get(provider)
         if key is None:
             return False  # not an optional-key provider (groq/gemini/ollama)
         missing = not key.get_secret_value()
         if missing:
             logger.warning(
-                "[settings] {!r} in chain has no configured key -- skipping "
-                "it (set OPENROUTER_API_KEY in .env to enable it).",
+                "[settings] {!r} in chain has no configured key -- skipping it.",
                 model_name,
             )
         return missing

@@ -178,6 +178,21 @@ _MAX_GUARDRAIL_ATTEMPTS = 3
 # the offline Ollama tier). 3 = enough to skip a couple of bad providers.
 _PARSE_MAX_ATTEMPTS = 3
 
+# Hard ceiling on TOTAL wall-clock time synthesize_with_guardrails() may
+# spend across ALL attempts combined. WHY THIS EXISTS: each attempt's LLM
+# call can take up to _HOSTED_TIMEOUT_S (60s, see llm/factory.py) if a
+# provider hangs, and up to _guardrail_attempt_budget() attempts can run
+# (currently 4). Without a combined ceiling, a run where 3-4 attempts EACH
+# hit a real 60s timeout stacks into several minutes of silent waiting --
+# this was the root cause of the "spins for minutes, then just stops" bug
+# report. 90s is long enough for 1-2 legitimate slow-provider retries to
+# succeed, short enough to fail fast well before it becomes a user-visible
+# multi-minute hang, and comfortably under the 180s client-side HTMX
+# timeout (see templates/index.html htmx-config) so OUR error message
+# (via PredictionError) reaches the user before a generic network timeout
+# would.
+_GUARDRAIL_WALL_CLOCK_BUDGET_S = 90.0
+
 # ─────────────────────────────────────────────────────────────
 # Errors
 # ─────────────────────────────────────────────────────────────
@@ -458,85 +473,117 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
     sampling variance without burning excessive tokens on genuinely
     ambiguous inputs.
 
+    Bounded to _GUARDRAIL_WALL_CLOCK_BUDGET_S total wall-clock time across
+    ALL attempts combined (not per-attempt) -- see that constant's comment
+    for why. On timeout, raises PredictionError with whatever error was
+    last observed, same as normal exhaustion.
+
     Raises:
-        PredictionError: every retry failed (with last error as cause).
+        PredictionError: every retry failed, OR the wall-clock budget was
+                         exceeded (with last error as cause either way).
     """
-    feedback: str | None = None
-    last_error: Exception | None = None
-    # Cumulative memory of every distinct problem seen so far. Without this,
-    # each attempt only knows about its OWN failure and forgets earlier ones,
-    # so the LLM re-breaks a constraint it already fixed. We accumulate the
-    # distinct issues and feed them ALL back every attempt.
-    prior_issues: list[str] = []
+    # Mutable box (not a local var) so the timeout handler below can still
+    # see the last real error even if wait_for cancels mid-attempt -- a
+    # plain local variable would be lost with the cancelled coroutine frame.
+    state: dict[str, Exception | None] = {"last_error": None}
 
-    def _cumulative_feedback(latest: str) -> str:
-        if latest not in prior_issues:
-            prior_issues.append(latest)
-        if len(prior_issues) == 1:
-            return prior_issues[0]
-        joined = "\n".join(
-            f"  ({i}) {msg}" for i, msg in enumerate(prior_issues, 1)
-        )
-        return (
-            "Your previous attempts failed for these reasons. Fix ALL of "
-            "them at once -- fixing one must not reintroduce another:\n"
-            f"{joined}"
-        )
+    async def _attempt_loop() -> Prediction:
+        feedback: str | None = None
+        # Cumulative memory of every distinct problem seen so far. Without
+        # this, each attempt only knows about its OWN failure and forgets
+        # earlier ones, so the LLM re-breaks a constraint it already fixed.
+        # We accumulate the distinct issues and feed them ALL back every
+        # attempt.
+        prior_issues: list[str] = []
 
-    # Size the retry budget to the model chain so a persistent guardrail
-    # trip can rotate through EVERY model (each trip penalizes the last) and
-    # actually reach the offline Ollama tail instead of stopping short.
-    max_attempts = _guardrail_attempt_budget()
-    for attempt in range(1, max_attempts + 1):
-        try:
-            prediction = await run_synthesizer_agent(si, feedback=feedback)
-            validate_all(prediction, si)
-            if attempt > 1:
-                logger.info(
-                    f"retry succeeded on attempt {attempt} after synthesis feedback"
-                )
-            return prediction
-        except SynthesisParseError as e:
-            # LLM returned garbage (empty / markdown-fenced / truncated).
-            # No partial Prediction to inspect; just nudge the model.
-            last_error = e
-            feedback = _cumulative_feedback(
-                f"Response could not be parsed as JSON: {e}. Emit ONLY a "
-                f"single JSON object that exactly matches the Prediction "
-                f"schema. No markdown fences, no commentary, no leading or "
-                f"trailing text."
+        def _cumulative_feedback(latest: str) -> str:
+            if latest not in prior_issues:
+                prior_issues.append(latest)
+            if len(prior_issues) == 1:
+                return prior_issues[0]
+            joined = "\n".join(
+                f"  ({i}) {msg}" for i, msg in enumerate(prior_issues, 1)
             )
-            if attempt < max_attempts:
-                logger.warning(
-                    f"synthesizer parse failure on attempt {attempt}: {e}. "
-                    f"Retrying (attempt {attempt + 1}/{max_attempts})."
-                )
-        except HallucinationError as e:
-            last_error = e
-            feedback = _cumulative_feedback(str(e))
-            if attempt < max_attempts:
-                # A guardrail trip is an HTTP-200 "success" to the model
-                # layer, so the resilient chain won't fall over on its own.
-                # Penalize the culprit so the NEXT attempt rotates to the
-                # next model in the chain (ultimately Ollama) -- a different
-                # model may produce a grounded/consistent output where this
-                # one kept violating the same tier. Without this, all
-                # attempts re-hit the same model and never reach Ollama.
-                penalized = _penalize_agent_model(
-                    _synthesizer_agent, f"guardrail failure: {e}"
-                )
-                logger.warning(
-                    f"guardrail tripped on attempt {attempt}: {e}. "
-                    + (f"penalized {penalized}; " if penalized else "")
-                    + f"Retrying (attempt {attempt + 1}/{max_attempts})."
-                )
+            return (
+                "Your previous attempts failed for these reasons. Fix ALL of "
+                "them at once -- fixing one must not reintroduce another:\n"
+                f"{joined}"
+            )
 
-    # All attempts exhausted.
-    assert last_error is not None  # loop body always sets it on the failure path
-    raise PredictionError(
-        f"Synthesizer failed {max_attempts}×. "
-        f"Last error: {last_error}"
-    ) from last_error
+        # Size the retry budget to the model chain so a persistent guardrail
+        # trip can rotate through EVERY model (each trip penalizes the last)
+        # and actually reach the offline Ollama tail instead of stopping
+        # short.
+        max_attempts = _guardrail_attempt_budget()
+        for attempt in range(1, max_attempts + 1):
+            try:
+                prediction = await run_synthesizer_agent(si, feedback=feedback)
+                validate_all(prediction, si)
+                if attempt > 1:
+                    logger.info(
+                        f"retry succeeded on attempt {attempt} after synthesis feedback"
+                    )
+                return prediction
+            except SynthesisParseError as e:
+                # LLM returned garbage (empty / markdown-fenced / truncated).
+                # No partial Prediction to inspect; just nudge the model.
+                state["last_error"] = e
+                feedback = _cumulative_feedback(
+                    f"Response could not be parsed as JSON: {e}. Emit ONLY a "
+                    f"single JSON object that exactly matches the Prediction "
+                    f"schema. No markdown fences, no commentary, no leading or "
+                    f"trailing text."
+                )
+                if attempt < max_attempts:
+                    logger.warning(
+                        f"synthesizer parse failure on attempt {attempt}: {e}. "
+                        f"Retrying (attempt {attempt + 1}/{max_attempts})."
+                    )
+            except HallucinationError as e:
+                state["last_error"] = e
+                feedback = _cumulative_feedback(str(e))
+                if attempt < max_attempts:
+                    # A guardrail trip is an HTTP-200 "success" to the model
+                    # layer, so the resilient chain won't fall over on its
+                    # own. Penalize the culprit so the NEXT attempt rotates
+                    # to the next model in the chain (ultimately Ollama) --
+                    # a different model may produce a grounded/consistent
+                    # output where this one kept violating the same tier.
+                    # Without this, all attempts re-hit the same model and
+                    # never reach Ollama.
+                    penalized = _penalize_agent_model(
+                        _synthesizer_agent, f"guardrail failure: {e}"
+                    )
+                    logger.warning(
+                        f"guardrail tripped on attempt {attempt}: {e}. "
+                        + (f"penalized {penalized}; " if penalized else "")
+                        + f"Retrying (attempt {attempt + 1}/{max_attempts})."
+                    )
+
+        # All attempts exhausted.
+        assert state["last_error"] is not None  # loop always sets it on failure
+        raise PredictionError(
+            f"Synthesizer failed {max_attempts}×. "
+            f"Last error: {state['last_error']}"
+        ) from state["last_error"]
+
+    try:
+        return await asyncio.wait_for(
+            _attempt_loop(), timeout=_GUARDRAIL_WALL_CLOCK_BUDGET_S
+        )
+    except TimeoutError as e:
+        cause = state["last_error"]
+        logger.error(
+            f"synthesize_with_guardrails exceeded "
+            f"{_GUARDRAIL_WALL_CLOCK_BUDGET_S:.0f}s wall-clock budget -- "
+            f"aborting instead of continuing to spin. "
+            + (f"Last seen error: {cause}" if cause else "No attempt completed even once.")
+        )
+        raise PredictionError(
+            f"Synthesis exceeded the {_GUARDRAIL_WALL_CLOCK_BUDGET_S:.0f}s wall-clock "
+            f"budget before completing. "
+            + (f"Last seen error before timeout: {cause}" if cause else "No attempt completed even once.")
+        ) from (cause or e)
 
 
 # ─────────────────────────────────────────────────────────────

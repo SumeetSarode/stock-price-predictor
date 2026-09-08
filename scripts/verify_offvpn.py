@@ -5,11 +5,12 @@ WHY THIS SCRIPT EXISTS
 Three things were changed/claimed recently that a corporate/VPN network
 physically cannot verify, because the endpoints are allowlist-blocked:
 
-  1. Nemotron (openrouter/...) actually WORKS as a chain member -- i.e. it
-     returns JSON our Pydantic models accept, not prose. This was asserted
-     from a litellm metadata flag that turned out to mean "unknown model",
-     NOT "unsupported". It was never proven with a real call.
-  2. json_extract.py's reasoning-model fixes hold against REAL Nemotron
+  1. A newly-added hosted chain candidate (e.g. Mistral, OmniRoute) actually
+     WORKS as a chain member -- i.e. it returns JSON our Pydantic models
+     accept, not prose. litellm metadata flags like supports_function_calling
+     are NOT proof of this (Groq 70B reports the same flag and still breaks
+     in production) -- only a real call proves it. Run with --test-model.
+  2. json_extract.py's reasoning-model fixes hold against REAL model
      output, not just the synthetic strings used in unit tests.
   3. The price chain survives Yahoo's "Invalid Crumb" error -- which only
      reproduces against live Yahoo.
@@ -22,8 +23,12 @@ USAGE
 =====
     uv run python scripts/verify_offvpn.py
 
-    # skip the LLM section (no OpenRouter key / don't want to burn quota):
+    # skip the LLM sections entirely:
     uv run python scripts/verify_offvpn.py --skip-llm
+
+    # isolate-test ONE candidate model before adding it to CHAIN_AGENTIC
+    # (the exact protocol previously used to catch Nemotron's prose problem):
+    uv run python scripts/verify_offvpn.py --test-model mistral/mistral-small-latest --test-key-env MISTRAL_API_KEY
 
 Writes a full transcript to reports/offvpn_verification_<timestamp>.md
 (markdown, so it pastes cleanly into a PR or chat) plus a machine-readable
@@ -54,10 +59,6 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 REPORT_DIR = _REPO_ROOT / "reports"
-
-# The model under investigation. Kept as a module constant (not inlined) so
-# that if the slug is ever rotated, there is exactly ONE place to change it.
-NEMOTRON = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -185,29 +186,6 @@ def _section(title: str) -> None:
     print(f"\n{'=' * 68}\n{title}\n{'=' * 68}")
 
 
-def _openrouter_key() -> str:
-    """Return the configured OpenRouter key ('' if unset).
-
-    WHY NOT os.environ.get(...): nothing in this repo calls load_dotenv().
-    `.env` reaches os.environ only as a SIDE EFFECT of importing app modules
-    (litellm loads it), so a bare os.environ read can return None purely
-    because of import ORDER -- which would make this script wrongly SKIP the
-    Nemotron section even though the key is sitting right there in .env.
-    Reading through Settings uses the same resolution path the app itself
-    uses (pydantic-settings reads .env directly), so what we test is what
-    actually runs. Also tolerant of the `KEY = value` spaced style already
-    present in this project's .env.
-    """
-    try:
-        from price_predictor.config.settings import settings
-
-        return settings.openrouter_api_key.get_secret_value().strip()
-    except Exception:
-        import os
-
-        return (os.environ.get("OPENROUTER_API_KEY") or "").strip()
-
-
 # ─────────────────────────────────────────────────────────────
 # Section 1 — connectivity (cheap, tells you WHY later checks fail)
 # ─────────────────────────────────────────────────────────────
@@ -216,7 +194,6 @@ def check_connectivity(rep: Report) -> dict[str, bool]:
     import httpx
 
     targets = {
-        "openrouter": "https://openrouter.ai/api/v1/models",
         "yahoo": "https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=5d&interval=1d",
         "nse": "https://www.nseindia.com",
         "google_ai": "https://generativelanguage.googleapis.com",
@@ -345,29 +322,32 @@ def check_prices(rep: Report, reachable: dict[str, bool]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────
-# Section 3 — Nemotron: the check that was never actually done
+# Section 3 -- isolate ONE candidate model, prove JSON not prose
 # ─────────────────────────────────────────────────────────────
-def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
-    _section("3. Nemotron — does it return SCHEMA-VALID JSON, or prose?")
+def check_model_isolated(rep: Report, model: str, api_key: str) -> None:
+    """Prove a SINGLE candidate model returns schema-valid JSON, not prose.
 
-    if not _openrouter_key():
+    Generic replacement for the old Nemotron-only check. Point `model` at
+    any 'provider/model-name' litellm string and its API key to run the
+    exact protocol that caught Nemotron's "emits prose, not JSON" failure
+    before it goes anywhere near CHAIN_AGENTIC. No pre-flight reachability
+    probe -- the raw call itself surfaces connection failures with full
+    detail, which is more honest than a synthetic ping.
+    """
+    label = model.split("/", 1)[0]
+    _section(f"3. {model} -- does it return SCHEMA-VALID JSON, or prose?")
+
+    if not api_key:
         rep.add(Check(
-            "OPENROUTER_API_KEY present", "nemotron", "SKIP",
-            "No OPENROUTER_API_KEY configured -- cannot test Nemotron.\n"
-            "Set it in .env to run this section.",
+            f"{label} API key present", label, "SKIP",
+            f"No API key provided for {model} -- cannot test it.\n"
+            "Pass --test-key-env <ENV_VAR_NAME> pointing at the key in .env.",
         ))
         return
-    if not reachable.get("openrouter"):
-        rep.add(Check(
-            "openrouter reachable", "nemotron", "SKIP",
-            "openrouter.ai unreachable from this network -- skipping.\n"
-            "This is the exact thing that must be run OFF-VPN.",
-        ))
-        return
 
-    # ── 3a. Raw call. Isolate Nemotron so it MUST answer -- if we went
-    #        through the normal chain, Gemini would serve every request and
-    #        Nemotron would never actually be exercised.
+    # ── 3a. Raw call. Isolate the model so it MUST answer -- if we went
+    #        through the normal chain, an earlier model would serve every
+    #        request and this one would never actually be exercised.
     schema = {
         "type": "object",
         "properties": {
@@ -389,7 +369,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
         import litellm
 
         resp = litellm.completion(
-            model=NEMOTRON,
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             response_format={
                 "type": "json_schema",
@@ -397,10 +377,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
             },
             num_retries=0,
             timeout=90,
-            # Pass the key EXPLICITLY rather than relying on os.environ:
-            # nothing here calls load_dotenv(), so the env var may be unset
-            # even when .env has the key. See _openrouter_key().
-            api_key=_openrouter_key(),
+            api_key=api_key,
         )
         content = resp.choices[0].message.content or ""
         raw_holder["raw"] = content
@@ -410,7 +387,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
             {"raw_response": content[:4000]},
         )
 
-    got_raw = rep.run("3a. raw completion (response_format=json_schema)", "nemotron", raw_call)
+    got_raw = rep.run("3a. raw completion (response_format=json_schema)", label, raw_call)
     if got_raw.status != "PASS":
         return
 
@@ -430,7 +407,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
                 {"raw_head": raw[:500]},
             )
 
-    rep.run("3b. raw output parses as bare JSON", "nemotron", bare_parse)
+    rep.run("3b. raw output parses as bare JSON", label, bare_parse)
 
     # ── 3c. THE decisive one: does OUR extractor rescue it?
     def extract_parse():
@@ -443,7 +420,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
             return (
                 "FAIL",
                 f"json_extract.py could NOT rescue this output: {e}\n"
-                "=> Nemotron is genuinely unusable in the chain as-is.",
+                f"=> {model} is genuinely unusable in the chain as-is.",
                 {"raw": raw[:3000], "cleaned": cleaned[:1500]},
             )
         missing = [k for k in ("direction", "confidence", "rationale") if k not in obj]
@@ -460,7 +437,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
             {"parsed": obj, "was_already_clean": cleaned.strip() == raw.strip()},
         )
 
-    rep.run("3c. json_extract.py + parse (THE decisive check)", "nemotron", extract_parse)
+    rep.run("3c. json_extract.py + parse (THE decisive check)", label, extract_parse)
 
     # ── 3d. Reasoning-model tell: does it emit <think> blocks? This is what
     #        the json_extract fix was built for; good to know for real.
@@ -475,7 +452,7 @@ def check_nemotron(rep: Report, reachable: dict[str, bool]) -> None:
             {"has_think": has_think, "unclosed": unclosed},
         )
 
-    rep.run("3d. reasoning-tag inspection", "nemotron", think_probe)
+    rep.run("3d. reasoning-tag inspection", label, think_probe)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -493,37 +470,21 @@ def check_real_prediction(rep: Report) -> None:
         agent = make_news_impact_agent()
         inner = getattr(agent.model, "inner_models", [])
         names = [getattr(m, "model", "?") for m in inner]
-        in_chain = any(NEMOTRON in str(n) for n in names)
 
-        if in_chain:
+        if names == chain:
             return (
                 "PASS",
-                f"resolved chain: {names}\nNemotron IS wired into the live agent chain.",
-                {"chain": names},
-            )
-        # No key configured is EXPECTED, not a failure: settings
-        # ._optional_key_missing() deliberately strips openrouter entries
-        # when OPENROUTER_API_KEY is blank (an AuthenticationError is a
-        # STRUCTURAL error that would otherwise hard-crash every
-        # prediction). Report that as SKIP so it doesn't masquerade as a
-        # code defect.
-        if not _openrouter_key():
-            return (
-                "SKIP",
-                f"resolved chain: {names}\n"
-                "Nemotron absent because OPENROUTER_API_KEY is not set -- this is\n"
-                "the intended safety behaviour, not a bug. Set the key to test it.",
+                f"live agent chain matches CHAIN_AGENTIC exactly: {names}",
                 {"chain": names},
             )
         return (
             "FAIL",
-            f"resolved chain: {names}\n"
-            "OPENROUTER_API_KEY IS set, yet Nemotron is missing from the chain.\n"
-            "Check CHAIN_AGENTIC in .env (and that launch.bat/sync_env.py ran).",
+            f"live agent chain {names}\ndoes NOT match settings.effective_chain() {chain}.\n"
+            "Check CHAIN_AGENTIC in .env and any optional-key skip logic in settings.py.",
             {"chain": names, "settings_chain": chain},
         )
 
-    rep.run("4a. Nemotron present in the wired agent chain", "end-to-end", run_agent)
+    rep.run("4a. wired agent chain matches configured CHAIN_AGENTIC", "end-to-end", run_agent)
 
     def real_pred():
         # run_news_impact_agent() does its OWN gathering internally
@@ -583,9 +544,13 @@ def check_integration_suite(rep: Report) -> None:
 # ─────────────────────────────────────────────────────────────
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--skip-llm", action="store_true", help="skip Nemotron + prediction sections")
+    ap.add_argument("--skip-llm", action="store_true", help="skip the LLM candidate + prediction sections")
     ap.add_argument("--skip-suite", action="store_true", help="skip the pytest integration suite (slowest)")
+    ap.add_argument("--test-model", default=None, help="isolate-test ONE candidate model, e.g. mistral/mistral-small-latest")
+    ap.add_argument("--test-key-env", default=None, help="env var (in .env) holding --test-model's API key, e.g. MISTRAL_API_KEY")
     args = ap.parse_args()
+    if args.test_model and not args.test_key_env:
+        ap.error("--test-model requires --test-key-env")
 
     print("Off-VPN verification -- this WILL hit the real network.\n")
     rep = Report()
@@ -594,9 +559,16 @@ def main() -> int:
     check_prices(rep, reachable)
 
     if args.skip_llm:
-        rep.add(Check("LLM sections", "nemotron", "SKIP", "--skip-llm passed"))
+        rep.add(Check("LLM sections", "candidate", "SKIP", "--skip-llm passed"))
     else:
-        check_nemotron(rep, reachable)
+        if args.test_model:
+            import os
+
+            from dotenv import load_dotenv
+
+            load_dotenv(_REPO_ROOT / ".env", override=False)
+            key = (os.environ.get(args.test_key_env) or "").strip()
+            check_model_isolated(rep, model=args.test_model, api_key=key)
         check_real_prediction(rep)
 
     if args.skip_suite:
