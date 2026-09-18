@@ -17,6 +17,7 @@ wheels/
 # (.env.example is force-kept below -- it's the template, no secrets.)
 .env.*
 !.env.example
+keys.txt
 
 # Data — never commit (PII, large files, regenerable)
 data/cache/
