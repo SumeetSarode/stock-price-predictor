@@ -324,7 +324,9 @@ def check_prices(rep: Report, reachable: dict[str, bool]) -> None:
 # ─────────────────────────────────────────────────────────────
 # Section 3 -- isolate ONE candidate model, prove JSON not prose
 # ─────────────────────────────────────────────────────────────
-def check_model_isolated(rep: Report, model: str, api_key: str) -> None:
+def check_model_isolated(
+    rep: Report, model: str, api_key: str, api_base: str | None = None,
+) -> None:
     """Prove a SINGLE candidate model returns schema-valid JSON, not prose.
 
     Generic replacement for the old Nemotron-only check. Point `model` at
@@ -336,6 +338,13 @@ def check_model_isolated(rep: Report, model: str, api_key: str) -> None:
     """
     label = model.split("/", 1)[0]
     _section(f"3. {model} -- does it return SCHEMA-VALID JSON, or prose?")
+
+    # A LOCAL OpenAI-compatible gateway (OmniRoute, Foundry Local, LM Studio)
+    # needs no real key -- litellm still wants a non-empty string, so a dummy
+    # stands in. Only HOSTED providers genuinely require a key, so the
+    # can't-test-without-a-key bail-out applies to them alone.
+    if api_base and not api_key:
+        api_key = "dummy-local-gateway-key"
 
     if not api_key:
         rep.add(Check(
@@ -378,6 +387,7 @@ def check_model_isolated(rep: Report, model: str, api_key: str) -> None:
             num_retries=0,
             timeout=90,
             api_key=api_key,
+            **({"api_base": api_base} if api_base else {}),
         )
         content = resp.choices[0].message.content or ""
         raw_holder["raw"] = content
@@ -548,9 +558,14 @@ def main() -> int:
     ap.add_argument("--skip-suite", action="store_true", help="skip the pytest integration suite (slowest)")
     ap.add_argument("--test-model", default=None, help="isolate-test ONE candidate model, e.g. mistral/mistral-small-latest")
     ap.add_argument("--test-key-env", default=None, help="env var (in .env) holding --test-model's API key, e.g. MISTRAL_API_KEY")
+    ap.add_argument(
+        "--test-api-base", default=None,
+        help="OpenAI-compatible base URL for a LOCAL gateway, e.g. "
+             "http://localhost:20128/v1 (OmniRoute). Makes --test-key-env optional.",
+    )
     args = ap.parse_args()
-    if args.test_model and not args.test_key_env:
-        ap.error("--test-model requires --test-key-env")
+    if args.test_model and not (args.test_key_env or args.test_api_base):
+        ap.error("--test-model requires --test-key-env (hosted) or --test-api-base (local gateway)")
 
     print("Off-VPN verification -- this WILL hit the real network.\n")
     rep = Report()
@@ -567,8 +582,14 @@ def main() -> int:
             from dotenv import load_dotenv
 
             load_dotenv(_REPO_ROOT / ".env", override=False)
-            key = (os.environ.get(args.test_key_env) or "").strip()
-            check_model_isolated(rep, model=args.test_model, api_key=key)
+            key = (
+                (os.environ.get(args.test_key_env) or "").strip()
+                if args.test_key_env else ""
+            )
+            check_model_isolated(
+                rep, model=args.test_model, api_key=key,
+                api_base=args.test_api_base,
+            )
         check_real_prediction(rep)
 
     if args.skip_suite:
