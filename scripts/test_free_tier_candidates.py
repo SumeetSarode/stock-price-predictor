@@ -53,11 +53,19 @@ from verify_offvpn import Check, Report, check_model_isolated  # noqa: E402  (DR
 # HTTP 410 "reached end of life on 2026-08-26". A third guess would be a third
 # wasted round-trip, so the script now discovers what each provider actually
 # serves TODAY. OpenAI-compatible providers all expose GET /v1/models.
+#
+# Every base URL below was cross-checked against litellm's OWN default
+# api_base per provider (litellm_core_utils/get_llm_provider_logic.py on
+# GitHub main, since AI provider domains are DNS-blocked from dev but GitHub
+# isn't) -- not typed from memory. Caught one real mismatch this way: Together
+# AI's api.together.xyz (which I'd used) is an alias litellm's own endpoint
+# matcher recognizes, but their actual DEFAULT is api.together.ai -- switched
+# to match it exactly rather than lean on an alias domain.
 # (display name -> (base url, .env key var))
 DISCOVERY_ENDPOINTS: dict[str, tuple[str, str]] = {
     "Cerebras": ("https://api.cerebras.ai/v1/models", "CEREBRAS_API_KEY"),
     "NVIDIA NIM": ("https://integrate.api.nvidia.com/v1/models", "NVIDIA_NIM_API_KEY"),
-    "Together AI": ("https://api.together.xyz/v1/models", "TOGETHER_API_KEY"),
+    "Together AI": ("https://api.together.ai/v1/models", "TOGETHER_API_KEY"),
     "SambaNova": ("https://api.sambanova.ai/v1/models", "SAMBANOVA_API_KEY"),
     "Mistral": ("https://api.mistral.ai/v1/models", "MISTRAL_API_KEY"),
 }
