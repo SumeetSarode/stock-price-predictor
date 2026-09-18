@@ -117,18 +117,18 @@ class Report:
     def failed(self) -> list[Check]:
         return [c for c in self.checks if c.status == "FAIL"]
 
-    def write(self) -> tuple[Path, Path]:
+    def write(self, prefix: str = "offvpn_verification") -> tuple[Path, Path]:
         REPORT_DIR.mkdir(exist_ok=True)
         stamp = self.started.strftime("%Y%m%dT%H%M%SZ")
-        md_path = REPORT_DIR / f"offvpn_verification_{stamp}.md"
-        json_path = REPORT_DIR / f"offvpn_verification_{stamp}.json"
+        md_path = REPORT_DIR / f"{prefix}_{stamp}.md"
+        json_path = REPORT_DIR / f"{prefix}_{stamp}.json"
 
         passed = sum(c.status == "PASS" for c in self.checks)
         failed = sum(c.status == "FAIL" for c in self.checks)
         skipped = sum(c.status == "SKIP" for c in self.checks)
 
         lines: list[str] = [
-            "# Off-VPN verification report",
+            "# Off-VPN verification report" if prefix == "offvpn_verification" else f"# {prefix.replace('_', ' ').title()} report",
             "",
             f"- **When (UTC):** {self.started.isoformat()}",
             f"- **Host:** {platform.node()} ({platform.system()} {platform.release()})",
