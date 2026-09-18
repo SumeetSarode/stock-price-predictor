@@ -66,14 +66,18 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
         "Free tier, fast inference, same personal-key arrangement as Groq.",
     ),
     (
-        "NVIDIA NIM", "nvidia_nim/meta/llama-3.1-8b-instruct", "NVIDIA_NIM_API_KEY",
-        "https://build.nvidia.com/",
-        "Direct NIM catalog -- separate from the OpenRouter/Nemotron route "
-        "already in the chain. Verified via litellm source: NvidiaNimConfig "
-        "subclasses OpenAIGPTConfig, i.e. genuine OpenAI-compatible passthrough "
-        "-- litellm ships NO static model whitelist for it, so this exact model "
-        "ID is unverified until this test actually runs against build.nvidia.com's "
-        "live catalog. That live call IS the verification.",
+        "NVIDIA NIM (Nemotron)", "nvidia_nim/nvidia/nemotron-4-340b-instruct",
+        "NVIDIA_NIM_API_KEY", "https://build.nvidia.com/",
+        "NIM is a PLATFORM (like OpenRouter), not a model -- it hosts many "
+        "vendors' models. This specific model ID is NVIDIA's own Nemotron "
+        "family, confirmed present in litellm's NvidiaNimConfig source "
+        "(special-cased param mapping), NOT guessed. The real point of this "
+        "candidate: we already have Nemotron in CHAIN_AGENTIC via "
+        "'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free' (the exact model "
+        "behind the prose-not-JSON problem) -- this tests the SAME family via "
+        "NVIDIA's own direct API instead of OpenRouter's free proxy, to see if "
+        "the direct path is any more reliable. A different Nemotron generation "
+        "(340b vs the chain's 550b Ultra), same vendor, different pipe.",
     ),
     (
         "Cohere", "cohere_chat/command-r", "COHERE_API_KEY",
