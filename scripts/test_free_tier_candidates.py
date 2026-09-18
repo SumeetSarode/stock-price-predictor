@@ -56,36 +56,68 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
         "DNS-blocked on-VPN. Never got a clean pass or fail.",
     ),
     (
-        "Cerebras", "cerebras/llama-3.3-70b", "CEREBRAS_API_KEY",
+        "Cerebras 70B", "cerebras/llama-3.3-70b", "CEREBRAS_API_KEY",
         "https://cloud.cerebras.ai/",
-        "Same personal-key arrangement as Groq. Known for very fast inference.",
+        "Model string CONFIRMED correct against litellm's upstream main branch "
+        "catalog -- the earlier 404 said 'does not exist OR you do not have "
+        "access to it', and since the ID is valid, it's the access half: 70B "
+        "likely isn't enabled on a fresh free account. Smaller siblings below "
+        "test that theory rather than writing Cerebras off.",
+    ),
+    (
+        "Cerebras 8B", "cerebras/llama3.1-8b", "CEREBRAS_API_KEY",
+        "https://cloud.cerebras.ai/",
+        "Smallest Cerebras model -- most likely to be enabled on a free tier. "
+        "If 70B 404s but this passes, it's an account-tier limit, not a dead "
+        "provider.",
+    ),
+    (
+        "Cerebras Qwen-32B", "cerebras/qwen-3-32b", "CEREBRAS_API_KEY",
+        "https://cloud.cerebras.ai/",
+        "Mid-size Cerebras option, also in upstream catalog. Brackets the "
+        "access question between 8B and 70B.",
     ),
     (
         "SambaNova", "sambanova/Meta-Llama-3.3-70B-Instruct", "SAMBANOVA_API_KEY",
         "https://cloud.sambanova.ai/",
-        "Free tier, fast inference, same personal-key arrangement as Groq.",
+        "HEADS UP: last run returned 'A payment method is required' -- inference "
+        "is gated behind a card on file, so this is NOT free-tier in the same "
+        "sense as Groq/Gemini. Left in the lineup only so the report keeps "
+        "documenting that fact; expect the same failure unless billing was added.",
     ),
     (
-        "NVIDIA NIM (Nemotron)", "nvidia_nim/nvidia/nemotron-4-340b-instruct",
+        "NVIDIA NIM (Llama-3.3-70B)", "nvidia_nim/meta/llama-3.3-70b-instruct",
         "NVIDIA_NIM_API_KEY", "https://build.nvidia.com/",
-        "NIM is a PLATFORM (like OpenRouter), not a model -- it hosts many "
-        "vendors' models. This specific model ID is NVIDIA's own Nemotron "
-        "family, confirmed present in litellm's NvidiaNimConfig source "
-        "(special-cased param mapping), NOT guessed. The real point of this "
-        "candidate: we already have Nemotron in CHAIN_AGENTIC via "
-        "'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free' (the exact model "
-        "behind the prose-not-JSON problem) -- this tests the SAME family via "
-        "NVIDIA's own direct API instead of OpenRouter's free proxy, to see if "
-        "the direct path is any more reliable. A different Nemotron generation "
-        "(340b vs the chain's 550b Ultra), same vendor, different pipe.",
+        "CORRECTED after reading litellm's nvidia_nim source on main: the "
+        "previous pick (nvidia/nemotron-4-340b-instruct) is one of only FOUR "
+        "hardcoded special-cased models whose supported-param list omits "
+        "response_format -- which is exactly why it errored, and that was my "
+        "model choice, NOT a NIM limitation. Every other NIM model hits the "
+        "DEFAULT branch, which explicitly DOES support response_format, tools "
+        "and tool_choice. This model uses that default path.",
     ),
     (
-        "Cohere", "cohere_chat/command-r", "COHERE_API_KEY",
+        "NVIDIA NIM (Nemotron-Ultra)",
+        "nvidia_nim/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        "NVIDIA_NIM_API_KEY", "https://build.nvidia.com/",
+        "The genuinely interesting comparison: Nemotron family via NVIDIA's OWN "
+        "API instead of the OpenRouter free proxy already in CHAIN_AGENTIC (the "
+        "source of our prose-not-JSON grief). Not one of the four special-cased "
+        "IDs, so it gets the default param set incl. response_format. If NIM "
+        "doesn't host this exact ID the call will 404 cleanly -- which is itself "
+        "a useful answer, and the Llama-3.3 candidate above still isolates "
+        "whether the NIM pipe works at all.",
+    ),
+    (
+        "Cohere", "cohere_chat/command-r-08-2024", "COHERE_API_KEY",
         "https://dashboard.cohere.com/",
-        "Free trial key. NOTE: litellm splits Cohere into two providers --\n"
-        "'cohere/' is embeddings-only, 'cohere_chat/' is the real chat "
-        "completions route. Verified against the installed litellm's own "
-        "LlmProviders enum, not assumed.",
+        "litellm splits Cohere into 'cohere/' (embeddings only) and "
+        "'cohere_chat/' (real chat route) -- verified via LlmProviders enum. "
+        "Checked litellm main: cohere_chat STILL omits response_format from its "
+        "supported params, so upgrading wouldn't help; the prompt-only retry in "
+        "check_model_isolated is the correct path, and it's a fair test since "
+        "our chain relies on json_extract anyway. Dated model ID used because "
+        "it's a stable pin present in upstream's catalog.",
     ),
     (
         "DeepSeek", "deepseek/deepseek-chat", "DEEPSEEK_API_KEY",
@@ -95,12 +127,12 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
     (
         "Together AI", "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         "TOGETHER_API_KEY", "https://api.together.ai/",
-        "Sign-up credit is the general story there, NOT a recurring free tier -- "
-        "but this specific '-Free' model is confirmed as the ONLY '-Free'-suffixed "
-        "entry in litellm's entire 96-model together_ai catalog (checked directly), "
-        "consistent with most of Together's old always-free endpoints having been "
-        "discontinued and this one surviving. Verify it's still live before relying "
-        "on it long-term.",
+        "Confirmed the ONLY '-Free'-suffixed entry across together_ai's whole "
+        "catalog. HEADS UP: last run returned 'Invalid API key provided' -- the "
+        "stored key ('key_' prefix, ~21 chars) does not match Together's usual "
+        "long-hex secret format, so it may be a project/org ID rather than the "
+        "actual secret key. Re-copy from api.together.ai/settings/api-keys if "
+        "this fails again the same way.",
     ),
 ]
 
@@ -110,11 +142,15 @@ def _run_all(rep: Report) -> None:
         key = (os.environ.get(key_env) or "").strip()
         if not key:
             rep.add(Check(
-                f"{name} API key present", model.split("/", 1)[0], "SKIP",
+                f"{name} API key present", name, "SKIP",
                 f"No key in {key_env}. Free signup: {url}\n{note}",
             ))
             continue
-        check_model_isolated(rep, model=model, api_key=key)
+        # Pass the DISPLAY name as the label: several candidates share a
+        # provider prefix (3x cerebras, 2x nvidia_nim), and the default
+        # prefix-derived label would make them collide into one row,
+        # silently hiding all but the last result.
+        check_model_isolated(rep, model=model, api_key=key, label=name)
 
 
 def _leaderboard(rep: Report) -> str:
@@ -123,7 +159,7 @@ def _leaderboard(rep: Report) -> str:
     for c in rep.checks:
         by_label.setdefault(c.section, {})[c.name.split(".", 1)[0].strip()] = c
 
-    rows: list[tuple[str, str, str, str, str, float]] = []
+    rows: list[tuple[str, str, str, str, str, str, float]] = []
     for label, checks in by_label.items():
         a = checks.get("3a")
         if a is None:
@@ -134,27 +170,35 @@ def _leaderboard(rep: Report) -> str:
             (b is not None and b.status == "PASS")
             or (cext is not None and cext.status == "PASS")
         )
+        # Was strict schema mode actually available, or did we fall back to
+        # prompt-only? A model that only produces good JSON when BEGGED is a
+        # weaker chain member than one the API can hard-constrain.
+        used_schema = a.evidence.get("used_schema_mode")
+        mode = "-" if used_schema is None else ("schema" if used_schema else "prompt-only")
         rows.append((
             label,
             "USABLE" if usable else "NOT USABLE",
             a.status,
             b.status if b else "-",
             cext.status if cext else "-",
+            mode,
             a.elapsed_s,
         ))
 
-    rows.sort(key=lambda r: (r[1] != "USABLE", r[5]))
+    rows.sort(key=lambda r: (r[1] != "USABLE", r[6]))
 
     lines = [
         "## Leaderboard (usable first, then fastest)",
         "",
-        "| Provider | Verdict | 3a raw call | 3b bare-JSON | 3c json_extract | Latency |",
-        "|---|---|---|---|---|---|",
+        "| Candidate | Verdict | 3a raw call | 3b bare-JSON | 3c json_extract | JSON mode | Latency |",
+        "|---|---|---|---|---|---|---|",
     ]
     if not rows:
-        lines.append("| *(no candidate had a key configured -- nothing to rank)* | | | | | |")
-    for label, verdict, a_s, b_s, c_s, latency in rows:
-        lines.append(f"| {label} | **{verdict}** | {a_s} | {b_s} | {c_s} | {latency:.1f}s |")
+        lines.append("| *(no candidate had a key configured -- nothing to rank)* | | | | | | |")
+    for label, verdict, a_s, b_s, c_s, mode, latency in rows:
+        lines.append(
+            f"| {label} | **{verdict}** | {a_s} | {b_s} | {c_s} | {mode} | {latency:.1f}s |"
+        )
     return "\n".join(lines)
 
 

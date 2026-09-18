@@ -326,6 +326,7 @@ def check_prices(rep: Report, reachable: dict[str, bool]) -> None:
 # ─────────────────────────────────────────────────────────────
 def check_model_isolated(
     rep: Report, model: str, api_key: str, api_base: str | None = None,
+    label: str | None = None,
 ) -> None:
     """Prove a SINGLE candidate model returns schema-valid JSON, not prose.
 
@@ -335,8 +336,13 @@ def check_model_isolated(
     before it goes anywhere near CHAIN_AGENTIC. No pre-flight reachability
     probe -- the raw call itself surfaces connection failures with full
     detail, which is more honest than a synthetic ping.
+
+    `label` groups the emitted checks in the report. It defaults to the
+    provider prefix, but callers testing SEVERAL models from the SAME
+    provider must pass distinct labels -- otherwise the rows collide and
+    later results silently overwrite earlier ones in the summary.
     """
-    label = model.split("/", 1)[0]
+    label = label or model.split("/", 1)[0]
     _section(f"3. {model} -- does it return SCHEMA-VALID JSON, or prose?")
 
     # A LOCAL OpenAI-compatible gateway (OmniRoute, Foundry Local, LM Studio)
