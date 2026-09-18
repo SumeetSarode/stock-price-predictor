@@ -378,6 +378,20 @@ def check_model_isolated(
         "institutional buying. Classify the near-term outlook. Respond with "
         "ONLY a JSON object, no prose."
     )
+    # Prompt-only fallback (providers that reject response_format) must still
+    # state the REQUIRED SHAPE -- otherwise the model invents its own keys and
+    # "fails" a contract it was never shown. First run of this hit exactly that:
+    # Cohere returned perfectly valid JSON, just keyed 'near_term_outlook'.
+    # Judging JSON-ability on an unstated schema is not a fair test.
+    prompt_with_shape = (
+        prompt
+        + " Use EXACTLY these keys: "
+        '"direction" (one of: "bullish", "bearish", "neutral"), '
+        '"confidence" (a number between 0 and 1), '
+        '"rationale" (a short string). '
+        'Example: {"direction": "bullish", "confidence": 0.8, '
+        '"rationale": "margin expansion"}'
+    )
     raw_holder: dict[str, str] = {}
 
     def raw_call():
@@ -386,7 +400,10 @@ def check_model_isolated(
         def _call(with_schema: bool):
             kwargs: dict[str, Any] = dict(
                 model=model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt if with_schema else prompt_with_shape,
+                }],
                 num_retries=0,
                 timeout=90,
                 api_key=api_key,

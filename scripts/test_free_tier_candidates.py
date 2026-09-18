@@ -47,6 +47,73 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 
 from verify_offvpn import Check, Report, check_model_isolated  # noqa: E402  (DRY: reuse, don't duplicate)
 
+# Providers whose live catalog we can ASK, instead of guessing model IDs.
+# Hard-won lesson: litellm's static catalog lists ZERO nvidia_nim chat models
+# (only rerankers), and two hand-picked IDs failed differently -- one 404, one
+# HTTP 410 "reached end of life on 2026-08-26". A third guess would be a third
+# wasted round-trip, so the script now discovers what each provider actually
+# serves TODAY. OpenAI-compatible providers all expose GET /v1/models.
+# (display name -> (base url, .env key var))
+DISCOVERY_ENDPOINTS: dict[str, tuple[str, str]] = {
+    "Cerebras": ("https://api.cerebras.ai/v1/models", "CEREBRAS_API_KEY"),
+    "NVIDIA NIM": ("https://integrate.api.nvidia.com/v1/models", "NVIDIA_NIM_API_KEY"),
+    "Together AI": ("https://api.together.xyz/v1/models", "TOGETHER_API_KEY"),
+    "SambaNova": ("https://api.sambanova.ai/v1/models", "SAMBANOVA_API_KEY"),
+    "Mistral": ("https://api.mistral.ai/v1/models", "MISTRAL_API_KEY"),
+}
+
+
+def discover_models(rep: Report) -> None:
+    """Ask each provider what it ACTUALLY hosts for this specific key.
+
+    Runs before the model tests so the report answers "was that model ID
+    wrong, or is the account restricted?" directly -- the Cerebras 404 said
+    'does not exist OR you do not have access', and only the live catalog
+    can separate those two. Cheap, unauthenticated-ish, and non-fatal.
+    """
+    import httpx
+
+    _section_banner("0. Model discovery -- what does each provider actually serve?")
+
+    for name, (url, key_env) in DISCOVERY_ENDPOINTS.items():
+        key = (os.environ.get(key_env) or "").strip()
+        if not key:
+            rep.add(Check(
+                f"discover: {name}", f"discovery/{name}", "SKIP",
+                f"no {key_env} set",
+            ))
+            continue
+
+        def probe(url=url, key=key, name=name):
+            r = httpx.get(
+                url, timeout=30.0,
+                headers={"Authorization": f"Bearer {key}"},
+            )
+            if r.status_code != 200:
+                return (
+                    "FAIL",
+                    f"HTTP {r.status_code} listing models: {r.text[:300]}",
+                    {"status_code": r.status_code},
+                )
+            payload = r.json()
+            ids = sorted(
+                m.get("id", "?") for m in payload.get("data", payload if isinstance(payload, list) else [])
+            )
+            return (
+                "PASS",
+                f"{len(ids)} models available to THIS key:\n"
+                + "\n".join(f"  - {i}" for i in ids[:60])
+                + ("\n  ..." if len(ids) > 60 else ""),
+                {"model_ids": ids},
+            )
+
+        rep.run(f"discover: {name}", f"discovery/{name}", probe)
+
+
+def _section_banner(title: str) -> None:
+    print(f"\n{'=' * 68}\n{title}\n{'=' * 68}")
+
+
 # (display name, litellm model string, .env key var, free signup URL, note)
 CANDIDATES: list[tuple[str, str, str, str, str]] = [
     (
@@ -161,6 +228,8 @@ def _leaderboard(rep: Report) -> str:
 
     rows: list[tuple[str, str, str, str, str, str, float]] = []
     for label, checks in by_label.items():
+        if label.startswith("discovery/"):
+            continue  # catalog listing, not a candidate verdict
         a = checks.get("3a")
         if a is None:
             continue  # SKIP-only entry (no key provided)
@@ -220,6 +289,7 @@ def main() -> int:
         )
 
     rep = Report()
+    discover_models(rep)
     _run_all(rep)
     md, js = rep.write(prefix="free_tier_candidates")
 
