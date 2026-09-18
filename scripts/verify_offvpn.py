@@ -377,24 +377,46 @@ def check_model_isolated(
     def raw_call():
         import litellm
 
-        resp = litellm.completion(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {"name": "outlook", "schema": schema, "strict": True},
-            },
-            num_retries=0,
-            timeout=90,
-            api_key=api_key,
-            **({"api_base": api_base} if api_base else {}),
-        )
+        def _call(with_schema: bool):
+            kwargs: dict[str, Any] = dict(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                num_retries=0,
+                timeout=90,
+                api_key=api_key,
+                **({"api_base": api_base} if api_base else {}),
+            )
+            if with_schema:
+                kwargs["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": "outlook", "schema": schema, "strict": True},
+                }
+            return litellm.completion(**kwargs)
+
+        # Some provider/litellm-integration combos reject response_format
+        # outright (litellm.UnsupportedParamsError) BEFORE the model ever
+        # sees the request -- that is a param-plumbing gap, not proof the
+        # model can't do JSON. Retry prompt-only so 3b/3c still get a real
+        # answer to judge instead of a false unusable verdict from a rejected kwarg.
+        used_schema = True
+        try:
+            resp = _call(with_schema=True)
+        except litellm.UnsupportedParamsError as e:
+            if "response_format" not in str(e):
+                raise
+            used_schema = False
+            resp = _call(with_schema=False)
+
         content = resp.choices[0].message.content or ""
         raw_holder["raw"] = content
+        note = (
+            "" if used_schema else
+            " (provider/integration rejects response_format -- retried prompt-only)"
+        )
         return (
             "PASS",
-            f"responded with {len(content)} chars",
-            {"raw_response": content[:4000]},
+            f"responded with {len(content)} chars{note}",
+            {"raw_response": content[:4000], "used_schema_mode": used_schema},
         )
 
     got_raw = rep.run("3a. raw completion (response_format=json_schema)", label, raw_call)
