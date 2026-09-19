@@ -127,72 +127,58 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
     (
         "Mistral", "mistral/mistral-small-latest", "MISTRAL_API_KEY",
         "https://console.mistral.ai/",
-        "Already staged. Prior attempts: 429 rate-limit off-VPN (inconclusive), "
-        "DNS-blocked on-VPN. Never got a clean pass or fail.",
+        "Live discovery (run 3) CONFIRMS mistral-small-latest is genuinely in "
+        "this key's 46-model catalog -- the model ID has never been the "
+        "problem. Every attempt (off-VPN and on) hits an immediate 429 "
+        "RateLimitError instead, so this is a persistent account/workspace "
+        "quota block, not a code or model issue.",
     ),
     (
-        "Cerebras 70B", "cerebras/llama-3.3-70b", "CEREBRAS_API_KEY",
+        "Cerebras: gpt-oss-120b", "cerebras/gpt-oss-120b", "CEREBRAS_API_KEY",
         "https://cloud.cerebras.ai/",
-        "Model string CONFIRMED correct against litellm's upstream main branch "
-        "catalog -- the earlier 404 said 'does not exist OR you do not have "
-        "access to it', and since the ID is valid, it's the access half: 70B "
-        "likely isn't enabled on a fresh free account. Smaller siblings below "
-        "test that theory rather than writing Cerebras off.",
+        "REPLACED after live discovery (run 3): this key's /v1/models lists "
+        "EXACTLY TWO models -- gpt-oss-120b and qwen-3.8-27b. None of the three "
+        "previously-guessed IDs (70b, 8b, qwen-3-32b) were ever in this "
+        "account's catalog, confirming the earlier 404s as an account-tier "
+        "restriction, not bad model strings. These two are the only real shot.",
     ),
     (
-        "Cerebras 8B", "cerebras/llama3.1-8b", "CEREBRAS_API_KEY",
+        "Cerebras: qwen-3.8-27b", "cerebras/qwen-3.8-27b", "CEREBRAS_API_KEY",
         "https://cloud.cerebras.ai/",
-        "Smallest Cerebras model -- most likely to be enabled on a free tier. "
-        "If 70B 404s but this passes, it's an account-tier limit, not a dead "
-        "provider.",
-    ),
-    (
-        "Cerebras Qwen-32B", "cerebras/qwen-3-32b", "CEREBRAS_API_KEY",
-        "https://cloud.cerebras.ai/",
-        "Mid-size Cerebras option, also in upstream catalog. Brackets the "
-        "access question between 8B and 70B.",
+        "The other of the exactly-two models this key's live catalog contains.",
     ),
     (
         "SambaNova", "sambanova/Meta-Llama-3.3-70B-Instruct", "SAMBANOVA_API_KEY",
         "https://cloud.sambanova.ai/",
-        "HEADS UP: last run returned 'A payment method is required' -- inference "
-        "is gated behind a card on file, so this is NOT free-tier in the same "
-        "sense as Groq/Gemini. Left in the lineup only so the report keeps "
-        "documenting that fact; expect the same failure unless billing was added.",
+        "Live discovery (run 3) CONFIRMS this exact model is in the key's "
+        "catalog -- so model choice was never the problem. The blocker is "
+        "purely 'A payment method is required' at the billing layer, which no "
+        "model swap fixes. Left in only so the report keeps documenting that.",
     ),
     (
-        "NVIDIA NIM (Llama-3.3-70B)", "nvidia_nim/meta/llama-3.3-70b-instruct",
+        "NVIDIA NIM: mistral-7b", "nvidia_nim/mistralai/mistral-7b-instruct-v0.3",
         "NVIDIA_NIM_API_KEY", "https://build.nvidia.com/",
-        "CORRECTED after reading litellm's nvidia_nim source on main: the "
-        "previous pick (nvidia/nemotron-4-340b-instruct) is one of only FOUR "
-        "hardcoded special-cased models whose supported-param list omits "
-        "response_format -- which is exactly why it errored, and that was my "
-        "model choice, NOT a NIM limitation. Every other NIM model hits the "
-        "DEFAULT branch, which explicitly DOES support response_format, tools "
-        "and tool_choice. This model uses that default path.",
+        "REPLACED after live discovery (run 3) showed the real lesson: NIM's "
+        "/v1/models LISTS 82 models, but listed != deployed. The 253B Nemotron "
+        "guess returned 'Function ... not found for account' -- catalog "
+        "presence doesn't guarantee an inference endpoint is provisioned for "
+        "this account. Switching to small, extremely common models that are "
+        "far more likely to have a default deployment, to finally learn if the "
+        "NIM pipe itself works before chasing exotic model IDs further.",
     ),
     (
-        "NVIDIA NIM (Nemotron-Ultra)",
-        "nvidia_nim/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        "NVIDIA NIM: gemma-3-4b", "nvidia_nim/google/gemma-3-4b-it",
         "NVIDIA_NIM_API_KEY", "https://build.nvidia.com/",
-        "The genuinely interesting comparison: Nemotron family via NVIDIA's OWN "
-        "API instead of the OpenRouter free proxy already in CHAIN_AGENTIC (the "
-        "source of our prose-not-JSON grief). Not one of the four special-cased "
-        "IDs, so it gets the default param set incl. response_format. If NIM "
-        "doesn't host this exact ID the call will 404 cleanly -- which is itself "
-        "a useful answer, and the Llama-3.3 candidate above still isolates "
-        "whether the NIM pipe works at all.",
+        "Second small/common model from the same live catalog, in case the "
+        "first candidate above also turns out to be undeployed for this account.",
     ),
     (
         "Cohere", "cohere_chat/command-r-08-2024", "COHERE_API_KEY",
         "https://dashboard.cohere.com/",
-        "litellm splits Cohere into 'cohere/' (embeddings only) and "
-        "'cohere_chat/' (real chat route) -- verified via LlmProviders enum. "
-        "Checked litellm main: cohere_chat STILL omits response_format from its "
-        "supported params, so upgrading wouldn't help; the prompt-only retry in "
-        "check_model_isolated is the correct path, and it's a fair test since "
-        "our chain relies on json_extract anyway. Dated model ID used because "
-        "it's a stable pin present in upstream's catalog.",
+        "CONFIRMED USABLE (run 3): passed raw call, bare-JSON, AND json_extract "
+        "in 0.8s using the prompt-only path (prompt states the exact required "
+        "keys since cohere_chat can't take response_format). First candidate "
+        "in this whole shootout to actually pass. Good chain candidate.",
     ),
     (
         "DeepSeek", "deepseek/deepseek-chat", "DEEPSEEK_API_KEY",
@@ -202,12 +188,12 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
     (
         "Together AI", "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         "TOGETHER_API_KEY", "https://api.together.ai/",
-        "Confirmed the ONLY '-Free'-suffixed entry across together_ai's whole "
-        "catalog. HEADS UP: last run returned 'Invalid API key provided' -- the "
-        "stored key ('key_' prefix, ~21 chars) does not match Together's usual "
-        "long-hex secret format, so it may be a project/org ID rather than the "
-        "actual secret key. Re-copy from api.together.ai/settings/api-keys if "
-        "this fails again the same way.",
+        "CONFIRMED genuinely bad key, not a model problem: live discovery (run 3) "
+        "got HTTP 401 Unauthorized on /v1/models itself -- can't even list "
+        "models, let alone call one. The stored key ('key_' prefix, ~21 chars) "
+        "doesn't match Together's usual long-hex secret format; it's likely a "
+        "project/org ID, not the actual secret. Re-copy from "
+        "api.together.ai/settings/api-keys.",
     ),
 ]
 
