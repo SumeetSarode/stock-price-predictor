@@ -1,5 +1,28 @@
 """Test every candidate free-tier LLM provider, one by one, off-VPN.
 
+BOTTOM LINE AFTER 4 REAL RUNS (2026-09-18 .. 2026-09-20)
+=======================================================
+Of six advertised "free tiers", exactly ONE is genuinely free and works:
+
+    USABLE   Cohere (cohere_chat/command-r-08-2024) -- clean schema-valid
+             JSON, ~1-3s, passed on two separate days. Trial key: rate
+             limited (~20/min) and non-production per Cohere's terms.
+
+    NOT FREE Cerebras  -- "Payment required to access this resource"
+    NOT FREE SambaNova -- "A payment method is required"
+    NOT FREE Together  -- sign-up requires a DEPOSIT (confirmed by hand)
+    BLOCKED  NVIDIA NIM -- every model 404s "Function not found for
+             account"; NIM needs per-model provisioning on build.nvidia.com
+             before the API works at all (5 models tried, incl. tiny ones)
+    BLOCKED  Mistral   -- model ID confirmed valid in the live catalog,
+             but every call 429s: account/workspace quota, not a bad model
+
+The wider lesson, and why OmniRoute looked the way it did: the
+free-API-key era has largely closed. OmniRoute's reliance on browser
+session-cookie providers wasn't gratuitous -- it was routing around a
+market that dried up. Assume any "free tier" claim needs verification
+before it's worth a signup.
+
 WHY THIS EXISTS
 ===============
 "Full free access like OmniRoute" turned out to mean two very different
@@ -136,11 +159,9 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
     (
         "Cerebras: gpt-oss-120b", "cerebras/gpt-oss-120b", "CEREBRAS_API_KEY",
         "https://cloud.cerebras.ai/",
-        "REPLACED after live discovery (run 3): this key's /v1/models lists "
-        "EXACTLY TWO models -- gpt-oss-120b and qwen-3.8-27b. None of the three "
-        "previously-guessed IDs (70b, 8b, qwen-3-32b) were ever in this "
-        "account's catalog, confirming the earlier 404s as an account-tier "
-        "restriction, not bad model strings. These two are the only real shot.",
+        "DEAD END -- NOT FREE. Both of the only two models this key's catalog "
+        "offers return 'Payment required to access this resource. Visit your "
+        "billing tab.' Restricted catalog AND paywalled inference.",
     ),
     (
         "Cerebras: qwen-3.8-27b", "cerebras/qwen-3.8-27b", "CEREBRAS_API_KEY",
@@ -188,12 +209,12 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
     (
         "Together AI", "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         "TOGETHER_API_KEY", "https://api.together.ai/",
-        "CONFIRMED genuinely bad key, not a model problem: live discovery (run 3) "
-        "got HTTP 401 Unauthorized on /v1/models itself -- can't even list "
-        "models, let alone call one. The stored key ('key_' prefix, ~21 chars) "
-        "doesn't match Together's usual long-hex secret format; it's likely a "
-        "project/org ID, not the actual secret. Re-copy from "
-        "api.together.ai/settings/api-keys.",
+        "DEAD END -- NOT FREE. Two separate confirmations: the API returns HTTP "
+        "401 on /v1/models with the stored key, AND signing up for a valid key "
+        "requires a DEPOSIT (confirmed by hand, 2026-09-20). Their sign-up "
+        "credit model no longer yields a usable no-payment key. Kept in the "
+        "lineup only as a documented negative result -- do not re-attempt "
+        "without a funded account.",
     ),
 ]
 
