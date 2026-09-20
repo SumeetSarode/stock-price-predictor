@@ -202,6 +202,20 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
         "in this whole shootout to actually pass. Good chain candidate.",
     ),
     (
+        "INCUMBENT: Nemotron (OpenRouter)",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "OPENROUTER_API_KEY", "https://openrouter.ai/settings/keys",
+        "NOT a new candidate -- this is the model ALREADY in CHAIN_AGENTIC, "
+        "added as a CONTROL. Every challenger so far was measured against the "
+        "same protocol while the incumbent was judged only on production "
+        "anecdotes ('sometimes emits prose'), which is not a fair comparison. "
+        "Testing it identically answers 'is Cohere actually better?' with data "
+        "instead of vibes. Spec note from litellm's catalog: the ':free' "
+        "variant reports supports_response_schema=False while the PAID variant "
+        "reports True -- a strong hint that the free tier genuinely cannot "
+        "hard-constrain output, which would explain the prose failures.",
+    ),
+    (
         "DeepSeek", "deepseek/deepseek-chat", "DEEPSEEK_API_KEY",
         "https://platform.deepseek.com/",
         "Cheap even past any free allotment; strong model for the price.",
@@ -219,6 +233,17 @@ CANDIDATES: list[tuple[str, str, str, str, str]] = [
 ]
 
 
+# Candidates worth measuring for CONSISTENCY, not just a single pass.
+# Nemotron's reported failure mode is intermittent ("sometimes emits prose"),
+# so one lucky run would be actively misleading -- and judging Cohere on one
+# sample has the same flaw in reverse. These get repeated trials; a model that
+# passes 3/3 is a materially different proposition from one that passes 1/3.
+REPEAT_TRIALS: dict[str, int] = {
+    "INCUMBENT: Nemotron (OpenRouter)": 3,
+    "Cohere": 3,
+}
+
+
 def _run_all(rep: Report) -> None:
     for name, model, key_env, url, note in CANDIDATES:
         key = (os.environ.get(key_env) or "").strip()
@@ -232,7 +257,12 @@ def _run_all(rep: Report) -> None:
         # provider prefix (3x cerebras, 2x nvidia_nim), and the default
         # prefix-derived label would make them collide into one row,
         # silently hiding all but the last result.
-        check_model_isolated(rep, model=model, api_key=key, label=name)
+        trials = REPEAT_TRIALS.get(name, 1)
+        for i in range(1, trials + 1):
+            suffix = f" [trial {i}/{trials}]" if trials > 1 else ""
+            check_model_isolated(
+                rep, model=model, api_key=key, label=f"{name}{suffix}",
+            )
 
 
 def _leaderboard(rep: Report) -> str:
