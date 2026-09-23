@@ -363,11 +363,16 @@ def check_model_isolated(
     # ── 3a. Raw call. Isolate the model so it MUST answer -- if we went
     #        through the normal chain, an earlier model would serve every
     #        request and this one would never actually be exercised.
+    # Bounds MUST mirror the REAL contract in agents/news_impact/agent.py
+    # (confidence: float = Field(..., ge=0.0, le=1.0)). An unbounded "number"
+    # here silently passes output the production Pydantic model would REJECT
+    # -- which is exactly what happened: Nemotron returned confidence=85 on
+    # one trial and 0.78 on another, and the loose schema scored both USABLE.
     schema = {
         "type": "object",
         "properties": {
             "direction": {"type": "string", "enum": ["bullish", "bearish", "neutral"]},
-            "confidence": {"type": "number"},
+            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
             "rationale": {"type": "string"},
         },
         "required": ["direction", "confidence", "rationale"],
@@ -483,6 +488,35 @@ def check_model_isolated(
             return (
                 "FAIL",
                 f"parsed, but missing required keys: {missing}",
+                {"parsed": obj},
+            )
+        # Parsing is necessary but NOT sufficient -- the production model
+        # (agents/news_impact/agent.py) enforces confidence ge=0.0 le=1.0 and
+        # a direction enum. Output that parses but violates those still blows
+        # up as a Pydantic ValidationError in the real pipeline, so grade it
+        # here rather than reporting a false USABLE.
+        conf = obj["confidence"]
+        if not isinstance(conf, int | float) or isinstance(conf, bool):
+            return (
+                "FAIL",
+                f"confidence is {type(conf).__name__}, not a number: {conf!r}\n"
+                "=> production Pydantic (confidence: float) would reject this.",
+                {"parsed": obj},
+            )
+        if not 0.0 <= conf <= 1.0:
+            return (
+                "FAIL",
+                f"confidence={conf} is OUTSIDE the required 0.0-1.0 range.\n"
+                "Parses fine, but agents/news_impact/agent.py declares\n"
+                "confidence: float = Field(..., ge=0.0, le=1.0) -- so in the\n"
+                "real pipeline this raises a Pydantic ValidationError. Looks\n"
+                "like a 0-100 percentage where a 0-1 probability was asked for.",
+                {"parsed": obj},
+            )
+        if obj["direction"] not in ("bullish", "bearish", "neutral"):
+            return (
+                "FAIL",
+                f"direction={obj['direction']!r} is outside the allowed enum.",
                 {"parsed": obj},
             )
         return (
