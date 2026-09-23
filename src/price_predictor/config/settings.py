@@ -82,6 +82,15 @@ class Settings(BaseSettings):
         default=SecretStr(""), validation_alias="OPENROUTER_API_KEY"
     )
 
+    # OPTIONAL: Cohere, used for 'cohere_chat/*' entries in CHAIN_AGENTIC.
+    # Empty is fine -- same silent-skip treatment as openrouter above.
+    # NOTE the provider prefix is 'cohere_chat', not 'cohere': litellm
+    # splits Cohere into two providers, where plain 'cohere/' is the
+    # EMBEDDINGS route and 'cohere_chat/' is chat completions.
+    cohere_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="COHERE_API_KEY"
+    )
+
     # ── Validators ────────────────────────────────────────────
     @field_validator("groq_api_key", "gemini_api_key")
     @classmethod
@@ -92,7 +101,10 @@ class Settings(BaseSettings):
             raise ValueError("Placeholder API key detected — set a real key in .env")
         return value
 
-    @field_validator("alpha_vantage_api_key", "stooq_api_key", "openrouter_api_key")
+    @field_validator(
+        "alpha_vantage_api_key", "stooq_api_key", "openrouter_api_key",
+        "cohere_api_key",
+    )
     @classmethod
     def reject_placeholder_provider_keys(cls, value: SecretStr) -> SecretStr:
         """Allow EMPTY (provider not used) but reject obvious placeholders.
@@ -314,16 +326,24 @@ class Settings(BaseSettings):
     def _optional_key_missing(self, model_name: str) -> bool:
         """True if `model_name`'s provider needs a key we don't have."""
         provider = model_name.split("/", 1)[0]
-        optional_keys: dict[str, SecretStr] = {"openrouter": self.openrouter_api_key}
-        key = optional_keys.get(provider)
-        if key is None:
+        # Keyed by litellm's PROVIDER PREFIX, which is not always the brand
+        # name -- Cohere's chat route is 'cohere_chat' ('cohere' alone is
+        # litellm's embeddings provider and would never appear in this chain).
+        optional_keys: dict[str, tuple[SecretStr, str]] = {
+            "openrouter": (self.openrouter_api_key, "OPENROUTER_API_KEY"),
+            "cohere_chat": (self.cohere_api_key, "COHERE_API_KEY"),
+        }
+        entry = optional_keys.get(provider)
+        if entry is None:
             return False  # not an optional-key provider (groq/gemini/ollama)
+        key, env_var = entry
         missing = not key.get_secret_value()
         if missing:
             logger.warning(
                 "[settings] {!r} in chain has no configured key -- skipping "
-                "it (set OPENROUTER_API_KEY in .env to enable it).",
+                "it (set {} in .env to enable it).",
                 model_name,
+                env_var,
             )
         return missing
 

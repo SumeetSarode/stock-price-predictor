@@ -120,6 +120,79 @@ class TestOptionalKeyProviders:
             "groq/openai/gpt-oss-120b",
         ]
 
+    # ── Cohere: same optional-key contract as openrouter ──────────────
+    # Cohere sits at position 4 of the default CHAIN_AGENTIC, ahead of
+    # Nemotron (measured 3/3 vs 1/3 production-valid JSON). These lock in
+    # that a missing key degrades GRACEFULLY: AuthenticationError is a
+    # STRUCTURAL error in resilient.py, so an unconfigured provider left in
+    # the chain would hard-crash EVERY prediction rather than falling through.
+
+    def test_cohere_skipped_when_key_empty_string(self, monkeypatch):
+        """Blank COHERE_API_KEY (the shipped .env default) must skip, not crash."""
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC=(
+                "gemini/gemini-2.5-flash,cohere_chat/command-r-08-2024,"
+                "groq/openai/gpt-oss-120b"
+            ),
+            COHERE_API_KEY="",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "groq/openai/gpt-oss-120b",
+        ]
+
+    def test_cohere_included_when_key_set(self, monkeypatch):
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC=(
+                "gemini/gemini-2.5-flash,cohere_chat/command-r-08-2024,"
+                "groq/openai/gpt-oss-120b"
+            ),
+            COHERE_API_KEY="a-real-looking-cohere-key",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "cohere_chat/command-r-08-2024",
+            "groq/openai/gpt-oss-120b",
+        ]
+
+    def test_cohere_and_openrouter_skip_independently(self, monkeypatch):
+        """Two optional providers must not interfere with each other.
+
+        Guards the refactor that turned the optional-key map from a single
+        entry into a multi-entry dict: a bug there could easily make one
+        provider's key satisfy the other's check.
+        """
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC=(
+                "gemini/gemini-2.5-flash,cohere_chat/command-r-08-2024,"
+                "openrouter/some-model:free,ollama_chat/qwen3:8b"
+            ),
+            COHERE_API_KEY="cohere-key-present",
+            OPENROUTER_API_KEY="",
+        )
+        assert s.effective_chain("agentic") == [
+            "gemini/gemini-2.5-flash",
+            "cohere_chat/command-r-08-2024",
+            "ollama_chat/qwen3:8b",
+        ]
+
+    def test_plain_cohere_prefix_is_not_the_chat_provider(self, monkeypatch):
+        """'cohere/' is litellm's EMBEDDINGS provider -- only 'cohere_chat/'
+        is wired for chat. A 'cohere/' entry must NOT be treated as the
+        optional chat provider (it would be a config error, and silently
+        skipping it would hide that).
+        """
+        s = _build_settings(
+            monkeypatch,
+            CHAIN_AGENTIC="gemini/gemini-2.5-flash,cohere/command-r",
+            COHERE_API_KEY="",
+        )
+        # Not skipped -- it is not a recognised optional-key provider.
+        assert "cohere/command-r" in s.effective_chain("agentic")
+
     def test_required_providers_untouched_by_skip_path(self, monkeypatch):
         s = _build_settings(
             monkeypatch,

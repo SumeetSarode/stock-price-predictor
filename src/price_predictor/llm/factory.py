@@ -39,6 +39,10 @@ _API_KEY_GETTERS: dict[str, Callable[[], str]] = {
     "openrouter": lambda: settings.openrouter_api_key.get_secret_value(),
     "groq": lambda: settings.groq_api_key.get_secret_value(),
     "gemini": lambda: settings.gemini_api_key.get_secret_value(),
+    # Cohere's CHAT route. The prefix is 'cohere_chat', NOT 'cohere' --
+    # litellm registers those as two different providers, and plain
+    # 'cohere/' is the embeddings one, which would 404 on a chat call.
+    "cohere_chat": lambda: settings.cohere_api_key.get_secret_value(),
 }
 
 # Providers that run LOCALLY and need NO API key -- they need an `api_base`

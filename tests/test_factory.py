@@ -163,6 +163,45 @@ class TestOpenRouterProvider:
         assert m._additional_args["num_retries"] == factory._NO_INTERNAL_RETRY
 
 
+class TestCohereProvider:
+    """cohere_chat is a hosted, keyed provider -- same shape as openrouter.
+
+    Promoted into the default chain ahead of Nemotron after a measured
+    head-to-head (3/3 vs 1/3 production-valid JSON, see
+    reports/free_tier_candidates_20260923T155343Z.md).
+    """
+
+    def test_cohere_chat_builds_with_key(self, monkeypatch):
+        # Patch the GETTER, not the settings field: pydantic blocks
+        # instance/class attr patching, and this keeps the test independent
+        # of whatever happens to be in the developer's real .env.
+        monkeypatch.setitem(
+            factory._API_KEY_GETTERS, "cohere_chat", lambda: "test-cohere-key",
+        )
+        m = make_model("cohere_chat/command-r-08-2024")
+        assert m.model == "cohere_chat/command-r-08-2024"
+
+    def test_cohere_chat_uses_hosted_timeout_and_no_internal_retry(self, monkeypatch):
+        monkeypatch.setitem(
+            factory._API_KEY_GETTERS, "cohere_chat", lambda: "test-cohere-key",
+        )
+        m = make_model("cohere_chat/command-r-08-2024")
+        t = m._additional_args["timeout"]
+        assert t.connect == factory._HOSTED_CONNECT_TIMEOUT_S
+        assert t.read == factory._HOSTED_TIMEOUT_S
+        assert m._additional_args["num_retries"] == factory._NO_INTERNAL_RETRY
+
+    def test_plain_cohere_prefix_is_rejected(self):
+        """'cohere/' is litellm's EMBEDDINGS provider, not chat.
+
+        Only 'cohere_chat/' is registered. A 'cohere/' entry is a genuine
+        config error and must fail LOUDLY here rather than being built and
+        then 404-ing at generation time.
+        """
+        with pytest.raises(ValueError, match="Unsupported provider"):
+            make_model("cohere/command-r-08-2024")
+
+
 class TestResilientChainWithLocalTail:
     """A chain ending in Ollama builds into a ResilientModel (offline tail)."""
 
