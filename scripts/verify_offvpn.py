@@ -547,13 +547,42 @@ def check_model_isolated(
 # ─────────────────────────────────────────────────────────────
 # Section 4 — a REAL prediction through the real agent
 # ─────────────────────────────────────────────────────────────
-def check_real_prediction(rep: Report) -> None:
+def check_real_prediction(rep: Report, only_model: str | None = None) -> None:
     _section("4. End-to-end — a real ImpactAssessment through the real agent")
+
+    # --only-model forces the end-to-end prediction through ONE hop.
+    #
+    # Getting this right took three attempts, so the reasoning is recorded:
+    #   1. Setting os.environ["CHAIN_AGENTIC"] does NOT work -- Settings is
+    #      declared with env_file=".env", and the dotenv value wins over the
+    #      process environment. Verified: the agent still built all 6 hops.
+    #   2. Mutating settings.chain_agentic afterwards does NOT work either --
+    #      predictor.py builds its agent as a MODULE-LEVEL SINGLETON at import
+    #      time, so anything applied post-import is ignored. Verified: chain
+    #      reported 1 entry while the live agent still held all 6.
+    # What actually works is rebuilding the singleton's model from the
+    # narrowed chain, which is what make_resilient_model already does.
+    if only_model:
+        from price_predictor.config.settings import settings as _s
+        from price_predictor.llm.factory import make_model
+        from price_predictor.prediction import predictor as _predictor
+
+        object.__setattr__(_s, "chain_agentic", only_model)
+        _predictor._news_impact_agent.model = make_model(only_model)
+        print(f"  [--only-model] agent forced to a single hop: {only_model}")
 
     def run_agent():
 
         from price_predictor.agents.news_impact.agent import make_news_impact_agent
         from price_predictor.config.settings import settings
+
+        if only_model:
+            return (
+                "SKIP",
+                f"--only-model={only_model} deliberately narrows the chain to "
+                "one hop, so a full-chain comparison is meaningless here.",
+                {"only_model": only_model},
+            )
 
         chain = settings.effective_chain("agentic")
         agent = make_news_impact_agent()
@@ -580,6 +609,7 @@ def check_real_prediction(rep: Report) -> None:
         # ("gather in code, reason once") -- it takes a bare ticker, so
         # there is no separate gather step to call here.
         from price_predictor.llm.resilient import AllModelsExhaustedError
+        from price_predictor.prediction import predictor as _predictor
         from price_predictor.prediction.predictor import run_news_impact_agent
 
         try:
@@ -593,14 +623,46 @@ def check_real_prediction(rep: Report) -> None:
                 f"Ollama tail isn't running):\n{str(e)[:600]}",
                 {"error": str(e)[:3000]},
             )
+
+        # WHICH HOP SERVED IT matters as much as the result: the chain is
+        # ordered, so a bare PASS only proves the first model that answered
+        # works -- it says nothing about the hop we actually care about.
+        # resilient.py records this on the agent instance, and predictor.py
+        # builds that agent ONCE at import time as a module-level singleton,
+        # so read it straight off the module (a freshly-built agent would
+        # report last_used_model=None and quietly tell us nothing).
+        # Under --only-model the model is a plain LiteLlm with no fallback
+        # wrapper, so there is nothing to record -- but we already know
+        # exactly which hop ran, because we pinned it.
+        served = only_model or getattr(
+            getattr(_predictor._news_impact_agent, "model", None),
+            "last_used_model",
+            None,
+        )
+
+        # Validate against the REAL contract, not just "no exception":
+        # ImpactAssessment enforces confidence 0.0-1.0, and the whole reason
+        # Cohere was promoted ahead of Nemotron is that Nemotron returned 85
+        # on one trial -- which parses fine but is a ValidationError here.
+        conf_ok = isinstance(result.confidence, int | float) and (
+            0.0 <= result.confidence <= 1.0
+        )
+        if not conf_ok:
+            return (
+                "FAIL",
+                f"confidence={result.confidence} is outside the required "
+                f"0.0-1.0 range (served by {served or 'unknown'}).",
+                {"assessment": result.model_dump(), "served_by": served},
+            )
         # Field names verified against ImpactAssessment.model_fields:
         # ticker, sentiment, confidence, estimated_pct_move, reasoning, catalysts
         return (
             "PASS",
             f"got a valid ImpactAssessment: sentiment={result.sentiment!r}, "
             f"confidence={result.confidence}, "
-            f"est_move={result.estimated_pct_move}%",
-            {"assessment": result.model_dump()},
+            f"est_move={result.estimated_pct_move}%\n"
+            f"SERVED BY: {served or '(unknown)'}",
+            {"assessment": result.model_dump(), "served_by": served},
         )
 
     rep.run("4b. real news-impact prediction (hits live news + LLM)", "end-to-end", real_pred)
@@ -633,6 +695,15 @@ def check_integration_suite(rep: Report) -> None:
 # ─────────────────────────────────────────────────────────────
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--only-model",
+        default=None,
+        help=(
+            "Force the end-to-end prediction to use ONLY this chain entry, "
+            "e.g. 'cohere_chat/command-r-08-2024'. Without this, an ordered "
+            "chain means hop 1 answers and later hops are never exercised."
+        ),
+    )
     ap.add_argument("--skip-llm", action="store_true", help="skip the LLM candidate + prediction sections")
     ap.add_argument("--skip-suite", action="store_true", help="skip the pytest integration suite (slowest)")
     ap.add_argument("--test-model", default=None, help="isolate-test ONE candidate model, e.g. mistral/mistral-small-latest")
@@ -669,7 +740,7 @@ def main() -> int:
                 rep, model=args.test_model, api_key=key,
                 api_base=args.test_api_base,
             )
-        check_real_prediction(rep)
+        check_real_prediction(rep, only_model=args.only_model)
 
     if args.skip_suite:
         rep.add(Check("integration suite", "integration-suite", "SKIP", "--skip-suite passed"))
