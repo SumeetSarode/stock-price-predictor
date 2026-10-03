@@ -37,9 +37,35 @@ from litellm.exceptions import (
 )
 from pydantic import ConfigDict, Field
 
-from price_predictor.llm.rate_limiter import get_limiter, provider_of
+from price_predictor.llm.rate_limiter import (
+    ModelTokenBudget,
+    get_limiter,
+    get_token_budget,
+    provider_of,
+)
 
 logger = logging.getLogger(__name__)
+
+# Output tokens count toward Groq's TPM too. Our JSON answers run a few
+# hundred tokens; reserve a bit more so the estimate errs on the safe side.
+_OUTPUT_TOKEN_ALLOWANCE = 1_000
+
+
+def _estimate_request_tokens(llm_request: LlmRequest) -> int:
+    """Rough token count for a request (~4 chars/token) + output allowance.
+
+    Only used to RESERVE budget before the call; the real number from the
+    provider's usage metadata replaces it afterwards.
+    """
+    chars = 0
+    config = getattr(llm_request, "config", None)
+    system = getattr(config, "system_instruction", None)
+    if isinstance(system, str):
+        chars += len(system)
+    for content in getattr(llm_request, "contents", None) or []:
+        for part in getattr(content, "parts", None) or []:
+            chars += len(getattr(part, "text", None) or "")
+    return chars // 4 + _OUTPUT_TOKEN_ALLOWANCE
 
 
 # ──────────────────────────────────────────────────────────────
@@ -126,6 +152,19 @@ MODEL_AVAILABILITY_400_PATTERNS: tuple[str, ...] = (
     "model not found",
 )
 
+# Rate-limit wording, from real provider 429 bodies:
+#   Gemini: quotaId "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"
+#           / "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+#   Groq:   "... on tokens per minute (TPM): Limit 8000 ..."
+#           / "... on tokens per day (TPD): Limit 200000 ..."
+# Our own limiter says "daily request quota exhausted" / "per-minute rate".
+_PER_MINUTE_MARKERS: tuple[str, ...] = (
+    "perminute", "per minute", "per-minute", "(tpm)", "(rpm)",
+)
+_DAILY_MARKERS: tuple[str, ...] = (
+    "perday", "per day", "daily", "(tpd)", "(rpd)",
+)
+
 # Cooldown durations
 SHORT_COOLDOWN = timedelta(seconds=60)    # per-minute rate limit
 INCOMPAT_COOLDOWN = timedelta(hours=1)    # model can't handle this conversation
@@ -198,10 +237,18 @@ def _classify_cooldown(error: Exception) -> timedelta | datetime:
     if isinstance(error, MODEL_UNAVAILABLE_ERRORS):
         return INCOMPAT_COOLDOWN  # 1h: model not on this account, won't appear
     msg = str(error).lower()
-    # LiteLLM surfaces quota-exhausted with phrases like 'daily limit',
-    # 'quota exceeded', 'tokens per day'. Per-minute uses 'rate_limit', 'tpm'.
-    if any(phrase in msg for phrase in ("daily", "per day", "quota", "tpd", "rpd")):
+    # PER-MINUTE signals win, and are checked FIRST. Gemini prefixes EVERY
+    # 429 -- per-minute included -- with the boilerplate "You exceeded your
+    # current quota". The old rule treated a bare 'quota' as daily, so one
+    # short burst benched Gemini until midnight UTC: the "Gemini is dead
+    # after 2-3 predictions" symptom. The specific limit name (Gemini's
+    # quotaId, Groq's "(TPM)") is what tells the two apart.
+    if any(phrase in msg for phrase in _PER_MINUTE_MARKERS):
+        return SHORT_COOLDOWN
+    if any(phrase in msg for phrase in _DAILY_MARKERS):
         return _next_midnight_utc()
+    # Unknown wording (incl. a bare 'quota'): assume per-minute. Guessing
+    # short costs one wasted retry in 60s; guessing daily costs a whole day.
     return SHORT_COOLDOWN
 
 
@@ -380,13 +427,32 @@ class ResilientModel(BaseLlm):
                     # cool the model down and fall over to the next provider.
                     limiter = await get_limiter(provider_of(model.model))
                     await limiter.acquire()
+                    # Token pacing: free tiers run out of TOKENS first. Same
+                    # contract as acquire(): waits briefly, or raises a
+                    # RateLimitError that falls over to the next model.
+                    estimate = _estimate_request_tokens(llm_request)
+                    reservation = await get_token_budget(model.model).reserve(estimate)
+                    actual_tokens = 0
                     # Drive the inner generator. We yield as we go -- this means
                     # if a model fails MID-STREAM (after first yield) the error
                     # propagates to the caller (we can't un-yield). Pre-first-yield
                     # failures fall through to the next model. Matches user intent.
-                    async for response in model.generate_content_async(llm_request, stream):
-                        yield response
-                    logger.info("[resilient] success model=%s", model.model)
+                    try:
+                        async for response in model.generate_content_async(llm_request, stream):
+                            usage = getattr(response, "usage_metadata", None)
+                            total = getattr(usage, "total_token_count", None)
+                            if total:
+                                actual_tokens = total
+                            yield response
+                    except RateLimitError:
+                        # The provider refused, so it didn't spend our tokens.
+                        ModelTokenBudget.settle(reservation, 0)
+                        raise
+                    ModelTokenBudget.settle(reservation, actual_tokens or estimate)
+                    logger.info(
+                        "[resilient] success model=%s tokens=%s",
+                        model.model, actual_tokens or f"~{estimate}",
+                    )
                     self.last_used_model = model.model
                     return
                 except BadRequestError as e:
@@ -466,7 +532,7 @@ class ResilientModel(BaseLlm):
                         model.model,
                     )
                     continue
-                except Exception as e:  # noqa: BLE001 - deliberate catch-all
+                except Exception as e:
                     # LAST-RESORT FALLBACK.
                     #
                     # Every except above names SPECIFIC exception types, so

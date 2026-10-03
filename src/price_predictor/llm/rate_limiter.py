@@ -47,9 +47,9 @@ NON-GOALS
   running concurrently each have their own bucket → combined they may
   exceed the provider's true limit. If/when we need multi-process, swap
   the in-memory deque for a Redis sorted-set behind the same interface.
-- No token-budget tracking (TPM/TPD). Only request-count limits. Token
-  budgets would need to inspect each response's usage metadata, which
-  ResilientModel doesn't currently surface. Future iteration if needed.
+- No token-budget tracking in THIS class -- see ModelTokenBudget below,
+  which paces tokens per MODEL (Groq limits tokens per model, not per
+  provider: gpt-oss-120b and llama-3.3-70b have separate TPM buckets).
 """
 from __future__ import annotations
 
@@ -272,5 +272,134 @@ async def get_limiter(provider: str) -> ProviderRateLimiter:
 
 
 def reset_for_tests() -> None:
-    """Wipe the singleton registry. Tests only — don't call from app code."""
+    """Wipe the singleton registries. Tests only — don't call from app code."""
     LIMITERS.clear()
+    TOKEN_BUDGETS.clear()
+
+
+# ──────────────────────────────────────────────────────────────
+# Token budgets (TPM / TPD), one per MODEL
+# ──────────────────────────────────────────────────────────────
+# Why: free tiers run out of TOKENS long before requests. Groq's
+# gpt-oss-120b allows 8,000 tokens/min; one prediction is ~7,000. A
+# request-only limiter happily reports "plenty left" while the provider is
+# already refusing. This tracks what the provider actually counts.
+#
+# How: reserve() an ESTIMATE before the call (sleep or fall over if it won't
+# fit), then settle() with the real usage the provider reports afterwards.
+
+class Reservation:
+    """Handle for one reserved slice of a token budget."""
+
+    __slots__ = ("entry",)
+
+    def __init__(self, entry: list) -> None:
+        self.entry = entry  # [monotonic_ts, tokens] -- mutable on purpose
+
+
+class ModelTokenBudget:
+    """Sliding-window tokens-per-minute + daily token counter for ONE model."""
+
+    def __init__(
+        self, name: str, *, tpm: int = 0, tpd: int = 0, max_sleep_s: float = 0.0,
+    ) -> None:
+        if tpm < 0 or tpd < 0:
+            raise ValueError(f"tpm/tpd must be >= 0 (got tpm={tpm}, tpd={tpd})")
+        self.name = name
+        self.tpm = tpm
+        self.tpd = tpd
+        self.max_sleep_s = max_sleep_s
+        self._lock = asyncio.Lock()
+        self._window: deque[list] = deque()  # [ts, tokens] entries
+        self._day_entries: list[list] = []
+        self._day_anchor: datetime = _today_utc_midnight()
+
+    @property
+    def disabled(self) -> bool:
+        return self.tpm == 0 and self.tpd == 0
+
+    def _used_last_minute(self, now: float) -> int:
+        while self._window and self._window[0][0] < now - 60.0:
+            self._window.popleft()
+        return sum(e[1] for e in self._window)
+
+    def _used_today(self) -> int:
+        today = _today_utc_midnight()
+        if today > self._day_anchor:
+            self._day_entries = []
+            self._day_anchor = today
+        return sum(e[1] for e in self._day_entries)
+
+    def _raise(self, message: str) -> None:
+        # Wording matters: resilient._classify_cooldown reads "per-minute"
+        # as a 60s cooldown and "daily" as until-midnight.
+        raise RateLimitError(message=message, model=self.name, llm_provider=self.name)
+
+    async def reserve(self, estimate: int) -> Reservation | None:
+        """Wait until `estimate` tokens fit, then reserve them.
+
+        Raises RateLimitError (so the chain falls over) when the daily budget
+        is gone, or when the wait would exceed max_sleep_s.
+        """
+        if self.disabled:
+            return None
+        async with self._lock:
+            if self.tpd and self._used_today() + estimate > self.tpd:
+                self._raise(
+                    f"{self.name} daily token budget exhausted "
+                    f"({self._used_today()}+{estimate} > {self.tpd})."
+                )
+            if self.tpm:
+                if estimate > self.tpm:
+                    self._raise(
+                        f"{self.name} per-minute token limit {self.tpm} is "
+                        f"smaller than this request (~{estimate} tokens)."
+                    )
+                now = time.monotonic()
+                while self._used_last_minute(now) + estimate > self.tpm:
+                    # Wait for just enough old entries to age out.
+                    need = self._used_last_minute(now) + estimate - self.tpm
+                    freed, wait = 0, 0.0
+                    for ts, toks in self._window:
+                        freed += toks
+                        wait = ts + 60.0 - now + 0.05
+                        if freed >= need:
+                            break
+                    if 0 < self.max_sleep_s < wait:
+                        self._raise(
+                            f"{self.name} per-minute token pacing would block "
+                            f"{wait:.1f}s (> cap {self.max_sleep_s:.1f}s); "
+                            f"falling over to the next model."
+                        )
+                    logger.info(
+                        "[token_budget] %s pacing: sleeping %.2fs for %d tokens",
+                        self.name, wait, estimate,
+                    )
+                    await asyncio.sleep(max(wait, 0.0))
+                    now = time.monotonic()
+            entry = [time.monotonic(), estimate]
+            self._window.append(entry)
+            self._day_entries.append(entry)
+            return Reservation(entry)
+
+    @staticmethod
+    def settle(reservation: Reservation | None, actual: int) -> None:
+        """Replace the estimate with what the provider really counted."""
+        if reservation is not None:
+            reservation.entry[1] = max(int(actual), 0)
+
+
+TOKEN_BUDGETS: dict[str, ModelTokenBudget] = {}
+
+
+def get_token_budget(model_name: str) -> ModelTokenBudget:
+    """Singleton token budget for a full model name (sync: no I/O needed)."""
+    budget = TOKEN_BUDGETS.get(model_name)
+    if budget is None:
+        from price_predictor.config.settings import settings
+        tpm, tpd = settings.model_token_limits(model_name)
+        budget = ModelTokenBudget(
+            model_name, tpm=tpm, tpd=tpd, max_sleep_s=settings.pacing_max_sleep_s,
+        )
+        TOKEN_BUDGETS[model_name] = budget
+    return budget

@@ -11,11 +11,11 @@ We also test cooldown expiry by manipulating the cooldowns dict directly
 """
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 
 import httpx
-import json
 import pytest
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
@@ -74,6 +74,53 @@ def _make_fake(name: str, error: Exception | None = None) -> FakeLlm:
 def _make_request() -> LlmRequest:
     """Minimal LlmRequest. Resilient never inspects it — fakes ignore it too."""
     return LlmRequest()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_rate_registries():
+    """Fresh limiter + token-budget registries per test.
+
+    Both are process-wide singletons. Several tests use real model names
+    (e.g. groq/openai/gpt-oss-120b, 8K tokens/min), so without a reset the
+    budget fills up across tests and the suite starts genuinely sleeping.
+    """
+    from price_predictor.llm.rate_limiter import reset_for_tests
+
+    reset_for_tests()
+    yield
+    reset_for_tests()
+
+
+class TestTokenBudgetFallover:
+    @pytest.mark.asyncio
+    async def test_full_groq_token_budget_falls_over_without_calling_groq(
+        self, monkeypatch,
+    ):
+        """Groq's minute budget is used up -> chain skips Groq for 60s and
+        the next model answers. Groq is never sent a request it would 429."""
+        from price_predictor.llm.rate_limiter import ModelTokenBudget
+
+        full = ModelTokenBudget("groq/openai/gpt-oss-120b", tpm=8_000, max_sleep_s=2.0)
+        await full.reserve(7_500)  # earlier prediction used most of the minute
+        monkeypatch.setattr(
+            "price_predictor.llm.resilient.get_token_budget",
+            lambda name: full if name.startswith("groq/") else ModelTokenBudget(name),
+        )
+
+        groq = _make_fake("groq/openai/gpt-oss-120b")
+        backup = _make_fake("cohere_chat/command-r-08-2024")
+        m = ResilientModel(inner_models=[groq, backup])
+
+        responses = [r async for r in m.generate_content_async(_make_request())]
+
+        assert len(responses) == 1
+        assert groq.call_count == 0, "must not send Groq a request it will refuse"
+        assert backup.call_count == 1
+        expiry = m.cooldowns["groq/openai/gpt-oss-120b"]
+        assert expiry - datetime.now(UTC) <= timedelta(seconds=61), (
+            "token pacing must be a 60s cooldown, not benched until midnight"
+        )
+        assert m.last_used_model == "cohere_chat/command-r-08-2024"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -643,6 +690,67 @@ class TestCooldownStateMachine:
         # Should be a future datetime at midnight UTC
         assert result == _next_midnight_utc()
         assert result.hour == 0 and result.minute == 0 and result.second == 0
+
+    # Real Gemini 429 bodies. EVERY Gemini 429 opens with "You exceeded your
+    # current quota" -- per-minute ones too. Only the quotaId tells them apart.
+    _GEMINI_429 = (
+        '{"error":{"code":429,"message":"You exceeded your current quota, '
+        'please check your plan and billing details.","status":'
+        '"RESOURCE_EXHAUSTED","details":[{"@type":"type.googleapis.com/'
+        'google.rpc.QuotaFailure","violations":[{"quotaId":"{quota_id}"}]}]}}'
+    )
+
+    def test_gemini_per_minute_429_is_short_not_midnight(self):
+        """Regression: this used to bench Gemini until midnight UTC.
+
+        The bare word 'quota' was read as a daily limit, so one burst of
+        per-minute 429s knocked Gemini out of the chain for the whole day.
+        """
+        body = self._GEMINI_429.replace(
+            "{quota_id}", "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+        )
+        result = _classify_cooldown(
+            RateLimitError(body, llm_provider="gemini", model="x"),
+        )
+        assert result == SHORT_COOLDOWN
+
+    def test_gemini_input_token_per_minute_429_is_short(self):
+        body = self._GEMINI_429.replace(
+            "{quota_id}", "GenerateContentInputTokensPerModelPerMinute-FreeTier",
+        )
+        result = _classify_cooldown(
+            RateLimitError(body, llm_provider="gemini", model="x"),
+        )
+        assert result == SHORT_COOLDOWN
+
+    def test_gemini_per_day_429_still_waits_for_midnight(self):
+        body = self._GEMINI_429.replace(
+            "{quota_id}", "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+        )
+        result = _classify_cooldown(
+            RateLimitError(body, llm_provider="gemini", model="x"),
+        )
+        assert result == _next_midnight_utc()
+
+    def test_groq_tpm_and_tpd_are_told_apart(self):
+        tpm = ("Rate limit reached for model `openai/gpt-oss-120b` on tokens "
+               "per minute (TPM): Limit 8000, Used 6500, Requested 3500.")
+        tpd = ("Rate limit reached for model `openai/gpt-oss-120b` on tokens "
+               "per day (TPD): Limit 200000, Used 199000, Requested 3500.")
+        assert _classify_cooldown(
+            RateLimitError(tpm, llm_provider="groq", model="x"),
+        ) == SHORT_COOLDOWN
+        assert _classify_cooldown(
+            RateLimitError(tpd, llm_provider="groq", model="x"),
+        ) == _next_midnight_utc()
+
+    def test_bare_quota_wording_defaults_to_short(self):
+        """Unknown wording: a wrong short guess costs 60s, a wrong daily
+        guess costs the whole day."""
+        result = _classify_cooldown(
+            RateLimitError("quota exceeded", llm_provider="x", model="x"),
+        )
+        assert result == SHORT_COOLDOWN
 
 
 # ──────────────────────────────────────────────────────────────

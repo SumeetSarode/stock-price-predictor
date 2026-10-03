@@ -196,6 +196,30 @@ class Settings(BaseSettings):
     gemini_rpd: int = Field(default=240,  validation_alias="GEMINI_RPD")
     groq_rpm:   int = Field(default=28,   validation_alias="GROQ_RPM")
     groq_rpd:   int = Field(default=14000, validation_alias="GROQ_RPD")
+    # Cohere trial key: 20 req/min per Chat model and 1,000 calls/MONTH
+    # (Cohere's rate-limits doc). RPD 33 ~= 1000/30, so a busy afternoon
+    # can't burn the whole month's allowance in one go.
+    cohere_rpm: int = Field(default=20, validation_alias="COHERE_RPM")
+    cohere_rpd: int = Field(default=33, validation_alias="COHERE_RPD")
+    # OpenRouter ':free' models: 20 req/min, 50 req/day without purchased
+    # credits (their 429 says "Add 10 credits to unlock 1000 free model
+    # requests per day").
+    openrouter_rpm: int = Field(default=20, validation_alias="OPENROUTER_RPM")
+    openrouter_rpd: int = Field(default=50, validation_alias="OPENROUTER_RPD")
+
+    # TOKEN limits per MODEL (tokens/min, tokens/day). Free tiers run out of
+    # tokens long before requests, and Groq meters tokens per model. Values
+    # come from the providers' own 429 bodies, e.g. "Rate limit reached for
+    # model `openai/gpt-oss-120b` ... on tokens per minute (TPM): Limit 8000".
+    # Override with MODEL_TOKEN_LIMITS='{"groq/x": [tpm, tpd]}' if they change.
+    # Unlisted models (gemini: 250K input TPM, not binding) are unmetered.
+    model_token_limits_free: dict[str, tuple[int, int]] = Field(
+        default={
+            "groq/openai/gpt-oss-120b": (8_000, 200_000),
+            "groq/llama-3.3-70b-versatile": (12_000, 100_000),
+        },
+        validation_alias="MODEL_TOKEN_LIMITS",
+    )
 
     # Per-provider overrides used when USE_PAID=true. Defaults are 0/0
     # (unlimited) which is the right behavior for most paid plans.
@@ -248,6 +272,8 @@ class Settings(BaseSettings):
         free_map = {
             "gemini": (self.gemini_rpm,      self.gemini_rpd),
             "groq":   (self.groq_rpm,        self.groq_rpd),
+            "cohere_chat": (self.cohere_rpm, self.cohere_rpd),
+            "openrouter":  (self.openrouter_rpm, self.openrouter_rpd),
         }
         paid_map = {
             "gemini": (self.gemini_rpm_paid, self.gemini_rpd_paid),
@@ -255,6 +281,16 @@ class Settings(BaseSettings):
         }
         source = paid_map if self.use_paid else free_map
         return source.get(provider, (0, 0))
+
+    def model_token_limits(self, model_name: str) -> tuple[int, int]:
+        """Return (tokens/min, tokens/day) for a full model name.
+
+        (0, 0) = unmetered: unknown models, and everything when USE_PAID.
+        """
+        if self.use_paid:
+            return (0, 0)
+        tpm, tpd = self.model_token_limits_free.get(model_name, (0, 0))
+        return (int(tpm), int(tpd))
 
     @field_validator("chain_agentic")
     @classmethod
