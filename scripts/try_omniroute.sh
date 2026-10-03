@@ -39,14 +39,23 @@ set -uo pipefail   # deliberately NOT -e: a failing probe must still
 
 MODE="docker"
 MODEL="auto"
-PORT="20128"
+DASHBOARD_PORT="20128"
+# THE ACTUAL OpenAI-compatible API lives on a SEPARATE port from the
+# dashboard in the Docker deployment -- confirmed by reading their own
+# docker-compose.yml (API_PORT defaults to 20129, DASHBOARD_PORT to
+# 20128). The npm quickstart puts both on 20128 in a single process; the
+# Docker image does not. A bare `docker run -p 20128:20128` (what we did
+# on the first two attempts) never exposed the real API port at all --
+# that's WHY /v1/models never answered, not a timing issue.
+API_PORT="20129"
 CONTAINER_NAME="omniroute-probe"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --npm)   MODE="npm"; shift ;;
-    --model) MODEL="${2:-auto}"; shift 2 ;;
-    --port)  PORT="${2:-20128}"; shift 2 ;;
+    --npm)      MODE="npm"; shift ;;
+    --model)    MODEL="${2:-auto}"; shift 2 ;;
+    --port)     DASHBOARD_PORT="${2:-20128}"; shift 2 ;;
+    --api-port) API_PORT="${2:-20129}"; shift 2 ;;
     -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1 (try --help)"; exit 2 ;;
   esac
@@ -57,7 +66,13 @@ cd "$REPO_ROOT" || exit 1
 mkdir -p reports
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 REPORT="reports/omniroute_probe_${TS}.md"
-BASE="http://localhost:${PORT}/v1"
+# The npm path really does put everything on one port; the Docker path
+# needs the split API_PORT.
+if [[ "$MODE" == "npm" ]]; then
+  BASE="http://localhost:${DASHBOARD_PORT}/v1"
+else
+  BASE="http://localhost:${API_PORT}/v1"
+fi
 
 # Everything written by `say` lands on BOTH your screen and the report,
 # so the file you send back is the whole story, not a summary of it.
@@ -90,6 +105,7 @@ cleanup() {
   say "\n## 99. Cleanup"
   if [[ "$MODE" == "docker" ]]; then
     run_logged "stop container" docker rm -f "$CONTAINER_NAME"
+    run_logged "stop redis sidecar" docker rm -f "${CONTAINER_NAME}-redis"
   else
     if [[ -n "${OMNI_PID:-}" ]]; then
       run_logged "kill omniroute pid ${OMNI_PID}" kill "$OMNI_PID"
@@ -113,10 +129,32 @@ if [[ "$MODE" == "docker" ]]; then
     say "or use: bash scripts/try_omniroute.sh --npm"
     exit 1
   fi
+  # The pre-built image is wired for their docker-compose "web" profile,
+  # which expects a Redis sidecar (REDIS_URL) and enforces Bearer-token
+  # auth on /v1/* by default (confirmed via their AUTHZ_GUIDE.md: the
+  # OMNIROUTE_API_KEY / ROUTER_API_KEY env vars are accepted as a
+  # persistent passthrough key). Without both, the container reports
+  # "healthy" and listens fine, but every /v1 call 401s -- which looks
+  # identical to "never started" from a plain curl -f readiness probe.
+  docker rm -f "${CONTAINER_NAME}-redis" >/dev/null 2>&1
+  run_logged "start redis sidecar" docker run -d --name "${CONTAINER_NAME}-redis" redis:7-alpine
+  TEST_API_KEY="omniroute-probe-$(date +%s)"
+  say "\nUsing generated test API key (not a real credential): ${TEST_API_KEY}"
+
   run_logged "docker pull" docker pull diegosouzapw/omniroute:latest
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
   run_logged "docker run" docker run -d --name "$CONTAINER_NAME" \
-    -p "${PORT}:20128" diegosouzapw/omniroute:latest
+    -p "${DASHBOARD_PORT}:${DASHBOARD_PORT}" \
+    -p "${API_PORT}:${API_PORT}" \
+    --link "${CONTAINER_NAME}-redis:redis" \
+    -e "DASHBOARD_PORT=${DASHBOARD_PORT}" \
+    -e "API_PORT=${API_PORT}" \
+    -e "API_HOST=0.0.0.0" \
+    -e "PORT=${DASHBOARD_PORT}" \
+    -e "REDIS_URL=redis://redis:6379" \
+    -e "OMNIROUTE_API_KEY=${TEST_API_KEY}" \
+    -e "ROUTER_API_KEY=${TEST_API_KEY}" \
+    diegosouzapw/omniroute:latest
 else
   run_logged "npm install -g omniroute" npm install -g omniroute
   say "\nStarting omniroute in the background (log: /tmp/omniroute_${TS}.log)"
@@ -125,16 +163,25 @@ else
   say "pid: ${OMNI_PID}"
 fi
 
-# ── 2. Wait for it to actually answer ────────────────────────
-say "\n## 2. Wait for the gateway to respond"
+# npm's zero-config quickstart genuinely has no auth gate; the Docker image
+# enforces Bearer auth by default (see step 1), so only send the header
+# when we actually generated a key for it.
+if [[ "$MODE" == "docker" ]]; then
+  AUTH_HEADER="Authorization: Bearer ${TEST_API_KEY}"
+else
+  AUTH_HEADER="X-Omniroute-Probe: 1"   # harmless no-op header, npm needs no auth
+fi
+
+# ── 2. Wait for it to actually answer ─────────────
+say "\n## 2. Wait for the gateway to respond (checking ${BASE}/models)"
 READY="no"
-for i in $(seq 1 60); do
-  if curl -fsS --max-time 3 "http://localhost:${PORT}/v1/models" >/dev/null 2>&1; then
+for i in $(seq 1 90); do
+  if curl -fsS --max-time 3 -H "${AUTH_HEADER}" "${BASE}/models" >/dev/null 2>&1; then
     READY="yes"
-    say "\nGateway answered after ~${i}s."
+    say "\nGateway answered after ~$((i * 3))s."
     break
   fi
-  sleep 2
+  sleep 3
 done
 
 if [[ "$READY" != "yes" ]]; then
@@ -147,7 +194,7 @@ fi
 # ── 3-4. What does it expose, and does a basic call work? ────
 say "\n## 3. Models exposed"
 run_logged "GET /v1/models (first 60 ids)" bash -c \
-  "curl -fsS --max-time 15 'http://localhost:${PORT}/v1/models' | python3 -c \"
+  "curl -fsS --max-time 15 -H '${AUTH_HEADER}' '${BASE}/models' | python3 -c \"
 import json,sys
 try:
     d = json.load(sys.stdin)
@@ -161,10 +208,17 @@ for m in items[:60]:
 
 say "\n## 4. Plain smoke-test chat call (model=${MODEL})"
 run_logged "POST /v1/chat/completions" bash -c \
-  "curl -fsS --max-time 120 'http://localhost:${PORT}/v1/chat/completions' \
+  "curl -fsS --max-time 120 '${BASE}/chat/completions' \
     -H 'Content-Type: application/json' \
+    -H '${AUTH_HEADER}' \
     -d '{\"model\":\"${MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: OK\"}]}' \
     | python3 -m json.tool"
+
+say "\n(diagnostics on failure: run_logged shows a non-2xx body verbatim above --\n"\
+"if you see 'noauth'/'exhausted_connection' for opencode/felo, or 'ENOTFOUND'\n"\
+"for openrouter.ai/aihorde.net/api.wulong.dev, that's a DNS/VPN-level block\n"\
+"on OmniRoute's own free-tier backend hosts, not a bug in OmniRoute or in\n"\
+"this script. Retrying off-VPN is the next real step.)"
 
 # ── 5. The real test: our own schema-validity protocol ───────
 # This is the check that matters. A gateway that chats fine but cannot
@@ -172,10 +226,12 @@ run_logged "POST /v1/chat/completions" bash -c \
 # every synthesizer call depends on schema-constrained JSON.
 say "\n## 5. THE REAL TEST -- schema-valid JSON via verify_offvpn.py"
 say "\nRunning the same 4-step protocol that caught Nemotron's prose failure."
-run_logged "verify_offvpn.py --test-model openai/${MODEL} --test-api-base ${BASE}" \
+export OMNIROUTE_PROBE_KEY="${TEST_API_KEY:-unused}"
+run_logged "verify_offvpn.py --test-model openai/${MODEL} --test-api-base ${BASE} --test-key-env OMNIROUTE_PROBE_KEY" \
   uv run python scripts/verify_offvpn.py \
     --test-model "openai/${MODEL}" \
     --test-api-base "${BASE}" \
+    --test-key-env OMNIROUTE_PROBE_KEY \
     --skip-suite
 
 say "\n## 6. Verdict guide (how to read section 3 above)"
