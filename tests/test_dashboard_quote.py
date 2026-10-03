@@ -9,7 +9,7 @@ demand. These tests pin that contract.
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from unittest.mock import patch
 
 import pytest
@@ -24,7 +24,11 @@ from price_predictor.web.services.dashboard_service import (
 )
 from price_predictor.web.services.search_service import Stock
 
-_IST = timezone.utc  # tz value is irrelevant to these tests
+# MUST be the service's own IST, not UTC: _cache_is_fresh() compares
+# fetched_at.date() with the real IST date, and IST is 5h30 ahead of UTC.
+# A UTC stand-in made these tests fail every day from 18:30 to 00:00 UTC,
+# when UTC and IST are on different calendar days.
+_IST = ds._IST
 
 
 @pytest.fixture(autouse=True)
