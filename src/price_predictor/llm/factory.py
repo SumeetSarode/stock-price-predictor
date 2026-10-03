@@ -27,9 +27,11 @@ Adding a new profile:
 from collections.abc import Callable
 
 import openai
+from google.adk.models.base_llm import BaseLlm
 from google.adk.models.lite_llm import LiteLlm
 
 from price_predictor.config.settings import settings
+from price_predictor.llm.agy_cli import AGY_PROVIDER, AgyCliLlm, find_agy_binary
 from price_predictor.llm.resilient import ResilientModel
 
 # ─────────────────────────────────────────────────────────────
@@ -93,7 +95,7 @@ _OLLAMA_CONNECT_TIMEOUT_S = 10
 _NO_INTERNAL_RETRY = 0
 
 
-def make_model(model_name: str) -> LiteLlm:
+def make_model(model_name: str) -> BaseLlm:
     """Build a LiteLLM-wrapped model for ADK use. ONE specific model only.
 
     Use this from tests, scripts, or smoke checks — anywhere you need to
@@ -112,6 +114,19 @@ def make_model(model_name: str) -> LiteLlm:
         ValueError: if the provider prefix is not registered in _API_KEY_GETTERS.
     """
     provider = model_name.split("/", 1)[0]
+
+    # Antigravity CLI: not a LiteLLM provider -- a local subprocess. Google's
+    # documented headless mode; see llm/agy_cli.py for why and how.
+    if provider == AGY_PROVIDER:
+        binary = find_agy_binary(settings.agy_path)
+        if binary is None:
+            raise ValueError(
+                "'agy/...' needs the Antigravity CLI: install it from "
+                "https://antigravity.google/docs/cli/install/ (or set AGY_PATH)."
+            )
+        return AgyCliLlm(
+            model=model_name, binary=binary, timeout_s=settings.agy_timeout_s,
+        )
 
     # Local, keyless providers (Ollama): no API key, but a local api_base
     # pointing at the running Ollama server. This is what lets the resilient

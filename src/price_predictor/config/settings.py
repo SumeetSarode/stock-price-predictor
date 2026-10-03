@@ -207,6 +207,11 @@ class Settings(BaseSettings):
     openrouter_rpm: int = Field(default=20, validation_alias="OPENROUTER_RPM")
     openrouter_rpd: int = Field(default=50, validation_alias="OPENROUTER_RPD")
 
+    # Antigravity CLI (`agy`), used as the 'agy/default' chain model. Both
+    # optional: blank AGY_PATH = look on PATH, then ~/.local/bin/agy.
+    agy_path: str = Field(default="", validation_alias="AGY_PATH")
+    agy_timeout_s: float = Field(default=120.0, validation_alias="AGY_TIMEOUT_S")
+
     # TOKEN limits per MODEL (tokens/min, tokens/day). Free tiers run out of
     # tokens long before requests, and Groq meters tokens per model. Values
     # come from the providers' own 429 bodies, e.g. "Rate limit reached for
@@ -362,6 +367,8 @@ class Settings(BaseSettings):
     def _optional_key_missing(self, model_name: str) -> bool:
         """True if `model_name`'s provider needs a key we don't have."""
         provider = model_name.split("/", 1)[0]
+        if provider == "agy":
+            return self._agy_missing(model_name)
         # Keyed by litellm's PROVIDER PREFIX, which is not always the brand
         # name -- Cohere's chat route is 'cohere_chat' ('cohere' alone is
         # litellm's embeddings provider and would never appear in this chain).
@@ -380,6 +387,24 @@ class Settings(BaseSettings):
                 "it (set {} in .env to enable it).",
                 model_name,
                 env_var,
+            )
+        return missing
+
+    def _agy_missing(self, model_name: str) -> bool:
+        """True if the Antigravity CLI isn't installed (skip it, don't crash).
+
+        Sign-in state can't be known without running it; that failure is
+        handled at call time (AgyUnavailableError -> 1h cooldown).
+        """
+        from price_predictor.llm.agy_cli import find_agy_binary
+
+        missing = find_agy_binary(self.agy_path) is None
+        if missing:
+            logger.warning(
+                "[settings] {!r} in chain but the `agy` binary wasn't found -- "
+                "skipping it. Install: https://antigravity.google/docs/cli/"
+                "install/ then run `agy` once to sign in (or set AGY_PATH).",
+                model_name,
             )
         return missing
 
