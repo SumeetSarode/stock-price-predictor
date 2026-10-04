@@ -37,7 +37,6 @@ from litellm.exceptions import (
 )
 from pydantic import ConfigDict, Field
 
-from price_predictor.llm.agy_cli import AgyUnavailableError
 from price_predictor.llm.rate_limiter import (
     ModelTokenBudget,
     get_limiter,
@@ -104,7 +103,6 @@ TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
 
 MODEL_UNAVAILABLE_ERRORS: tuple[type[Exception], ...] = (
     NotFoundError,             # 404: model not on this account/provider
-    AgyUnavailableError,       # agy not installed / not signed in / quota spent
 )
 
 STRUCTURAL_ERRORS: tuple[type[Exception], ...] = (
