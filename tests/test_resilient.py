@@ -91,6 +91,27 @@ def _isolate_rate_registries():
     reset_for_tests()
 
 
+class TestFailureLogsSayWhy:
+    @pytest.mark.asyncio
+    async def test_transient_failure_log_includes_the_underlying_error(self, caplog):
+        """Regression: this branch logged only the exception TYPE, so a run
+        where every hop died (DNS block, quota, ...) couldn't be diagnosed
+        afterwards -- 'InternalServerError' says nothing about WHY."""
+        import logging
+
+        err = InternalServerError(
+            "Cannot connect to host api.groq.com:443 [nodename nor servname]",
+            llm_provider="groq", model="x",
+        )
+        m = ResilientModel(inner_models=[
+            _make_fake("groq/x", error=err), _make_fake("ollama_chat/y"),
+        ])
+        with caplog.at_level(logging.WARNING, logger="price_predictor.llm.resilient"):
+            _ = [r async for r in m.generate_content_async(_make_request())]
+
+        assert "api.groq.com" in caplog.text, "underlying error must be logged"
+
+
 class TestTokenBudgetFallover:
     @pytest.mark.asyncio
     async def test_full_groq_token_budget_falls_over_without_calling_groq(

@@ -43,7 +43,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
+import logging
 import platform
 import sys
 import time
@@ -186,6 +188,32 @@ def _section(title: str) -> None:
     print(f"\n{'=' * 68}\n{title}\n{'=' * 68}")
 
 
+@contextlib.contextmanager
+def _capture_llm_log():
+    """Collect the chain's own log lines (which hop was tried, WHY it failed).
+
+    Without this the report only keeps the LAST error -- on an exhausted
+    chain that is just 'Ollama isn't running', hiding why every earlier hop
+    failed. Yields a list that fills as the run goes.
+    """
+    lines: list[str] = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            lines.append(f"{record.levelname:7s} {record.getMessage()}"[:500])
+
+    handler = _Collect(level=logging.INFO)
+    target = logging.getLogger("price_predictor.llm")
+    old_level = target.level
+    target.setLevel(logging.INFO)
+    target.addHandler(handler)
+    try:
+        yield lines
+    finally:
+        target.removeHandler(handler)
+        target.setLevel(old_level)
+
+
 # ─────────────────────────────────────────────────────────────
 # Section 1 — connectivity (cheap, tells you WHY later checks fail)
 # ─────────────────────────────────────────────────────────────
@@ -197,6 +225,12 @@ def check_connectivity(rep: Report) -> dict[str, bool]:
         "yahoo": "https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=5d&interval=1d",
         "nse": "https://www.nseindia.com",
         "google_ai": "https://generativelanguage.googleapis.com",
+        # The other LLM hosts in the chain. Without these a report can't say
+        # whether a dead hop was the network (VPN DNS-blocks them) or the
+        # provider -- which is the first thing you need to know.
+        "groq": "https://api.groq.com",
+        "cohere": "https://api.cohere.com",
+        "openrouter": "https://openrouter.ai",
     }
     reachable: dict[str, bool] = {}
 
@@ -613,15 +647,20 @@ def check_real_prediction(rep: Report, only_model: str | None = None) -> None:
         from price_predictor.prediction.predictor import run_news_impact_agent
 
         try:
-            result = asyncio.run(run_news_impact_agent("RELIANCE.NS"))
+            with _capture_llm_log() as hop_log:
+                result = asyncio.run(run_news_impact_agent("RELIANCE.NS"))
         except AllModelsExhaustedError as e:
             # Every model refused. Usually quota, not a code defect -- but it
             # DOES mean no prediction happened, so don't dress it up as a pass.
+            # hop_log says WHY each earlier hop failed; `str(e)` alone only
+            # carries the last one.
             return (
                 "FAIL",
                 f"whole chain exhausted (usually rate-limit/quota, or the local\n"
-                f"Ollama tail isn't running):\n{str(e)[:600]}",
-                {"error": str(e)[:3000]},
+                f"Ollama tail isn't running):\n{str(e)[:600]}\n\n"
+                "WHY EACH HOP FAILED (from the chain's own log):\n"
+                + "\n".join(ln for ln in hop_log if "trying model" not in ln)[:3000],
+                {"error": str(e)[:3000], "hop_log": hop_log},
             )
 
         # WHICH HOP SERVED IT matters as much as the result: the chain is
@@ -662,7 +701,7 @@ def check_real_prediction(rep: Report, only_model: str | None = None) -> None:
             f"confidence={result.confidence}, "
             f"est_move={result.estimated_pct_move}%\n"
             f"SERVED BY: {served or '(unknown)'}",
-            {"assessment": result.model_dump(), "served_by": served},
+            {"assessment": result.model_dump(), "served_by": served, "hop_log": hop_log},
         )
 
     rep.run("4b. real news-impact prediction (hits live news + LLM)", "end-to-end", real_pred)

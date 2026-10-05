@@ -500,8 +500,9 @@ class ResilientModel(BaseLlm):
                     last_error = e
                     self._set_cooldown(model.model, e)
                     logger.warning(
-                        "[resilient] transient failure model=%s err=%s -- falling back",
-                        model.model, type(e).__name__,
+                        "[resilient] transient failure model=%s err=%s -- falling "
+                        "back. underlying error: %s",
+                        model.model, type(e).__name__, str(e)[:300],
                     )
                     continue
                 except ValueError as e:
