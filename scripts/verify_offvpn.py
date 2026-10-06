@@ -192,6 +192,10 @@ def _section(title: str) -> None:
 def _capture_llm_log():
     """Collect the chain's own log lines (which hop was tried, WHY it failed).
 
+    Attached to the whole `price_predictor` logger, not just `.llm`: a hop can
+    answer fine yet return unparseable JSON, and THAT reason (the parse error)
+    is logged by the predictor, not the chain.
+
     Without this the report only keeps the LAST error -- on an exhausted
     chain that is just 'Ollama isn't running', hiding why every earlier hop
     failed. Yields a list that fills as the run goes.
@@ -203,7 +207,7 @@ def _capture_llm_log():
             lines.append(f"{record.levelname:7s} {record.getMessage()}"[:500])
 
     handler = _Collect(level=logging.INFO)
-    target = logging.getLogger("price_predictor.llm")
+    target = logging.getLogger("price_predictor")
     old_level = target.level
     target.setLevel(logging.INFO)
     target.addHandler(handler)

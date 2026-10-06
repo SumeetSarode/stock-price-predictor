@@ -92,6 +92,16 @@ _OLLAMA_TIMEOUT_S = 300
 _OLLAMA_CONNECT_TIMEOUT_S = 10
 _NO_INTERNAL_RETRY = 0
 
+# Providers whose litellm route rejects params ADK always sends. Both agents
+# set output_schema, so ADK adds `response_format` to EVERY request, and
+# litellm's cohere_chat route raises UnsupportedParamsError for it -- which
+# the chain files as 'model can't handle this conversation' (1h cooldown), so
+# Cohere silently never served a single production request. drop_params=True
+# strips the unsupported param instead; the prompts spell out every field and
+# the guardrails + parse-fallover still reject bad output. Scoped to Cohere:
+# for providers that DO support response_format we want it sent.
+_DROP_UNSUPPORTED_PARAMS: frozenset[str] = frozenset({"cohere_chat"})
+
 
 def make_model(model_name: str) -> LiteLlm:
     """Build a LiteLLM-wrapped model for ADK use. ONE specific model only.
@@ -163,6 +173,7 @@ def make_model(model_name: str) -> LiteLlm:
         timeout=openai.Timeout(
             _HOSTED_TIMEOUT_S, connect=_HOSTED_CONNECT_TIMEOUT_S
         ),
+        **({"drop_params": True} if provider in _DROP_UNSUPPORTED_PARAMS else {}),
     )
 
 

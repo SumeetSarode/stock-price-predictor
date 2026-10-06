@@ -202,6 +202,75 @@ class TestCohereProvider:
             make_model("cohere/command-r-08-2024")
 
 
+class TestCohereSurvivesAdkResponseFormat:
+    """Regression: Cohere never served a production request.
+
+    Both agents set output_schema, so ADK adds `response_format` to every
+    request, and litellm's cohere_chat route rejects it with
+    UnsupportedParamsError. The chain filed that as 'model can't handle this
+    conversation' (1h cooldown) so Cohere was silently dead -- while every
+    earlier check passed, because they called litellm directly and skipped
+    ADK's output_schema. These tests go through the REAL ADK path; only the
+    network call is faked (litellm mock mode), so litellm's own parameter
+    validation still runs.
+    """
+
+    @staticmethod
+    def _client_with_mock_reply():
+        from google.adk.models.lite_llm import LiteLLMClient
+
+        class _Mocked(LiteLLMClient):
+            async def acompletion(self, model, messages, tools, **kwargs):
+                return await super().acompletion(
+                    model, messages, tools,
+                    mock_response='{"ticker":"RELIANCE.NS"}', **kwargs,
+                )
+
+        return _Mocked()
+
+    @staticmethod
+    def _request_with_schema():
+        from google.adk.models.llm_request import LlmRequest
+        from google.genai import types
+
+        from price_predictor.agents.news_impact.agent import ImpactAssessment
+
+        return LlmRequest(
+            contents=[types.Content(role="user", parts=[types.Part(text="hi")])],
+            config=types.GenerateContentConfig(response_schema=ImpactAssessment),
+        )
+
+    @pytest.mark.asyncio
+    async def test_control_without_drop_params_fails_as_in_production(self):
+        """Proves this test can see the bug: a bare LiteLlm raises."""
+        from google.adk.models.lite_llm import LiteLlm
+        from litellm.exceptions import UnsupportedParamsError
+
+        bare = LiteLlm(
+            model="cohere_chat/command-r-08-2024", api_key="k",
+            llm_client=self._client_with_mock_reply(),
+        )
+        with pytest.raises(UnsupportedParamsError):
+            _ = [r async for r in bare.generate_content_async(self._request_with_schema())]
+
+    @pytest.mark.asyncio
+    async def test_make_model_cohere_drops_response_format_and_answers(self, monkeypatch):
+        monkeypatch.setitem(factory._API_KEY_GETTERS, "cohere_chat", lambda: "k")
+        m = make_model("cohere_chat/command-r-08-2024")
+        m.llm_client = self._client_with_mock_reply()
+
+        responses = [r async for r in m.generate_content_async(self._request_with_schema())]
+
+        assert responses, "Cohere must answer, not raise UnsupportedParamsError"
+        assert "RELIANCE.NS" in responses[-1].content.parts[0].text
+
+    def test_other_providers_still_get_response_format(self, monkeypatch):
+        """drop_params is scoped to Cohere: providers that support
+        response_format must keep receiving it."""
+        monkeypatch.setitem(factory._API_KEY_GETTERS, "groq", lambda: "k")
+        assert "drop_params" not in make_model("groq/openai/gpt-oss-120b")._additional_args
+
+
 class TestResilientChainWithLocalTail:
     """A chain ending in Ollama builds into a ResilientModel (offline tail)."""
 
