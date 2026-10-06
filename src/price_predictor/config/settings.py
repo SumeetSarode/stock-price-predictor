@@ -216,7 +216,6 @@ class Settings(BaseSettings):
     model_token_limits_free: dict[str, tuple[int, int]] = Field(
         default={
             "groq/openai/gpt-oss-120b": (8_000, 200_000),
-            "groq/llama-3.3-70b-versatile": (12_000, 100_000),
         },
         validation_alias="MODEL_TOKEN_LIMITS",
     )
