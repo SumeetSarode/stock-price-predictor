@@ -51,8 +51,12 @@ MAX_LOG_LINES, MAX_LOG_CHARS = 12, 400
 class Group:
     pace_s: int                 # sleep between runs (anonymous tiers are ~2 req/min/model)
     hosts: tuple[str, ...]
-    models: tuple[str, ...]     # litellm ids (keyed) or bare model ids (anonymous)
+    models: tuple[str, ...]     # litellm ids (keyed) or bare model ids (anonymous / gateway)
     anon_base: str | None = None
+    # An OpenAI-compatible gateway (freellmapi / OmniRoute) running locally: models are
+    # addressed as the gateway names them, authenticated with `api_key` (None = no auth).
+    bearer_base: str | None = None
+    api_key: str | None = None
 
 
 GROUPS: dict[str, Group] = {
@@ -160,6 +164,10 @@ def anon_client(base: str):
 
 
 def build_model(group: Group, model_id: str):
+    if group.bearer_base:
+        from google.adk.models.lite_llm import LiteLlm
+        return LiteLlm(model=f"openai/{model_id}", api_base=group.bearer_base,
+                       api_key=group.api_key or "none", num_retries=0, timeout=120)
     if group.anon_base:
         from google.adk.models.lite_llm import LiteLlm
         return LiteLlm(model=f"openai/{model_id}", client=anon_client(group.anon_base), num_retries=0)
@@ -308,6 +316,24 @@ def plan(selected: list[str], repeats: int) -> tuple[list[str], int]:
     return lines, runs
 
 
+async def prepare():
+    """Import the predictor and gather technicals ONCE (same inputs for every model).
+
+    Returns (predictor_module, technical_view, neutral_impact). Shared by every
+    script that drives the real two-step pipeline.
+    """
+    from loguru import logger
+    logger.remove()  # our own sink captures per-step; keep the console readable
+
+    from price_predictor.prediction import predictor as P
+    from price_predictor.prediction.inputs import compose_technical_view
+
+    print("\nGathering technicals ONCE (same inputs for every model)...", flush=True)
+    tv = await compose_technical_view(P._resolve_ticker(TICKER))
+    neutral = P._degraded_impact(P._resolve_ticker(TICKER), "survey baseline")
+    return P, tv, neutral
+
+
 async def amain(args: argparse.Namespace) -> int:
     selected = [s.strip() for s in args.only.split(",") if s.strip()]
     unknown = sorted(set(selected) - set(GROUPS))
@@ -340,21 +366,13 @@ async def amain(args: argparse.Namespace) -> int:
         print(f"\n{meta['outcome']}\nwrote {w.md}")
         return 2
 
-    from loguru import logger
-    logger.remove()  # our own sink captures per-step; keep the console readable
-
-    from price_predictor.prediction import predictor as P
-    from price_predictor.prediction.inputs import compose_technical_view
-
-    print("\nGathering technicals ONCE (same inputs for every model)...", flush=True)
     try:
-        tv = await compose_technical_view(P._resolve_ticker(TICKER))
+        P, tv, neutral = await prepare()
     except Exception as e:
         meta["outcome"] = f"ABORTED: technicals failed: {type(e).__name__}: {e}"[:500]
         w.write_markdown(meta)
         print(meta["outcome"], f"\nwrote {w.md}")
         return 2
-    neutral = P._degraded_impact(P._resolve_ticker(TICKER), "survey baseline")
 
     t_start = time.time()
     try:
