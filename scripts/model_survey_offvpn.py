@@ -57,6 +57,7 @@ class Group:
     # addressed as the gateway names them, authenticated with `api_key` (None = no auth).
     bearer_base: str | None = None
     api_key: str | None = None
+    timeout_s: int = 120        # per LLM call; a local model on consumer hardware needs far longer
 
 
 GROUPS: dict[str, Group] = {
@@ -167,7 +168,7 @@ def build_model(group: Group, model_id: str):
     if group.bearer_base:
         from google.adk.models.lite_llm import LiteLlm
         return LiteLlm(model=f"openai/{model_id}", api_base=group.bearer_base,
-                       api_key=group.api_key or "none", num_retries=0, timeout=120)
+                       api_key=group.api_key or "none", num_retries=0, timeout=group.timeout_s)
     if group.anon_base:
         from google.adk.models.lite_llm import LiteLlm
         return LiteLlm(model=f"openai/{model_id}", client=anon_client(group.anon_base), num_retries=0)

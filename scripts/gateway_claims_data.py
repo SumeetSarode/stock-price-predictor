@@ -38,6 +38,22 @@ CLAIMS: tuple[Claim, ...] = (
           "issues #516, #933, #983; lib/structured-output.ts"),
     Claim("FL9", "freellmapi", "(our use case) Both pipeline steps, news-impact and synthesizer, pass through it",
           "not a project claim: the test that matters for price_predictor"),
+    Claim("MD1", "models.dev", "Catalog covers ~226 providers and ~8.4k models",
+          "models.dev homepage / api.json"),
+    Claim("MD2", "models.dev", "Each provider's catalog entries are models that provider actually serves (no stale/retired ones)",
+          "implied by listing them as available; earlier we saw a retired Groq model listed active"),
+    Claim("MD3", "models.dev", "structured_output=true means a json_schema request really returns valid JSON",
+          "catalog field `structured_output`; earlier gpt-oss-120b was flagged true but failed live"),
+    Claim("ST1", "Strata", "Runs Qwen3.8-Flash-Next 'on any consumer hardware' (README narrows it: NVIDIA/AMD GPU with 12 GB+ VRAM, 32 GB+ RAM, ~80 GB disk, Windows/Linux)",
+          "repo description vs README 'What you need'; issue #518 (maintainer: Apple Silicon 'isn't planned')"),
+    Claim("ST2", "Strata", "The model downloads it points at are real, open, and about 70-80 GB for one size",
+          "README 'Install'; HuggingFace ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF; model licence"),
+    Claim("ST3", "Strata", "Serves an OpenAI-compatible API on localhost:8080/v1 where 'any API key and any model name work'",
+          "README 'Using it'"),
+    Claim("ST4", "Strata", "json_schema responses are validated server-side (schema prompting + validation, not constrained decoding)",
+          "docs/DETAILS.md 'JSON response formats'; open issues #1328, #1805"),
+    Claim("ST5", "Strata", "(our use case) Both pipeline steps, news-impact and synthesizer, pass through it",
+          "not a project claim: the test that matters for price_predictor"),
     Claim("OR1", "OmniRoute", "Official Docker image starts and reports healthy",
           "README: docker run ... diegosouzapw/omniroute:latest; /api/monitoring/health"),
     Claim("OR2", "OmniRoute", "'Works the second you install it - no keys, no config': model=auto answers",
@@ -56,6 +72,14 @@ NOT_TESTED_REASONS = (
      "(separate credentials, undocumented payload); guessing it would give an unfair result"),
     ("OmniRoute: web-cookie / browser-session providers", "terms-of-service gray area; we only "
      "observe whether the documented zero-config path works, we do not enable cookie providers"),
+    ("Code Puppy: round-robin / retry-backoff / model switching", "it is the DEVELOPMENT tool, built on "
+     "PydanticAI; the product runtime uses Google ADK and must not depend on it, so there is no "
+     "runtime behaviour to run here. Its one reusable piece, models.dev, is covered by MD1-MD3. "
+     "This is a judgement call, not a test result: say so if you want it exercised anyway"),
+    ("Strata: MCP server, multi-GPU, vision, Anthropic/Responses APIs", "irrelevant to a text-only JSON "
+     "pipeline; nothing to evaluate there (YAGNI)"),
+    ("Strata: installing it and downloading the model here", "this machine cannot run it (see ST1); ST3-ST5 "
+     "only run if a Strata server is reachable, e.g. on a qualifying Windows/Linux PC"),
     ("freellmapi: premium live catalog ($19/yr)", "paid"),
     ("Both: reliability over days, desktop/Android apps", "out of scope for a one-shot check"),
 )

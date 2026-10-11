@@ -41,6 +41,7 @@ from datetime import UTC, datetime
 import httpx
 
 import model_survey_offvpn as S  # reuse: Writer/run_once/prepare/host_reachable/render_markdown
+from gateway_claims_catalog import catalog_phase
 from gateway_claims_data import (  # what we test and why: pure data, kept apart from behaviour
     CLAIMS,
     CONFIRMED,
@@ -48,6 +49,7 @@ from gateway_claims_data import (  # what we test and why: pure data, kept apart
     NOT_CONFIRMED,
     NOT_TESTED_REASONS,
 )
+from gateway_claims_strata import strata_checks
 
 REPO, REPORTS = S.REPO, S.REPORTS
 
@@ -323,11 +325,12 @@ def freellmapi_phase(L: Ledger, c: httpx.Client, phase: str, keys: dict[str, str
     return {"base": base, "key": unified, "models": ["auto", *pick_pins(ready_ids)]}
 
 
-def structured_check(L: Ledger, c: httpx.Client, base: str, key: str, phase: str) -> None:
+def structured_check(L: Ledger, c: httpx.Client, base: str, key: str, phase: str,
+                     claim_id: str = "FL8", model: str = "auto") -> None:
     try:
         from price_predictor.agents.news_impact.agent import ImpactAssessment
     except Exception as e:
-        L.add("FL8", phase, INCONCLUSIVE, f"could not import ImpactAssessment: {e}")
+        L.add(claim_id, phase, INCONCLUSIVE, f"could not import ImpactAssessment: {e}")
         return
     rf = {"type": "json_schema", "json_schema": {"name": "ImpactAssessment",
                                                  "schema": ImpactAssessment.model_json_schema()}}
@@ -335,7 +338,7 @@ def structured_check(L: Ledger, c: httpx.Client, base: str, key: str, phase: str
               "Jio adds 8M subscribers, crude oil falls 3%. Answer ONLY with JSON matching the schema.")
     rows = []
     for _ in range(3):
-        r, txt = chat(c, base, key, "auto", prompt, response_format=rf, max_tokens=1500)
+        r, txt = chat(c, base, key, model, prompt, response_format=rf, max_tokens=1500)
         try:
             ImpactAssessment.model_validate_json(txt)
             valid = True
@@ -343,7 +346,7 @@ def structured_check(L: Ledger, c: httpx.Client, base: str, key: str, phase: str
             valid = False
         rows.append((valid, r.headers.get("x-routed-via", "?"), r.evidence(txt)[:150]))
     n = sum(v for v, _, _ in rows)
-    L.add("FL8", phase, CONFIRMED if n == 3 else NOT_CONFIRMED,
+    L.add(claim_id, phase, CONFIRMED if n == 3 else NOT_CONFIRMED,
           f"{n}/3 answers validated against OUR ImpactAssessment schema. " +
           " | ".join(f"valid={v} via={via} {ev}" for v, via, ev in rows))
 
@@ -413,7 +416,8 @@ async def pipeline(W: S.Writer, prepared, name: str, ctx: dict, repeats: int) ->
     if not ctx or not ctx["models"]:
         return
     P, tv, neutral = prepared
-    S.GROUPS[name] = S.Group(5, (), tuple(ctx["models"]), bearer_base=ctx["base"], api_key=ctx["key"])
+    S.GROUPS[name] = S.Group(5, (), tuple(ctx["models"]), bearer_base=ctx["base"], api_key=ctx["key"],
+                             timeout_s=ctx.get("timeout_s", 120))
     for m in ctx["models"]:
         for i in range(1, repeats + 1):
             await S.run_once(P, S.GROUPS[name], m, i, tv, neutral, W)
@@ -470,6 +474,12 @@ def plan(only: list[str], with_keys: bool, repeats: int) -> str:
     if "omniroute" in only:
         for v, imgs in OR_VARIANTS:
             lines.append(f"  omniroute   {v}: {' -> fallback '.join(imgs)} on 127.0.0.1:{OR_PORT}")
+    if "strata" in only:
+        lines.append("  strata      read-only: hardware check, HuggingFace/GitHub metadata, then the live API "
+                     "ONLY if a Strata server answers (--strata-url); nothing installed or downloaded")
+    if "modelsdev" in only:
+        lines.append("  models.dev  catalog vs each provider's own /models list + live structured-output "
+                     "calls, using YOUR keys against YOUR providers (never handed to a third party)")
     lines += [f"  pipeline    {repeats} run(s) per model through each gateway (>=2 LLM calls per run)",
               "  cleanup     containers removed at the end; temp env-files deleted; keys scrubbed from output",
               "  output      reports/gateway_claims_<UTC>.md + .jsonl"]
@@ -496,22 +506,30 @@ async def amain(args: argparse.Namespace) -> int:
         print(f"\n{outcome}\nresults:\n  {L.md}\n  {L.jsonl}")
         return code
 
-    ok, why = docker_ready()
-    if not ok:
-        return finish(f"ABORTED: Docker daemon not reachable ({why}). Start Rancher/Docker Desktop and re-run.", 2)
-    for host in ("query1.finance.yahoo.com", "ghcr.io", "registry-1.docker.io"):
+    gateways = [g for g in only if g in ("freellmapi", "omniroute")]
+    pipeline_needed = bool(gateways) or "strata" in only
+    if gateways:
+        ok, why = docker_ready()
+        if not ok:
+            return finish(f"ABORTED: Docker daemon not reachable ({why}). Start Rancher/Docker Desktop and re-run.", 2)
+    for host, needed in (("query1.finance.yahoo.com", pipeline_needed), ("ghcr.io", gateways),
+                         ("registry-1.docker.io", gateways), ("api.groq.com", "modelsdev" in only)):
+        if not needed:
+            continue
         reach, how = S.host_reachable(host)
         meta[f"preflight {host}"] = "OK" if reach else how
-        if host == "query1.finance.yahoo.com" and not reach:
-            return finish("ABORTED: yahoo not reachable -- the VPN looks ON. Disconnect and re-run.", 2)
+        if host in ("query1.finance.yahoo.com", "api.groq.com") and not reach:
+            return finish(f"ABORTED: {host} not reachable -- the VPN looks ON. Disconnect and re-run.", 2)
 
-    try:
-        prepared = await S.prepare()
-    except Exception as e:
-        prepared = None
-        meta["pipeline"] = f"unavailable: {type(e).__name__}: {e}"[:300]
+    prepared = None
+    if pipeline_needed:
+        try:
+            prepared = await S.prepare()
+        except Exception as e:
+            meta["pipeline"] = f"unavailable: {type(e).__name__}: {e}"[:300]
 
-    keys = read_keys() if args.with_keys else {}
+    all_keys = read_keys()  # for models.dev checks: direct to your own providers
+    keys = all_keys if args.with_keys else {}  # for the gateways: only on explicit consent
     try:
         with httpx.Client(timeout=60) as c:
             if "freellmapi" in only:
@@ -523,6 +541,15 @@ async def amain(args: argparse.Namespace) -> int:
                         await pipeline(W, prepared, group, ctx, args.repeats)
                     pipeline_finding(L, W, "FL9", group, phase)
                     docker("rm", "-f", FL_NAME)
+            if "strata" in only:
+                ctx = strata_checks(L, c, call, chat, args.strata_url, args.strata_key)
+                if ctx:
+                    structured_check(L, c, ctx["base"], ctx["key"], "server", "ST4", ctx["models"][0])
+                    if prepared:
+                        await pipeline(W, prepared, "strata", ctx, args.repeats)
+                    pipeline_finding(L, W, "ST5", "strata", "server")
+            if "modelsdev" in only:
+                catalog_phase(L, c, all_keys, call)
             if "omniroute" in only:
                 for variant, images in OR_VARIANTS:
                     ctx = omniroute_phase(L, c, variant, images)
@@ -543,7 +570,10 @@ async def amain(args: argparse.Namespace) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--only", default="freellmapi,omniroute", help="comma list: freellmapi,omniroute")
+    ap.add_argument("--only", default="freellmapi,omniroute,modelsdev,strata",
+                    help="comma list: freellmapi,omniroute,modelsdev,strata")
+    ap.add_argument("--strata-url", default="http://127.0.0.1:8080", help="a running Strata server (default: this PC)")
+    ap.add_argument("--strata-key", default=None, help="that server's --api-key, if it has one")
     ap.add_argument("--with-keys", action="store_true", help="also give your free-tier keys to the freellmapi container")
     ap.add_argument("--repeats", type=int, default=2, help="pipeline runs per model (default 2)")
     ap.add_argument("--keep", action="store_true", help="leave containers running afterwards")
