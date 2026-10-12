@@ -152,6 +152,29 @@ def test_store_persists_every_result_and_resumes_from_a_file(tmp_path):
     assert s2.needs("never-seen", "chat")
 
 
+def test_a_pipeline_run_with_a_mix_of_failure_classes_is_retried_if_any_is_transient(tmp_path):
+    s = P.Store(tmp_path / "s.jsonl")
+    s.add(P.Result("u", "pipeline", "FAIL", "bad_output,timeout", run=1))
+    s.add(P.Result("v", "pipeline", "FAIL", "bad_output,not_found", run=1))
+    assert s.needs("u", "pipeline", 1), "one transient class among the failures makes the run worth retrying"
+    assert not s.needs("v", "pipeline", 1), "all-permanent failures are final"
+
+
+def test_transient_pending_picks_only_retryable_failures_and_never_budget_skips(tmp_path):
+    s = P.Store(tmp_path / "s.jsonl")
+    mk = lambda n, st="TESTABLE": D.Candidate("direct", "groq", n, st)  # noqa: E731
+    slow, dead, skipped, fine, signup = (mk(n) for n in ("slow", "dead", "skipped", "fine", "x"))
+    s.add(P.Result(slow.uid, "chat", "FAIL", "rate_limited"))
+    s.add(P.Result(dead.uid, "chat", "FAIL", "not_found"))
+    s.add(P.Result(skipped.uid, "chat", "SKIP", "budget"))
+    s.add(P.Result(fine.uid, "chat", "PASS"))
+    s.add(P.Result(fine.uid, "pipeline", "FAIL", "bad_output,overloaded", run=2))
+    gated = mk("gated", "NEEDS_SIGNUP")
+    s.add(P.Result(gated.uid, "chat", "FAIL", "timeout"))
+    got = {c.model for c in P.transient_pending([slow, dead, skipped, fine, signup, gated], s, repeats=2)}
+    assert got == {"slow", "fine"}
+
+
 def test_budget_exhaustion_is_a_retryable_skip_not_a_failure(tmp_path):
     s = P.Store(tmp_path / "s.jsonl")
     s.add(P.Result("u", "chat", "SKIP", "budget"))

@@ -45,6 +45,7 @@ class Net:
     def __init__(self) -> None:
         self.hits: list[tuple[str, str]] = []
         self.groq_models = ["good-model", "bad-model", "whisper-large-v3"]
+        self.flaky: dict[str, int] = {}     # model -> how many chat calls get a 429 before it recovers
 
     def handler(self, req: httpx.Request) -> httpx.Response:
         host, path = req.url.host, req.url.path
@@ -57,8 +58,19 @@ class Net:
             return httpx.Response(200, json={"data": [{"id": m} for m in self.groq_models]})
         if host == "api.groq.com" and path.endswith("/chat/completions"):
             body = json.loads(req.content)
+            if self.flaky.get(body["model"], 0) > 0:
+                self.flaky[body["model"]] -= 1
+                return httpx.Response(429, json={"error": "rate limited"})
             if body["model"] != "good-model":
                 return httpx.Response(404, json={"error": "model not found"})
+            text = '{"answer": "ok"}' if "response_format" in body else "ok"
+            return httpx.Response(200, json={"choices": [{"message": {"content": text}}]})
+        if host == "gpu.local":       # a Strata server on the LAN
+            if path.endswith("/models"):
+                return httpx.Response(200, json={"data": [{"id": "qwen-local"}]})
+            if path.endswith("/status"):
+                return httpx.Response(200, json={"ok": True})
+            body = json.loads(req.content)
             text = '{"answer": "ok"}' if "response_format" in body else "ok"
             return httpx.Response(200, json={"choices": [{"message": {"content": text}}]})
         if host == "127.0.0.1":
@@ -80,6 +92,7 @@ def world(monkeypatch, tmp_path):
     monkeypatch.setattr(FM, "REPO", tmp_path)
     monkeypatch.setattr(FM, "pace_for", lambda provider: 0)
     monkeypatch.setattr(G, "docker", lambda *a, **k: (0, ""))
+    monkeypatch.setattr(FM, "ensure_docker", lambda: False)   # the real one would launch a real app
     monkeypatch.setattr(S, "host_reachable", lambda host: (True, "ok"))
 
     async def prepare():
@@ -100,7 +113,7 @@ def world(monkeypatch, tmp_path):
 def args(**over):
     base = dict(only=["direct", "strata"], with_keys=False, resume=None, budget=0, repeats=2, workers=2,
                 max_pipeline=40, max_minutes=0, strata_url="http://127.0.0.1:8080", strata_key=None,
-                discover_only=False, keep=False, dry_run=False)
+                discover_only=False, keep=False, dry_run=False, retry_passes=0, retry_wait=0, wait_vpn_minutes=0)
     return argparse.Namespace(**{**base, **over})
 
 
@@ -324,3 +337,88 @@ def test_verdict_for_never_calls_an_untestable_candidate_useful(tmp_path):
 ])
 def test_how_to_add_is_honest_about_what_the_app_supports_today(cand, needle):
     assert needle in REP.how_to_add(cand)
+
+
+# ── unattended behaviour: retries, checkpoints, crashes, defaults ────────
+
+def test_a_rate_limit_is_retried_automatically_and_the_model_ends_up_useful(world):
+    net, calls, reports = world
+    net.flaky["good-model"] = 1
+    run(args(retry_passes=2))
+    assert verdicts(reports)[("groq", "good-model")]["verdict"] == "USEFUL"
+    assert calls["run_once"] == 2
+
+
+def test_without_retry_passes_the_same_rate_limit_stays_inconclusive(world):
+    net, calls, reports = world
+    net.flaky["good-model"] = 1
+    run(args(retry_passes=0))
+    v = verdicts(reports)[("groq", "good-model")]
+    assert v["verdict"] == "INCONCLUSIVE" and "rate_limited" in v["reason"]
+    assert calls["run_once"] == 0
+
+
+def test_retry_passes_never_re_call_a_permanent_failure_or_a_budget_skip(world):
+    net, _, _ = world
+    run(args(retry_passes=3, budget=2))
+    assert net.count("api.groq.com", "/chat/completions") == 2, "budget 2 is a hard ceiling even with 3 retry passes"
+
+
+def test_a_permanent_failure_is_called_exactly_once_however_many_retry_passes(world):
+    net, _, _ = world
+    run(args(retry_passes=3))
+    bad = [h for h in net.hits if h == ("api.groq.com", "/openai/v1/chat/completions")]
+    assert len(bad) == 3, "good-model: chat + json (2), bad-model: ONE chat (1), nothing more across 3 retry passes"
+
+
+def test_a_crash_midway_still_leaves_a_current_report_and_says_so(world, monkeypatch):
+    _, _, reports = world
+
+    async def boom(*a, **k):
+        raise RuntimeError("strata exploded")
+    monkeypatch.setattr(FM, "sweep_strata", boom)
+    assert run(args()) == 1
+    md = report_text(reports)
+    assert "CRASHED: RuntimeError: strata exploded" in md and "resumes automatically" in md
+    assert verdicts(reports)[("groq", "good-model")]["verdict"] == "USEFUL", "work done before the crash is kept"
+
+
+def test_the_report_is_checkpointed_after_each_route_not_only_at_the_end(world, monkeypatch):
+    _, _, reports = world
+    seen = []
+
+    async def spy(*a, **k):
+        seen.append(report_text(reports))     # what is on disk when the NEXT route starts
+    monkeypatch.setattr(FM, "sweep_strata", spy)
+    run(args())
+    assert "in progress: direct done" in seen[0], "the direct route's results were already on disk"
+
+
+def test_a_stable_latest_copy_always_matches_the_newest_report(world):
+    _, _, reports = world
+    run(args())
+    assert (reports / FM.LATEST_MD).read_text() == report_text(reports)
+    assert (reports / FM.LATEST_VERDICTS).exists()
+
+
+def test_resume_latest_ignores_the_stable_latest_copy_too(world):
+    _, _, reports = world
+    run(args())
+    assert "latest" not in PR.latest_results(reports).name, "a copy must never be mistaken for the raw probe log"
+
+
+def test_a_strata_server_on_your_lan_is_picked_up_from_dot_env_with_no_flag(world):
+    net, _, reports = world
+    env = reports.parent / ".env"
+    env.write_text(env.read_text() + "STRATA_URL=http://gpu.local:8080\n")
+    run(args(strata_url="http://127.0.0.1:8080"))
+    assert verdicts(reports)[("strata", "qwen-local")]["verdict"] == "USEFUL"
+    assert net.count("gpu.local") > 0
+
+
+def test_the_defaults_mean_zero_manual_steps():
+    a = FM.normalize(FM.build_parser().parse_args([]))
+    assert (a.with_keys, a.resume, a.retry_passes, a.max_minutes, a.wait_vpn_minutes) == (True, "latest", 3, 480, 30)
+    assert a.only == ["direct", "freellmapi", "omniroute", "strata"], "every source, by default"
+    assert FM.normalize(FM.build_parser().parse_args(["--fresh"])).resume is None
+    assert FM.normalize(FM.build_parser().parse_args(["--no-keys"])).with_keys is False

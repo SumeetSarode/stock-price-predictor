@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sweep_data import TRANSIENT, Candidate
+from sweep_data import TESTABLE, TRANSIENT, Candidate
 
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}
 RETRYABLE = TRANSIENT | {"budget", "other"}   # on --resume these are tried again; permanent failures are not
@@ -123,7 +123,19 @@ class Store:
     def needs(self, uid: str, level: str, run: int = 0) -> bool:
         """True if never done, or done but failed in a way worth retrying."""
         r = self.get(uid, level, run)
-        return r is None or (r.verdict != "PASS" and r.klass in RETRYABLE)
+        # a pipeline run stores its failure classes comma-joined ("bad_output,timeout"): any retryable one counts
+        return r is None or (r.verdict != "PASS" and any(k in RETRYABLE for k in r.klass.split(",")))
+
+
+def transient_pending(cands: list[Candidate], store: Store, repeats: int) -> list[Candidate]:
+    """Candidates that failed in a way a short wait may fix. Budget skips are excluded: they only clear tomorrow."""
+    out = []
+    for cand in cands:
+        rows = [store.get(cand.uid, "chat"), store.get(cand.uid, "json"),
+                *(store.get(cand.uid, "pipeline", i) for i in range(1, repeats + 1))]
+        if cand.status == TESTABLE and any(r and r.verdict == "FAIL" and set(r.klass.split(",")) & TRANSIENT for r in rows):
+            out.append(cand)
+    return out
 
 
 def latest_results(reports: Path) -> Path | None:
