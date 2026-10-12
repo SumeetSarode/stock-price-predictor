@@ -111,6 +111,7 @@ async def probe_route(cands: list[D.Candidate], chat, c, store: PR.Store, budget
     for cand in cands:
         if cand.status == D.TESTABLE:
             by_provider[cand.provider].append(cand)
+    by_provider = {p: PR.probe_order(group) for p, group in by_provider.items()}
     gate = asyncio.Semaphore(workers)
 
     async def one(provider: str, group: list[D.Candidate]) -> None:

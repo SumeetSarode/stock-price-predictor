@@ -45,6 +45,7 @@ class Net:
     def __init__(self) -> None:
         self.hits: list[tuple[str, str]] = []
         self.groq_models = ["good-model", "bad-model", "whisper-large-v3"]
+        self.chat_models: list[str] = []    # every model a chat call was made for, in order
         self.flaky: dict[str, int] = {}     # model -> how many chat calls get a 429 before it recovers
 
     def handler(self, req: httpx.Request) -> httpx.Response:
@@ -58,6 +59,7 @@ class Net:
             return httpx.Response(200, json={"data": [{"id": m} for m in self.groq_models]})
         if host == "api.groq.com" and path.endswith("/chat/completions"):
             body = json.loads(req.content)
+            self.chat_models.append(body["model"])
             if self.flaky.get(body["model"], 0) > 0:
                 self.flaky[body["model"]] -= 1
                 return httpx.Response(429, json={"error": "rate limited"})
@@ -422,3 +424,12 @@ def test_the_defaults_mean_zero_manual_steps():
     assert a.only == ["direct", "freellmapi", "omniroute", "strata"], "every source, by default"
     assert FM.normalize(FM.build_parser().parse_args(["--fresh"])).resume is None
     assert FM.normalize(FM.build_parser().parse_args(["--no-keys"])).with_keys is False
+
+
+def test_with_a_budget_for_one_call_the_one_call_goes_to_deepseek_even_when_listed_last(world):
+    net, _, reports = world
+    net.groq_models = ["tiny-1b-chat", "acme-model", "deepseek-v4-flash"]     # the provider lists DeepSeek LAST
+    run(args(budget=1))
+    assert net.chat_models == ["deepseek-v4-flash"], "the single call was spent on the most promising model"
+    v = verdicts(reports)
+    assert "BUDGET" in v[("groq", "tiny-1b-chat")]["reason"], "and the rest are honestly reported as not reached"

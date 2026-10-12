@@ -369,3 +369,37 @@ def test_candidate_row_never_serialises_the_key():
     assert "SECRET-KEY-123" not in json.dumps(row)
     assert D.Candidate("direct", "groq", "m", litellm_id="groq/m").test_id == "groq/m"
     assert D.Candidate("direct", "groq", "m").test_id == "m"
+
+
+# ── probe order: a limited budget goes where a pass is likeliest ─────────
+
+@pytest.mark.parametrize("model, tiny", [
+    ("meta/llama-3.1-8b-instruct", True), ("qwen-1.5b-chat", True), ("phi-4-mini", True), ("gpt-nano", True),
+    ("qwen3-30b-a3b", False),          # 30B MoE: 'a3b' is ACTIVE params, not a 3B model
+    ("gpt-oss-120b", False), ("gemma-3-27b-it", False), ("qwen3-coder-480b-a35b", False),
+    ("deepseek-ai/deepseek-v4-flash", False), ("llama-3.3-70b", False),
+])
+def test_tiny_detects_small_models_without_misreading_moe_active_params(model, tiny):
+    assert bool(P.TINY.search(model)) is tiny
+
+
+def test_deepseek_and_other_strong_families_are_probed_before_unknown_and_tiny_models():
+    names = ["meta/llama-3.2-1b-instruct", "acme-chat-xl", "deepseek-ai/deepseek-v4-flash", "mistral-7b-instruct",
+             "qwen3-30b-a3b", "nvidia/nemotron-ultra-253b"]
+    ordered = [c.model for c in P.probe_order([D.Candidate("direct", "nvidia", n) for n in names])]
+    assert set(ordered[:3]) == {"deepseek-ai/deepseek-v4-flash", "qwen3-30b-a3b", "nvidia/nemotron-ultra-253b"}
+    assert ordered[3] == "acme-chat-xl", "unknown but not tiny comes before tiny"
+    assert set(ordered[4:]) == {"meta/llama-3.2-1b-instruct", "mistral-7b-instruct"}
+
+
+def test_a_catalog_flag_beats_a_name_and_nothing_is_ever_dropped():
+    flagged = D.Candidate("direct", "x", "plain-model", hint_structured=True)
+    famous = D.Candidate("direct", "x", "deepseek-v4")
+    tiny = D.Candidate("direct", "x", "foo-1b")
+    assert P.probe_order([tiny, famous, flagged]) == [flagged, famous, tiny]
+    assert len(P.probe_order([tiny] * 5)) == 5
+
+
+def test_probe_order_is_stable_so_equal_candidates_keep_the_providers_own_order():
+    cands = [D.Candidate("direct", "x", f"model-{i}") for i in range(6)]
+    assert P.probe_order(cands) == cands

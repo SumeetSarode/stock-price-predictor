@@ -187,6 +187,18 @@ def pick_next(queues: dict[str, list], ready_at: dict[str, float], now: float) -
     return p, max(0.0, ready_at.get(p, 0.0) - now)
 
 
+# Families that tend to do well at structured, reasoning-heavy output: probed first when a budget cannot cover all.
+STRONG = re.compile(r"deepseek|qwen3|gpt-oss|gemini|kimi|glm|minimax|nemotron-(super|ultra)|llama-?(3\.3|4)|"
+                    r"mistral-(large|medium)|gemma-?[34]", re.I)
+TINY = re.compile(r"(?<![\w.])(\d|1[0-4])(\.\d)?b\b|\b(mini|nano|tiny)\b", re.I)   # <=14B or "mini": 'a3b' is not 3B
+
+
+def probe_order(cands: list[Candidate]) -> list[Candidate]:
+    """Most promising first, so a limited call budget is spent where a pass is likeliest. Nothing is excluded."""
+    return sorted(cands, key=lambda c: (0 if c.hint_structured else 1, 0 if STRONG.search(c.model) else 1,
+                                        1 if TINY.search(c.model) else 0))
+
+
 def pipeline_order(cands: list[Candidate], store: Store) -> list[Candidate]:
     """Most promising first, so a limited budget is spent where a pass is likeliest. Nothing is excluded."""
     def key(cand: Candidate):
