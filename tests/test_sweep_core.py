@@ -403,3 +403,16 @@ def test_a_catalog_flag_beats_a_name_and_nothing_is_ever_dropped():
 def test_probe_order_is_stable_so_equal_candidates_keep_the_providers_own_order():
     cands = [D.Candidate("direct", "x", f"model-{i}") for i in range(6)]
     assert P.probe_order(cands) == cands
+
+
+def test_a_candidate_survives_a_round_trip_through_its_row_with_the_key_re_supplied_from_env():
+    c = D.Candidate("direct", "groq", "m", base="https://b/v1", key="SECRET", litellm_id="groq/m", anonymous=False,
+                    note="n", hint_structured=True, sources=("models.dev",))
+    row = c.row()
+    assert "SECRET" not in str(row) and "key" not in row
+    back = D.Candidate.from_row(row, {"groq": "FROM-ENV"})
+    assert (back.route, back.provider, back.model, back.base, back.litellm_id, back.hint_structured, back.sources) == \
+        ("direct", "groq", "m", "https://b/v1", "groq/m", True, ("models.dev",))
+    assert back.key == "FROM-ENV", "the key is re-read from .env, never taken from a saved file"
+    assert D.Candidate.from_row(row).key is None
+    assert D.Candidate.from_row(D.Candidate("anon", "ovh", "m", anonymous=True).row()).anonymous is True

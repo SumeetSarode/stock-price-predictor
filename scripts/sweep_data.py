@@ -133,9 +133,18 @@ class Candidate:
         return self.litellm_id or self.model
 
     def row(self) -> dict:
+        """Everything needed to rebuild this candidate EXCEPT the key, which is never serialised."""
         return {"uid": self.uid, "route": self.route, "provider": self.provider, "model": self.model,
                 "status": self.status, "note": self.note, "hint_structured": self.hint_structured,
-                "sources": list(self.sources)}
+                "sources": list(self.sources), "base": self.base, "litellm_id": self.litellm_id,
+                "anonymous": self.anonymous}
+
+    @classmethod
+    def from_row(cls, row: dict, keys: dict[str, str] | None = None) -> Candidate:
+        """Inverse of row(): the key comes from `keys` (read from .env), never from the file."""
+        return cls(row["route"], row["provider"], row["model"], row.get("status", TESTABLE), row.get("base"),
+                   (keys or {}).get(row["provider"]), row.get("litellm_id"), bool(row.get("anonymous")),
+                   row.get("note", ""), row.get("hint_structured"), tuple(row.get("sources", ())))
 
 
 def classify_candidate(provider: str, model: str) -> tuple[str, str]:

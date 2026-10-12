@@ -433,3 +433,17 @@ def test_with_a_budget_for_one_call_the_one_call_goes_to_deepseek_even_when_list
     assert net.chat_models == ["deepseek-v4-flash"], "the single call was spent on the most promising model"
     v = verdicts(reports)
     assert "BUDGET" in v[("groq", "tiny-1b-chat")]["reason"], "and the rest are honestly reported as not reached"
+
+
+def test_history_survives_a_third_run_because_each_resume_carries_it_forward(world):
+    """Run 3 resumes only from run 2's file. If run 2 did not copy run 1's results into it, they are lost and
+    re-tested (wasting free quota). Three chained runs is the case two-run tests cannot see."""
+    net, calls, reports = world
+    run(args())
+    chats, runs = net.count("api.groq.com", "/chat/completions"), calls["run_once"]
+    for _ in range(2):
+        time.sleep(1.1)
+        run(args(resume="latest"))
+    assert net.count("api.groq.com", "/chat/completions") == chats, "nothing re-probed on runs 2 and 3"
+    assert calls["run_once"] == runs, "nothing re-run through the pipeline on runs 2 and 3"
+    assert verdicts(reports)[("groq", "good-model")]["verdict"] == "USEFUL", "run 1's verdict is still known"

@@ -105,6 +105,11 @@ class Store:
                 if line.strip():
                     r = Result(**json.loads(line))
                     self.rows[(r.uid, r.level, r.run)] = r
+        if self.rows:
+            # Carry history forward: a later "--resume latest" reads ONLY the newest file, so this file must hold
+            # everything known so far, or results from two runs ago are forgotten and re-tested (wasting quota).
+            self.path.write_text("".join(json.dumps(asdict(r), ensure_ascii=False) + "\n" for r in self.rows.values()),
+                                 encoding="utf-8")
 
     def add(self, r: Result) -> None:
         with self._lock:
