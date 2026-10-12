@@ -9,11 +9,13 @@ It does everything, in order, with nothing for you to do:
   4. CLAIMS CHECK: tests what freellmapi / OmniRoute / models.dev / Strata say they do
   5. SWEEP: finds every free model in every shared repo and tests which ones run our pipeline,
      retrying temporary failures by itself and resuming from the previous run automatically
-  6. writes reports/OFFVPN_RESULTS.md (start here), refreshed after each phase, and opens it
+  6. SCORECARD: takes the models that work and backtests each one on the same historical cases, graded by the
+     app's own grader, so you can tell which are actually GOOD (not just valid). Results accumulate across runs.
+  7. writes reports/OFFVPN_RESULTS.md (start here), refreshed after each phase, and opens it
 
 Re-running continues where it stopped (call budgets protect your real quota, so a big catalog can take
 more than one day). Optional switches are the sweep's: --dry-run, --discover-only, --fresh, --no-keys,
---only ... plus --skip-claims and --no-open. Nothing here edits the app.
+--only ... plus --skip-claims, --no-scorecard and --no-open. Nothing here edits the app.
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ from datetime import UTC, datetime
 
 import free_model_sweep_offvpn as FM
 import gateway_claims_offvpn as G
+import model_scorecard_offvpn as MS
 import model_survey_offvpn as S
 import sweep_env as SE
 
@@ -39,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap = FM.build_parser()
     ap.description = __doc__
     ap.add_argument("--skip-claims", action="store_true", help="skip the claims check, run only the sweep")
+    ap.add_argument("--no-scorecard", action="store_true", help="skip the accuracy backtest of the working models")
     ap.add_argument("--no-open", action="store_true", help="do not open the report when finished")
     return ap
 
@@ -51,12 +55,29 @@ def claims_args(args: argparse.Namespace, docker_ok: bool) -> argparse.Namespace
                               strata_url=args.strata_url, strata_key=args.strata_key, dry_run=args.dry_run)
 
 
+def scorecard_args(args: argparse.Namespace) -> argparse.Namespace:
+    """The scorecard, configured from the SAME flags (one source of truth)."""
+    sc = MS.build_parser().parse_args([])
+    sc.fresh, sc.dry_run = args.fresh, args.dry_run
+    return MS.normalize(sc)
+
+
+def scorecard_headline() -> str:
+    """The scorecard's own 'Headline' section, so the summary says who beat the baseline without opening anything."""
+    f = FM.REPORTS / MS.LATEST_MD
+    if not f.exists():
+        return ""
+    parts = f.read_text(encoding="utf-8").split("## Headline")
+    return parts[1].split("\n## ")[0].strip() if len(parts) > 1 else ""
+
+
 def newest(reports, pattern: str):
     found = sorted(reports.glob(pattern))
     return found[-1] if found else None
 
 
-def render_index(stamp: str, outcomes: dict[str, str], files: dict[str, str], rows: list[dict]) -> str:
+def render_index(stamp: str, outcomes: dict[str, str], files: dict[str, str], rows: list[dict],
+                 headline: str = "") -> str:
     counts = Counter(r["verdict"] for r in rows)
     useful = [r for r in rows if r["verdict"] == "USEFUL"]
     out = [f"# Off-VPN results ({stamp})", "", "Start here. Every file below is in `reports/`.", "",
@@ -67,6 +88,8 @@ def render_index(stamp: str, outcomes: dict[str, str], files: dict[str, str], ro
                 f"**{len(useful)} model(s) passed both pipeline steps in every run** (compatible with our pipeline, "
                 "not proven accurate):", "", *(f"- {r['provider']} / `{r['model']}` ({r['route']})" for r in useful[:30]),
                 *(["- ..."] if len(useful) > 30 else []), ""]
+    if headline:
+        out += ["## Scorecard headline (which working models are actually accurate)", "", headline, ""]
     out += ["Re-run the same command to continue: results so far are resumed automatically.", ""]
     return "\n".join(out)
 
@@ -78,15 +101,18 @@ def sweep_rows() -> list[dict]:
 
 def write_index(stamp: str, outcomes: dict[str, str], log) -> None:
     files = {"sweep report": str(FM.REPORTS / FM.LATEST_MD), "sweep verdicts (one line per model)":
-             str(FM.REPORTS / FM.LATEST_VERDICTS), "claims report": str(newest(FM.REPORTS, "gateway_claims_*.md") or ""),
-             "full log of this run": str(log)}
-    (FM.REPORTS / INDEX).write_text(render_index(stamp, outcomes, files, sweep_rows()), encoding="utf-8")
+             str(FM.REPORTS / FM.LATEST_VERDICTS), "model scorecard (accuracy backtest)": str(FM.REPORTS / MS.LATEST_MD) if (FM.REPORTS / MS.LATEST_MD).exists() else "",
+             "claims report": str(newest(FM.REPORTS, "gateway_claims_*.md") or ""), "full log of this run": str(log)}
+    (FM.REPORTS / INDEX).write_text(render_index(stamp, outcomes, files, sweep_rows(), scorecard_headline()),
+                                    encoding="utf-8")
 
 
 def dry_run(args: argparse.Namespace) -> int:
     """Print both plans. Starts nothing (no Docker, no sleep-lock), contacts nothing, writes nothing."""
     asyncio.run(G.amain(claims_args(args, docker_ok=True)))
     asyncio.run(FM.amain(args))
+    if not args.no_scorecard:
+        asyncio.run(MS.amain(scorecard_args(args)))
     return 0
 
 
@@ -118,6 +144,10 @@ def run_all(args: argparse.Namespace) -> int:
         codes.append(asyncio.run(FM.amain(args)))
         outcomes["sweep"] = f"finished with exit code {codes[-1]}: see the sweep report"
         write_index(stamp, outcomes, log)
+        if not args.no_scorecard and codes[-1] != 2:      # 2 = the VPN never cleared: there is nothing to score
+            codes.append(asyncio.run(MS.amain(scorecard_args(args))))
+            outcomes["scorecard"] = f"finished with exit code {codes[-1]}: see the model scorecard"
+            write_index(stamp, outcomes, log)
         if not args.no_open:
             SE.open_file(FM.REPORTS / INDEX)
     except KeyboardInterrupt:
