@@ -50,6 +50,7 @@ from gateway_claims_data import (  # what we test and why: pure data, kept apart
     NOT_TESTED_REASONS,
 )
 from gateway_claims_strata import strata_checks
+from sweep_sources import read_env_keys
 
 REPO, REPORTS = S.REPO, S.REPORTS
 
@@ -61,11 +62,9 @@ OR_VARIANTS = (  # the base image has NO Chromium; the -web image bundles it (Om
     ("web", ("diegosouzapw/omniroute:latest-web", "diegosouzapw/omniroute:next-web")),
 )
 KEYLESS = {"kilo", "ovh", "aihorde", "llm7", "pollinations"}
-# platform name in freellmapi -> .env var(s). Cohere is excluded on purpose: its terms
-# forbid personal use. Together/SambaNova: deposit required / free tier retired.
-KEY_ENV = {"google": ("GEMINI_API_KEY", "GOOGLE_API_KEY"), "groq": ("GROQ_API_KEY",),
-           "mistral": ("MISTRAL_API_KEY",), "cerebras": ("CEREBRAS_API_KEY",),
-           "openrouter": ("OPENROUTER_API_KEY",), "nvidia": ("NVIDIA_NIM_API_KEY",)}
+# Providers whose key may go to the freellmapi container (names resolved by sweep_sources.env_names).
+# Cohere is excluded on purpose (its terms forbid personal use); Together/SambaNova need a deposit.
+KEY_PLATFORMS = ("google", "groq", "mistral", "cerebras", "openrouter", "nvidia")
 PREFERRED_PINS = (r"qwen3\.8", r"gemini-2\.5-flash$", r"gemini-3\.5-flash", r"gpt-oss-120b")
 
 
@@ -242,14 +241,10 @@ def container_logs(name: str, tail: int = 80) -> str:
 
 def read_keys() -> dict[str, str]:
     from dotenv import dotenv_values
-    env = dotenv_values(REPO / ".env")
-    out = {}
-    for platform, names in KEY_ENV.items():
-        val = next(((env.get(n) or "").strip() for n in names if (env.get(n) or "").strip()), "")
-        if val:
-            out[platform] = val
-            remember_secret(val)
-    return out
+    keys = read_env_keys(dotenv_values(REPO / ".env"), KEY_PLATFORMS)
+    for val in keys.values():
+        remember_secret(val)
+    return keys
 
 
 def fl_config(email: str, password: str, keys: dict[str, str]) -> str:
@@ -257,9 +252,9 @@ def fl_config(email: str, password: str, keys: dict[str, str]) -> str:
                        "keys": [{"platform": p, "key": k, "label": "claims-check"} for p, k in keys.items()]})
 
 
-def freellmapi_phase(L: Ledger, c: httpx.Client, phase: str, keys: dict[str, str]) -> dict | None:
-    """Returns {'base','key','models'} for the pipeline test, or None if it never came up."""
-    root, base = f"http://127.0.0.1:{FL_PORT}", f"http://127.0.0.1:{FL_PORT}/v1"
+def fl_boot(c: httpx.Client, keys: dict[str, str]) -> tuple[bool, str, str, dict]:
+    """Start the freellmapi container with a declarative admin + `keys`. -> (ok, detail, image, boot info)."""
+    root = f"http://127.0.0.1:{FL_PORT}"
     email, password = "claims@local.test", secrets.token_hex(8) + "Aa1!"
     remember_secret(password)
     env = {"ENCRYPTION_KEY": secrets.token_hex(32), "PORT": str(FL_PORT), "NODE_ENV": "production",
@@ -267,18 +262,31 @@ def freellmapi_phase(L: Ledger, c: httpx.Client, phase: str, keys: dict[str, str
     ok, detail, image = start_container(FL_NAME, (FL_IMAGE,), FL_PORT, FL_PORT, env)
     if ok:
         ok, detail = wait_ready(c, f"{root}/api/ping", FL_NAME)
+    return ok, detail, image, {"root": root, "base": f"{root}/v1", "email": email, "password": password}
+
+
+def fl_login(c: httpx.Client, boot: dict) -> tuple[str | None, Resp, Resp | None]:
+    """Log in as the declared admin and fetch the unified API key. -> (unified key | None, login, key response)."""
+    login = call(c, "POST", f"{boot['root']}/api/auth/login", json={"email": boot["email"], "password": boot["password"]})
+    token = (login.json() or {}).get("token") if login.status == 200 else None
+    remember_secret(token)
+    key_resp = (call(c, "GET", f"{boot['root']}/api/settings/api-key", headers={"Authorization": f"Bearer {token}"})
+                if token else None)
+    unified = (key_resp.json() or {}).get("apiKey") if key_resp and key_resp.status == 200 else None
+    remember_secret(unified)
+    return unified, login, key_resp
+
+
+def freellmapi_phase(L: Ledger, c: httpx.Client, phase: str, keys: dict[str, str]) -> dict | None:
+    """Returns {'base','key','models'} for the pipeline test, or None if it never came up."""
+    ok, detail, image, boot = fl_boot(c, keys)
+    base = boot["base"]
     L.add("FL1", phase, CONFIRMED if ok else (INCONCLUSIVE if "pull failed" in detail else NOT_CONFIRMED),
           f"image={image or FL_IMAGE}; {detail}")
     if not ok:
         return None
 
-    login = call(c, "POST", f"{root}/api/auth/login", json={"email": email, "password": password})
-    token = (login.json() or {}).get("token") if login.status == 200 else None
-    remember_secret(token)
-    key_resp = (call(c, "GET", f"{root}/api/settings/api-key", headers={"Authorization": f"Bearer {token}"})
-                if token else None)
-    unified = ((key_resp.json() or {}).get("apiKey") if key_resp and key_resp.status == 200 else None)
-    remember_secret(unified)
+    unified, login, key_resp = fl_login(c, boot)
     L.add("FL2", phase, CONFIRMED if unified else NOT_CONFIRMED,
           f"login: {login.evidence()[:160]} | api-key: {key_resp.evidence()[:160] if key_resp else 'skipped (no token)'}")
     if not unified:
@@ -469,7 +477,7 @@ def plan(only: list[str], with_keys: bool, repeats: int) -> str:
         lines.append(f"  freellmapi  image {FL_IMAGE} on 127.0.0.1:{FL_PORT}")
         lines.append("    phase keyless: no keys given to it (tests FL1-FL6, FL8, FL9)")
         lines.append("    phase keyed  : " + ("your free-tier keys -> the container: "
-                     f"{', '.join(KEY_ENV)} (those present in .env)" if with_keys
+                     f"{', '.join(KEY_PLATFORMS)} (those present in .env)" if with_keys
                      else "SKIPPED (add --with-keys to also test failover with your keys)"))
     if "omniroute" in only:
         for v, imgs in OR_VARIANTS:
