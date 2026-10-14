@@ -95,16 +95,32 @@ def probe_json(chat, c, cand: Candidate) -> Result:
     return Result(cand.uid, "json", "FAIL", klass, r.evidence(content)[:300], secs)
 
 
+def read_jsonl(path: Path):
+    """Yield each readable JSON object in a JSONL file, skipping damaged lines.
+
+    A hard stop (closed terminal, laptop sleep, kill) can leave the NEWEST line cut off, even mid-character.
+    Losing that one unfinished row is fine; letting it crash the resume would throw away every other result.
+    """
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            yield row
+
+
 class Store:
     """Append-only JSONL of probe results. Loading earlier files makes the sweep resumable."""
 
     def __init__(self, path: Path, resume_from: tuple[Path, ...] = ()) -> None:
         self.path, self.rows, self._lock = path, {}, threading.Lock()
         for p in resume_from:
-            for line in p.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    r = Result(**json.loads(line))
-                    self.rows[(r.uid, r.level, r.run)] = r
+            for row in read_jsonl(p):
+                r = Result(**row)
+                self.rows[(r.uid, r.level, r.run)] = r
         if self.rows:
             # Carry history forward: a later "--resume latest" reads ONLY the newest file, so this file must hold
             # everything known so far, or results from two runs ago are forgotten and re-tested (wasting quota).

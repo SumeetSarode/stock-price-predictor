@@ -18,7 +18,7 @@ from pathlib import Path
 
 import scorecard_stats as ST
 from sweep_data import Candidate
-from sweep_probe import RETRYABLE, Budget
+from sweep_probe import RETRYABLE, Budget, read_jsonl
 
 CASE_RETRYABLE = RETRYABLE | {"inputs"}
 
@@ -80,10 +80,7 @@ class CaseStore:
     def __init__(self, path: Path, resume_from: tuple[Path, ...] = ()) -> None:
         self.path, self.rows, self.cases, self._lock = path, {}, None, threading.Lock()
         for p in resume_from:
-            for line in p.read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                d = json.loads(line)
+            for d in read_jsonl(p):
                 if d.get("type") == "cases":
                     self.cases = [Case.parse(k) for k in d["cases"]]
                 else:
