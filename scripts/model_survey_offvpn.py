@@ -31,6 +31,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import socket
 import statistics
 import subprocess
@@ -91,23 +92,27 @@ class Rec:
     ts: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
 
+# Ordered: the first rule that matches wins. Two traps this order avoids:
+#  - a rate-limit reply often carries an "upgrade at .../billing" link (Groq does), so the weak payment words
+#    ("billing", a bare 402) only count AFTER the rate-limit check, while unmistakable payment phrases come first;
+#  - status codes match as whole numbers (\b), so "Used 199403 tokens" is not mistaken for HTTP 403.
+CLASS_RULES = (
+    ("payment", r"payment required|insufficient[_ ](quota|credit|balance|funds)"),
+    ("rate_limited", r"rate[ _-]?limit|\b429\b|too many requests|resource_exhausted|quota|tokens per (minute|day)"),
+    ("payment", r"\b402\b|billing"),
+    ("auth", r"\b40[13]\b|forbidden|authentication|unauthorized|invalid api key"),
+    ("overloaded", r"\b50[234]\b|unavailable|high demand|overloaded"),
+    ("timeout", r"timeout|timed out"),
+    ("bad_output", r"validation error|json_invalid|literal_error|field required|does not match the expected schema|"
+                   r"unparseable|invalid json"),
+    ("unsupported_params", r"unsupportedparams|does not support parameters"),
+)
+
+
 def classify(text: str) -> str:
     """Coarse failure class so the summary says WHY, not just 'failed'."""
     t = text.lower()
-    rules = (
-        ("payment", ("402", "payment required", "billing")),
-        ("auth", ("401", "403", "forbidden", "authentication", "unauthorized", "invalid api key")),
-        ("rate_limited", ("429", "rate limit", "quota", "resource_exhausted", "too many requests")),
-        ("overloaded", ("503", "unavailable", "high demand", "overloaded", "502", "504")),
-        ("timeout", ("timeout", "timed out")),
-        ("bad_output", ("validation error", "json_invalid", "literal_error", "field required",
-                        "does not match the expected schema", "unparseable", "invalid json")),
-        ("unsupported_params", ("unsupportedparams", "does not support parameters")),
-    )
-    for name, needles in rules:
-        if any(n in t for n in needles):
-            return name
-    return "other"
+    return next((name for name, pattern in CLASS_RULES if re.search(pattern, t)), "other")
 
 
 # --- plumbing ---------------------------------------------------------------

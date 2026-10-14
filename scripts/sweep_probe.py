@@ -144,8 +144,18 @@ class Store:
     def needs(self, uid: str, level: str, run: int = 0) -> bool:
         """True if never done, or done but failed in a way worth retrying."""
         r = self.get(uid, level, run)
+        if r is None:
+            return True
+        if r.verdict == "PASS":
+            return False
         # a pipeline run stores its failure classes comma-joined ("bad_output,timeout"): any retryable one counts
-        return r is None or (r.verdict != "PASS" and any(k in RETRYABLE for k in r.klass.split(",")))
+        klasses = set(r.klass.split(","))
+        if klasses & RETRYABLE:
+            return True
+        # The cheap probes already passed before a model reaches the pipeline, so "payment" or "auth" there is not a
+        # property of the model: it is a one-off or a mislabel (e.g. a rate-limit reply carrying a billing link).
+        # Retry it instead of branding a working model NOT_USEFUL forever.
+        return level == "pipeline" and bool(klasses & {"payment", "auth"})
 
 
 def transient_pending(cands: list[Candidate], store: Store, repeats: int) -> list[Candidate]:
