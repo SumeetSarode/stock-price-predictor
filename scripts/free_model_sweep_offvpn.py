@@ -347,7 +347,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--repeats", type=int, default=2, help="pipeline runs per model (default 2)")
     ap.add_argument("--workers", type=int, default=6, help="providers probed in parallel (default 6)")
     ap.add_argument("--max-pipeline", type=int, default=40, help="max models put through the pipeline per route (0 = no cap)")
-    ap.add_argument("--max-minutes", type=int, default=480, help="stop starting new pipeline runs after this long (0 = no limit)")
+    ap.add_argument("--max-minutes", type=int, default=0,
+                    help="stop starting new pipeline runs after this many minutes (default 0 = no limit)")
     ap.add_argument("--strata-url", default="http://127.0.0.1:8080")
     ap.add_argument("--strata-key", default=None)
     ap.add_argument("--discover-only", action="store_true", help="list every candidate; make no LLM calls")

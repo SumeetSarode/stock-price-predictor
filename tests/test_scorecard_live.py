@@ -288,3 +288,8 @@ def test_the_real_replay_context_and_agents_are_the_kind_the_adapter_assumes():
     from price_predictor.prediction import predictor as P
     assert hasattr(P._news_impact_agent, "model") and hasattr(P._synthesizer_agent, "model"), "agents carry a swappable .model"
     assert callable(P.replay_context(date(2026, 7, 20)).__enter__), "replay_context(as_of) is a context manager"
+
+
+def test_the_scorecard_has_no_time_limit_unless_you_ask_for_one():
+    assert MS.build_parser().parse_args([]).max_minutes == 0
+    assert MS.build_parser().parse_args(["--max-minutes", "90"]).max_minutes == 90, "a limit is still available"

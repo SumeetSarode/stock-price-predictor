@@ -185,7 +185,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--from-sweep", default="free_model_sweep_latest_verdicts.jsonl")
     ap.add_argument("--resume", default="latest")
     ap.add_argument("--fresh", action="store_true", help="ignore earlier results and start over")
-    ap.add_argument("--max-minutes", type=int, default=240)
+    ap.add_argument("--max-minutes", type=int, default=0,
+                    help="stop starting new cases after this many minutes (default 0 = no limit)")
     ap.add_argument("--dry-run", action="store_true")
     return ap
 

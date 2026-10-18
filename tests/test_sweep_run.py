@@ -420,7 +420,7 @@ def test_a_strata_server_on_your_lan_is_picked_up_from_dot_env_with_no_flag(worl
 
 def test_the_defaults_mean_zero_manual_steps():
     a = FM.normalize(FM.build_parser().parse_args([]))
-    assert (a.with_keys, a.resume, a.retry_passes, a.max_minutes, a.wait_vpn_minutes) == (True, "latest", 3, 480, 30)
+    assert (a.with_keys, a.resume, a.retry_passes, a.max_minutes, a.wait_vpn_minutes) == (True, "latest", 3, 0, 30)
     assert a.only == ["direct", "freellmapi", "omniroute", "strata"], "every source, by default"
     assert FM.normalize(FM.build_parser().parse_args(["--fresh"])).resume is None
     assert FM.normalize(FM.build_parser().parse_args(["--no-keys"])).with_keys is False
