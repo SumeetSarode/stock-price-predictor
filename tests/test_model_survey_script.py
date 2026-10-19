@@ -6,7 +6,6 @@ failed'), which would make a working anonymous tier look dead.
 """
 from __future__ import annotations
 
-import importlib.util
 import json
 import sys
 import threading
@@ -18,11 +17,10 @@ from types import SimpleNamespace
 import pytest
 from loguru import logger
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "model_survey_offvpn.py"
-_spec = importlib.util.spec_from_file_location("model_survey_offvpn", _SCRIPT)
-S = importlib.util.module_from_spec(_spec)
-sys.modules["model_survey_offvpn"] = S
-_spec.loader.exec_module(S)
+# A plain import, NOT a private copy loaded from the file: a second copy in sys.modules meant other test files patched
+# one module object while the code under test called another, so their "fake" network checks silently went live.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import model_survey_offvpn as S
 
 
 @pytest.fixture

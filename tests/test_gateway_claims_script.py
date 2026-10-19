@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import importlib.util
 import json
 import os
 import sys
@@ -24,12 +23,8 @@ import pytest
 
 _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
+import gateway_claims_offvpn as G  # noqa: E402     (one shared module object; see test_model_survey_script.py)
 import model_survey_offvpn as S  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("gateway_claims_offvpn", _SCRIPTS / "gateway_claims_offvpn.py")
-G = importlib.util.module_from_spec(_spec)
-sys.modules["gateway_claims_offvpn"] = G
-_spec.loader.exec_module(G)
 
 UNIFIED, TOKEN = "freellmapi-TESTKEY12345", "tok-SECRETTOKEN-123"
 
