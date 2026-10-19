@@ -206,7 +206,7 @@ def test_probe_provider_stops_at_the_budget_and_says_so(tmp_path):
     P.probe_provider(cands, lambda *a, **k: (resp(), ""), None, s, P.Budget({"groq": 2}, 99), 0, lambda x: None, lambda *a: None)
     skipped = [r for r in s.rows.values() if r.verdict == "SKIP"]
     assert skipped and all(r.klass == "budget" for r in skipped)
-    assert sum(1 for r in s.rows.values() if r.verdict != "SKIP") == 2, "exactly the budget was spent"
+    assert sum(1 for r in s.rows.values() if r.verdict != "SKIP") == 1, "budget 2: half is held back for the pipeline"
 
 
 def test_probe_provider_does_not_repeat_finished_probes_on_resume(tmp_path):

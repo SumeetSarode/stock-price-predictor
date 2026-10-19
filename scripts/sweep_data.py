@@ -94,9 +94,11 @@ LEDGER_ALIASES = {"ovhcloud": "ovh", "zhipuai": "zhipu"}
 
 # freellmapi platforms whose keys may be handed to its container when you opt in (--with-keys).
 # Cohere is absent on purpose (terms), and so are the retired/locked ones (sambanova, opencode, reka).
+# GitHub Models is absent on purpose: it was retired upstream on 30 July 2026, and the gateway now rejects the name
+# and aborts the WHOLE container over it (see free_model_sweep_offvpn.boot_freellmapi for the general safeguard).
 FREELLMAPI_PLATFORMS = (
     "google", "groq", "cerebras", "electronhub", "experiential", "bai", "anyapi", "radeon", "nvidia", "mistral",
-    "openrouter", "github", "cloudflare", "zhipu", "ollama", "pollinations", "llm7", "huggingface", "agnes",
+    "openrouter", "cloudflare", "zhipu", "ollama", "pollinations", "llm7", "huggingface", "agnes",
     "siliconflow", "routeway", "bazaarlink", "ainative", "aion", "requesty", "navy", "nara", "sealion",
     "orcarouter", "unorouter", "xkiro", "longcat", "aihorde")
 

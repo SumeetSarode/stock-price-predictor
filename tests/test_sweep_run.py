@@ -189,7 +189,7 @@ def test_discover_only_lists_everything_and_makes_no_llm_call(world):
 def test_the_call_budget_caps_spend_and_says_what_was_left(world):
     net, _, reports = world
     run(args(budget=2))
-    assert net.count("api.groq.com", "/chat/completions") == 2, "exactly the budget, never more"
+    assert net.count("api.groq.com", "/chat/completions") == 1, "cheap probes stop at half the budget, never more"
     v = verdicts(reports)
     assert v[("groq", "bad-model")]["verdict"] == "UNTESTED" and "BUDGET" in v[("groq", "bad-model")]["reason"]
 
@@ -363,7 +363,7 @@ def test_without_retry_passes_the_same_rate_limit_stays_inconclusive(world):
 def test_retry_passes_never_re_call_a_permanent_failure_or_a_budget_skip(world):
     net, _, _ = world
     run(args(retry_passes=3, budget=2))
-    assert net.count("api.groq.com", "/chat/completions") == 2, "budget 2 is a hard ceiling even with 3 retry passes"
+    assert net.count("api.groq.com", "/chat/completions") == 1, "the cheap half of budget 2, even with 3 retry passes"
 
 
 def test_a_permanent_failure_is_called_exactly_once_however_many_retry_passes(world):

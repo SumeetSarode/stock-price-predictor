@@ -177,15 +177,22 @@ def latest_results(reports: Path) -> Path | None:
 class Budget:
     """Upstream-call allowance per provider: the sweep must not eat the quota your real app needs."""
 
+    PIPELINE_SHARE = 0.5     # of each allowance, held back so cheap probes cannot starve the full pipeline test
+
     def __init__(self, limits: dict[str, int], default: int) -> None:
         self.limits, self.default, self.used, self._lock = limits, default, Counter(), threading.Lock()
 
     def left(self, provider: str) -> int:
         return self.limits.get(provider, self.default) - self.used[provider]
 
-    def take(self, provider: str, n: int = 1) -> bool:
+    def reserve(self, provider: str) -> int:
+        """Calls the cheap chat/json probes must leave untouched for the full pipeline test."""
+        return int(self.limits.get(provider, self.default) * self.PIPELINE_SHARE)
+
+    def take(self, provider: str, n: int = 1, keep: int = 0) -> bool:
+        """Spend n calls, unless that would leave fewer than `keep`."""
         with self._lock:
-            if self.left(provider) < n:
+            if self.left(provider) - n < keep:
                 return False
             self.used[provider] += n
             return True
@@ -200,8 +207,8 @@ def probe_provider(cands: list[Candidate], chat, c, store: Store, budget: Budget
                 break
             if not store.needs(cand.uid, level):
                 continue
-            if not budget.take(cand.budget_key):
-                store.add(Result(cand.uid, level, "SKIP", "budget", f"{cand.budget_key} call budget used up"))
+            if not budget.take(cand.budget_key, keep=budget.reserve(cand.budget_key)):
+                store.add(Result(cand.uid, level, "SKIP", "budget", f"{cand.budget_key} cheap-probe budget used up"))
                 break
             res = fn(chat, c, cand)
             store.add(res)

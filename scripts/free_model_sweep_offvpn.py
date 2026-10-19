@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -100,8 +101,11 @@ def pipeline_result(recs: list, cand: D.Candidate, run: int) -> PR.Result:
     steps = {r.step: r for r in recs}
     ok = all(s in steps and steps[s].status == "PASS" for s in ("news_impact", "synthesizer"))
     klasses = sorted({r.klass for r in recs if r.status == "FAIL" and r.klass} | ({"other"} if not ok and not recs else set()))
-    detail = " | ".join(f"{r.step}: {r.status} {r.klass or r.detail[:70]}" for r in recs)
-    return PR.Result(cand.uid, "pipeline", "PASS" if ok else "FAIL", ",".join(klasses), detail[:400],
+    # A failed step keeps the provider's own words (scrubbed): the class alone cannot tell "daily quota used up" from
+    # "this request is bigger than the model's per-minute limit", and the fix for those is completely different.
+    detail = " | ".join(f"{r.step}: {r.status} " + (f"{r.klass} ({G.clean(r.detail)[:150]})" if r.status == "FAIL" and r.klass
+                                                     else r.klass or r.detail[:70]) for r in recs)
+    return PR.Result(cand.uid, "pipeline", "PASS" if ok else "FAIL", ",".join(klasses), detail[:600],
                      round(sum(r.seconds for r in recs), 1), run)
 
 
@@ -292,12 +296,35 @@ async def amain(args: argparse.Namespace) -> int:
     return finish("completed", 0)
 
 
+UNKNOWN_PLATFORM = re.compile(r"unknown provider platform: ([\w.-]+)")
+
+
+def boot_freellmapi(c, keys: dict[str, str], boot=None) -> tuple[bool, str, str, dict, dict[str, str], list[str]]:
+    """Start the gateway; if it refuses a platform name it does not know, drop THAT key and try again.
+
+    The gateway validates every key's platform at startup and one unknown name aborts the whole container, taking
+    every other platform down with it (GitHub Models was retired upstream and crashed a whole run this way). Our
+    list of names can always go stale, so tolerate it: -> (ok, detail, image, boot_info, keys_used, dropped).
+    """
+    boot = boot or G.fl_boot
+    keys, dropped = dict(keys), []
+    while True:
+        ok, detail, image, info = boot(c, keys)
+        bad = None if ok else UNKNOWN_PLATFORM.search(detail)
+        if not bad or bad.group(1) not in keys:
+            return ok, detail, image, info, keys, dropped
+        dropped.append(bad.group(1))
+        del keys[bad.group(1)]
+
+
 async def sweep_freellmapi(c, env, tested: set[str], args, meta: dict, run_route) -> None:
     extra = SRC.read_env_keys(env, [p for p in D.FREELLMAPI_PLATFORMS if p not in tested]) if args.with_keys else {}
     for v in extra.values():
         G.remember_secret(v)
-    ok, detail, image, boot = G.fl_boot(c, extra)
-    meta["freellmapi"] = f"{image or G.FL_IMAGE}: {detail}; keys handed over for: {sorted(extra) or 'none'}"
+    ok, detail, image, boot, extra, dropped = boot_freellmapi(c, extra)
+    meta["freellmapi"] = (f"{image or G.FL_IMAGE}: {detail}; keys handed over for: {sorted(extra) or 'none'}"
+                          + (f"; NOT handed over, the gateway does not support these platforms: {sorted(dropped)}"
+                             if dropped else ""))
     unified = G.fl_login(c, boot)[0] if ok else None
     if not unified:
         return
