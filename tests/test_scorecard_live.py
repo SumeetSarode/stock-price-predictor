@@ -387,3 +387,41 @@ def test_an_unknown_horizon_is_an_error_the_caller_can_report_not_a_silent_miss(
     price_source(monkeypatch, date(2026, 7, 15))
     with pytest.raises(ValueError):
         MS.live_moves(["T.NS"], [date(2026, 7, 1)], "daily,fortnightly")
+
+
+# ── the lookup through the app's REAL price code; only yfinance's raw download is faked, at its true wire shape ──
+
+@pytest.fixture
+def real_chain(monkeypatch):
+    from price_predictor.config.settings import Settings
+    from price_predictor.data import prices
+    monkeypatch.setenv("PRICE_CHAIN", "yfinance")
+    monkeypatch.delenv("USE_PAID_PRICES", raising=False)
+    monkeypatch.setattr(prices, "settings", Settings(_env_file=None))
+    prices.reset_default_fetcher()
+    yield
+    prices.reset_default_fetcher()
+
+
+def raw_yfinance(ticker, jump_day: date):
+    """What yf.download returns: tz-naive daily index, MultiIndex columns (field, ticker), a NaN still-open last bar."""
+    import pandas as pd
+    idx = pd.bdate_range("2026-06-01", "2026-08-31")
+    close = [100.0 if ts.date() < jump_day else 110.0 for ts in idx]
+    close[-1] = float("nan")
+    fields = {"Open": close, "High": close, "Low": close, "Close": close, "Adj Close": close, "Volume": [1_000_000] * len(idx)}
+    return pd.DataFrame({(f, ticker): v for f, v in fields.items()}, index=idx,
+                        columns=pd.MultiIndex.from_product([list(fields), [ticker]]))
+
+
+def test_the_lookup_works_through_the_apps_real_price_code(real_chain):
+    from unittest.mock import patch
+    jump = date(2026, 7, 15)
+    days = [date(2026, 7, 1) + timedelta(days=i) for i in range(30) if (date(2026, 7, 1) + timedelta(days=i)).weekday() < 5]
+    with patch("price_predictor.data.providers.yfinance_provider.yf.download") as dl:
+        dl.return_value = raw_yfinance("RELIANCE.NS", jump)
+        out = MS.live_moves(["RELIANCE.NS"], days, "daily,weekly")
+    assert out[("RELIANCE.NS", date(2026, 7, 14))] > 1, "the day before a +10% jump is a real move"
+    assert out[("RELIANCE.NS", date(2026, 7, 10))] > 1, "and so is five trading days before"
+    assert out[("RELIANCE.NS", date(2026, 7, 1))] == 0, "far from the jump it is calm"
+    assert len(out) == len(days), "every requested day with a resolved horizon got a strength"
