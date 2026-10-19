@@ -139,19 +139,19 @@ def test_inputs_that_cannot_be_gathered_blame_nobody_and_cost_no_budget(tmp_path
     go([cand("a")], cases3(), store, w, budget)
     assert store.get("*", cases3()[1].key).klass == "inputs"
     assert store.get(cand("a").uid, cases3()[1].key) is None, "the model is not marked as failing"
-    assert budget.used["groq"] == 12, "two cases ran (2 x 6 calls); the failed gather spent nothing"
+    assert budget.used[cand("a").uid] == 12, "two cases ran (2 x 6 calls); the failed gather spent nothing"
     assert store.needs(cand("a").uid, cases3()[1].key), "and it is retried next run"
 
 def test_the_call_budget_is_a_hard_ceiling_and_the_rest_are_marked_not_reached(tmp_path):
     w, store = World(), SC.CaseStore(tmp_path / "s.jsonl")
-    go([cand("a")], cases3(), store, w, PR.Budget({"groq": 12}, 0), calls=6)
+    go([cand("a")], cases3(), store, w, PR.Budget({cand("a").uid: 12}, 0), calls=6)
     assert len(w.predict_calls) == 2
     r = store.get(cand("a").uid, cases3()[2].key)
     assert r.status == "SKIP" and r.klass == "budget" and store.needs(cand("a").uid, cases3()[2].key)
 
 def test_the_gather_is_skipped_entirely_when_nobody_has_budget_left(tmp_path):
     w, store = World(), SC.CaseStore(tmp_path / "s.jsonl")
-    go([cand("a")], cases3(), store, w, PR.Budget({"groq": 0}, 0))
+    go([cand("a")], cases3(), store, w, PR.Budget({cand("a").uid: 0}, 0))
     assert w.shared_calls == [] and w.predict_calls == []
 
 def test_a_provider_is_paced_but_interleaving_hides_the_wait(tmp_path):
@@ -204,14 +204,15 @@ def test_neutral_calls_are_graded_by_the_apps_tolerance_so_a_trending_market_pun
     assert s.n_judged == 12 and s.accuracy == 0.0 and s.neutral_share == 1.0
     assert s.verdict == ST.WORSE, "prices trended well past the tolerance, so every neutral call was wrong"
 
-def test_in_a_calm_market_hiding_behind_neutral_is_perfect_yet_cannot_beat_the_baseline(tmp_path):
+def test_in_a_calm_market_hiding_behind_neutral_is_perfect_on_calm_days_but_earns_no_verdict(tmp_path):
     flat = lambda ticker, start, end: bars(0)  # noqa: E731
     cases = [SC.Case("UP.NS", date(2026, 7, 1) + timedelta(days=i)) for i in range(12)]
     w, store = World(direction=NEUTRAL), SC.CaseStore(tmp_path / "s.jsonl")
     go([cand("shy")], cases, store, w)
-    (s,), baseline, _ = SC.aggregate([cand("shy")], store, lambda p: grade_many(p, fetch_ohlcv=flat, today=date(2026, 9, 30)))
-    assert s.accuracy == 1.0 and baseline == 1.0, "always-neutral was a free 100% here"
-    assert s.verdict == ST.CANT_TELL
+    (s,), _baseline, n_moves = SC.aggregate([cand("shy")], store, lambda p: grade_many(p, fetch_ohlcv=flat, today=date(2026, 9, 30)))
+    assert s.accuracy == 1.0 and s.calm_accuracy == 1.0 and s.n_calm == 12, "free points on calm days, shown for information"
+    assert s.n_moves == 0 and n_moves == 0, "nothing moved, so there is nothing to judge"
+    assert s.verdict == ST.TOO_FEW, "hiding behind neutral cannot earn a verdict, good or bad"
 
 def test_reliability_counts_failed_cases_against_the_model_but_accuracy_ignores_them(tmp_path):
     cases = [SC.Case("UP.NS", date(2026, 7, 1) + timedelta(days=i)) for i in range(12)]
@@ -244,7 +245,7 @@ def test_the_report_explains_itself_ranks_models_and_gives_a_provisional_chain(t
     assert "groq/oracle" in chain and "always-bull" in chain and "anti" not in chain, "worse-than-baseline never suggested"
     assert "CHAIN_AGENTIC" in chain, "how to add the model, reusing the sweep's wording"
     assert "always neutral" in md, "the baseline explanation mentions the neutral strategy"
-    for caveat in ("Luck", "Look-ahead", "Replay is not live", "Neutral calls count", "not profit"):
+    for caveat in ("Luck", "Look-ahead", "Replay is not live", "Neutral calls.", "real moves", "not profit"):
         assert caveat in md
 
 def test_the_chain_leaves_out_unreliable_undecided_models():
@@ -279,7 +280,7 @@ def test_with_equal_accuracy_the_model_with_more_evidence_ranks_higher(tmp_path)
     cases = [SC.Case("UP.NS", date(2026, 7, 1) + timedelta(days=i)) for i in range(30)]
     w, store = World(direction=BULL), SC.CaseStore(tmp_path / "s.jsonl")
     small, big = cand("small", "groq"), cand("big", "nvidia")
-    budget = PR.Budget({"groq": 12 * 6}, 999)           # groq's model only gets 12 cases; nvidia's gets all 30
+    budget = PR.Budget({small.uid: 12 * 6}, 999)        # one model only gets 12 cases; the other gets all 30
     go([small, big], cases, store, w, budget)
     scores, _, _ = SC.aggregate([small, big], store, grader)
     by = {s.cand.model: s for s in scores}

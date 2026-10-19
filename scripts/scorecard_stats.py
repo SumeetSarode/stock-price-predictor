@@ -3,6 +3,10 @@
 A handful of backtest cases cannot prove a model is good, and a model that "got 6 of 8" may just be lucky. So every
 accuracy comes with a 95% confidence interval, and the verdict compares the WHOLE interval to a baseline instead of
 comparing a single number. Small samples therefore say CANT_TELL_YET rather than crowning a winner.
+
+Models are judged on the cases where the price REALLY MOVED (further than the app's neutral tolerance). On a calm
+day "always neutral" is a free win, so a judgement over all days mostly measures how calm the market was: with the
+app's 2% daily / 4% weekly tolerances, large Indian stocks make that baseline 85-100% and nothing could ever beat it.
 """
 from __future__ import annotations
 
@@ -28,6 +32,11 @@ def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
     return max(0.0, centre - half), min(1.0, centre + half)
 
 
+def is_move(ret: float, tolerance: float) -> bool:
+    """A REAL move: the price went further than the horizon's neutral tolerance, so "neutral" is wrong by definition."""
+    return abs(ret) > tolerance
+
+
 def baseline_accuracy(outcomes: Iterable[tuple[float, float]]) -> float:
     """What the best CONSTANT strategy scores: always bullish, always bearish, or always neutral.
 
@@ -35,6 +44,7 @@ def baseline_accuracy(outcomes: Iterable[tuple[float, float]]) -> float:
     not depend on the model. The app's grader marks bullish right if the price rose, bearish if it fell, and NEUTRAL
     right if it barely moved (within the horizon's tolerance), so "always neutral" is a real free strategy in a calm
     market, and "always bullish" is one in a rising market. A model has to beat the best of them to show skill.
+    Fed only real moves (see `is_move`), "always neutral" scores zero and the contest is bull versus bear.
     """
     n = bull = bear = flat = 0
     for ret, tol in outcomes:
@@ -50,13 +60,19 @@ def judged_needed(half_width: float = TARGET_HALF_WIDTH) -> int:
     return math.ceil(Z95 * Z95 * 0.25 / (half_width * half_width))
 
 
-def judge(k: int, n: int, baseline: float) -> tuple[str, float, float]:
-    """-> (verdict, low, high). BEATS only if the interval's LOWER end clears the baseline."""
+def judge(k: int, n: int, baseline: float, baseline_n: int = 0) -> tuple[str, float, float]:
+    """-> (verdict, low, high). BEATS only if the interval's LOWER end clears the baseline.
+
+    The baseline is itself measured on `baseline_n` outcomes, so it is uncertain too: calling a model WORSE because
+    it sits under a baseline that may really be lower is overconfident. WORSE needs the model's HIGH end to be
+    below the baseline's LOW end. (`baseline_n` 0 means the baseline is exactly known.)
+    """
     if n < MIN_JUDGED:
         return TOO_FEW, 0.0, 1.0
     low, high = wilson(k, n)
     if low > baseline:
         return BEATS, low, high
-    if high < baseline:
+    baseline_low = wilson(round(baseline * baseline_n), baseline_n)[0] if baseline_n else baseline
+    if high < baseline_low:
         return WORSE, low, high
     return CANT_TELL, low, high

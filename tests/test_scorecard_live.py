@@ -155,13 +155,18 @@ def flow(monkeypatch, tmp_path):
 
 def args(**over):
     ns = MS.normalize(MS.build_parser().parse_args([]))
-    ns.tickers, ns.cases, ns.calls_per_provider = "UP.NS,DOWN.NS", 12, 999
+    ns.tickers, ns.cases, ns.calls_per_model = "UP.NS,DOWN.NS", 12, 999
     for k, v in over.items():
         setattr(ns, k, v)
     return ns
 
-def run(a, factory):
-    return asyncio.run(MS.amain(a, live_factory=factory))
+def fake_moves(tickers, days, horizons):
+    """No network: every other day is a real move, the rest are calm."""
+    return {(t, d): (2.0 if i % 2 else 0.5) for t in tickers for i, d in enumerate(days)}
+
+
+def run(a, factory, moves_fn=fake_moves):
+    return asyncio.run(MS.amain(a, live_factory=factory, moves_fn=moves_fn))
 
 def test_end_to_end_it_scores_the_shortlist_and_writes_a_report_and_a_stable_copy(flow):
     reports, world, factory = flow
@@ -200,16 +205,65 @@ def test_fresh_starts_over(flow):
     run(args(fresh=True, resume=None), factory)
     assert len(world.predict_calls) == 2 * first
 
-def test_the_provider_budget_is_shared_by_its_models_and_a_later_run_finishes_the_job(flow):
+def test_the_budget_is_per_model_so_each_models_gets_the_same_cases_and_a_later_run_finishes_the_job(flow):
     import time
     _reports, world, factory = flow
-    run(args(calls_per_provider=12), factory)           # 12 calls = 2 cases PER PROVIDER, not per model
-    per_provider = lambda calls: {  # noqa: E731
-        p: sum(1 for m, _, _ in calls if m in ms) for p, ms in {"groq": {"g1", "g2"}, "nvidia": {"n1"}, "ovh": {"o1"}}.items()}
-    assert per_provider(world.predict_calls) == {"groq": 2, "nvidia": 2, "ovh": 2}, "groq's TWO models split one allowance"
+    run(args(calls_per_model=12), factory)              # 12 calls = 2 cases for EACH model
+    per_model = lambda calls: {m: sum(1 for x, _, _ in calls if x == m) for m in ("g1", "g2", "n1", "o1")}  # noqa: E731
+    assert per_model(world.predict_calls) == {"g1": 2, "g2": 2, "n1": 2, "o1": 2}, \
+        "groq's two models each get their own allowance: they no longer split one"
     time.sleep(1.1)
-    run(args(calls_per_provider=12), factory)
-    assert len(world.predict_calls) == 12, "the next run did the next slice of every provider's cases"
+    run(args(calls_per_model=12), factory)
+    assert per_model(world.predict_calls) == {"g1": 4, "g2": 4, "n1": 4, "o1": 4}, "the next run did the next slice"
+
+
+def test_by_default_one_run_gives_every_model_the_whole_case_grid(flow):
+    _reports, world, factory = flow
+    run(args(calls_per_model=0, cases=12), factory)     # 0 = derive it: cases x calls-per-case
+    assert len(world.predict_calls) == 4 * 12
+
+
+def test_the_cases_are_half_real_moves_half_calm_and_say_how_they_were_chosen(flow):
+    reports, _w, factory = flow
+    run(args(), factory)
+    rows = [json.loads(ln) for ln in next(reports.glob("model_scorecard_2*.jsonl")).read_text().splitlines() if ln.strip()]
+    head = next(r for r in rows if r.get("type") == "cases")
+    assert head["picker"] == SC.PICKER and len(head["cases"]) == 12
+    moves = fake_moves(["UP.NS", "DOWN.NS"], [date(2026, 7, 1) + timedelta(days=i) for i in range(20)], "")
+    strong = [moves[(k.split("@")[0], date.fromisoformat(k.split("@")[1]))] > 1 for k in head["cases"]]
+    assert sum(strong) == 6, "half the grid is days the price really moved"
+
+
+def test_a_case_grid_chosen_without_regard_to_moves_is_not_resumed(flow, capsys):
+    import time
+    reports, world, factory = flow
+    run(args(), factory)
+    old = next(reports.glob("model_scorecard_2*.jsonl"))
+    lines = old.read_text().splitlines()
+    head = json.loads(lines[0] if json.loads(lines[0]).get("type") == "cases" else next(x for x in lines if '"cases"' in x))
+    head.pop("picker")                                  # an older run: no marker
+    old.write_text(json.dumps(head) + "\n" + "\n".join(x for x in lines if json.loads(x).get("type") != "cases") + "\n")
+    before = len(world.predict_calls)
+    time.sleep(1.1)
+    run(args(), factory)
+    assert "were not chosen around real price moves" in capsys.readouterr().out
+    assert len(world.predict_calls) == 2 * before, "a whole new grid was run, not a top-up of the old one"
+    assert old.read_text().count('"type": "cases"') == 1, "the old file was left untouched"
+    newest = sorted(reports.glob("model_scorecard_2*.jsonl"))[-1]
+    assert newest != old and '"picker": "movers-v1"' in newest.read_text()
+    assert newest.read_text().count('"type": "cases"') == 1, "the new file holds ONLY the new grid, none of the old history"
+
+
+def test_when_prices_cannot_be_fetched_it_says_so_and_still_runs(flow, capsys):
+    _reports, world, factory = flow
+
+    def down(tickers, days, horizons):
+        raise ConnectionError("no route to host")
+    assert run(args(), factory, moves_fn=down) == 0
+    out = capsys.readouterr().out
+    assert "could not look up how far prices moved" in out and "no route to host" in out
+    assert world.predict_calls, "falls back to an even spread rather than doing nothing"
+
 
 def test_no_sweep_results_is_a_clear_message_not_a_crash(flow, capsys):
     reports, _, factory = flow
@@ -293,3 +347,43 @@ def test_the_real_replay_context_and_agents_are_the_kind_the_adapter_assumes():
 def test_the_scorecard_has_no_time_limit_unless_you_ask_for_one():
     assert MS.build_parser().parse_args([]).max_minutes == 0
     assert MS.build_parser().parse_args(["--max-minutes", "90"]).max_minutes == 90, "a limit is still available"
+
+
+# ── the real price lookup, against a fake source shaped like the app's (tz-aware index, lower-case columns) ──
+
+def price_source(monkeypatch, jump_day: date, last_is_nan=True):
+    import pandas as pd
+    idx = pd.bdate_range("2026-06-01", "2026-08-31", tz="Asia/Kolkata")
+    closes = [100.0 if ts.date() < jump_day else 110.0 for ts in idx]          # a +10% step on jump_day
+    if last_is_nan:
+        closes[-1] = float("nan")                                              # today's still-open session
+    seen = []
+
+    def fetch_ohlcv(ticker, start, end, interval="1d"):
+        seen.append((ticker, start, end))
+        return pd.DataFrame({"close": closes}, index=idx)
+    monkeypatch.setattr("price_predictor.data.prices.fetch_ohlcv", fetch_ohlcv)
+    return seen
+
+
+def test_the_real_lookup_flags_the_days_before_a_big_move_using_the_apps_own_tolerances(monkeypatch):
+    jump = date(2026, 7, 15)                                                   # a Wednesday
+    seen = price_source(monkeypatch, jump)
+    days = [date(2026, 7, 1) + timedelta(days=i) for i in range(30) if (date(2026, 7, 1) + timedelta(days=i)).weekday() < 5]
+    out = MS.live_moves(["T.NS"], days, "daily,weekly")
+    assert out[("T.NS", date(2026, 7, 14))] > 1, "the day before a +10% jump: a real move on the daily horizon"
+    assert out[("T.NS", date(2026, 7, 10))] > 1, "five trading days before: a real move on the weekly horizon"
+    assert out[("T.NS", date(2026, 7, 1))] == 0, "far from the jump: calm"
+    assert seen[0][1] <= days[0] and seen[0][2] >= days[-1], "prices were requested for the whole span, plus room for the horizon"
+
+
+def test_the_still_open_session_with_no_close_does_not_break_the_lookup(monkeypatch):
+    price_source(monkeypatch, date(2026, 7, 15), last_is_nan=True)
+    out = MS.live_moves(["T.NS"], [date(2026, 8, 24), date(2026, 8, 25)], "weekly")
+    assert all(v == v for v in out.values()), "no NaN strengths leak out"
+
+
+def test_an_unknown_horizon_is_an_error_the_caller_can_report_not_a_silent_miss(monkeypatch):
+    price_source(monkeypatch, date(2026, 7, 15))
+    with pytest.raises(ValueError):
+        MS.live_moves(["T.NS"], [date(2026, 7, 1)], "daily,fortnightly")

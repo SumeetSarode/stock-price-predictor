@@ -32,26 +32,31 @@ def render(scores: list[ModelScore], baseline: float, n_outcomes: int, cases: li
            "## How to read this", "",
            "Each shortlisted model ran our real pipeline (news-impact, then synthesizer) on the SAME historical cases, "
            "with the same technicals and the same cached news, and the app's own grader scored the predictions "
-           "against what the price actually did. **Accuracy** = of the calls that could be graded, how many were "
-           "right: bullish is right if the price rose, bearish if it fell, and neutral if it barely moved.", "",
-           f"**Baseline: {pct(baseline)}.** That is what the best no-skill strategy scores on these {n_outcomes} "
-           "distinct outcomes: always bullish, always bearish, or always neutral. Beating a coin flip is not enough "
-           "in a market that drifts, and 'always neutral' is a free win in a calm one.", "",
+           "against what the price actually did. The verdict is based on **real moves**: days the price went "
+           "further than the app's neutral tolerance (2% daily, 4% weekly). On a calm day 'always neutral' is a free "
+           "win, so judging on all days mostly measures how calm the market was. **On real moves** = of the "
+           "calls that could be graded on those days, how many got the direction right. **On calm days** is shown "
+           "for information only: a model that shouts 'bullish' on flat days will look bad there.", "",
+           f"**Baseline: {pct(baseline)}.** That is what the best no-skill strategy (always bullish or always "
+           f"bearish) scores on these {n_outcomes} distinct real moves. Beating a coin flip is not enough in a "
+           "market that drifts.", "",
            "Every accuracy comes with a 95% interval. A model only **BEATS_BASELINE** if even the low end of its "
            "interval clears the baseline. With few cases the honest answer is **CANT_TELL_YET**, and "
            f"about {ST.judged_needed()} graded calls are needed to pin accuracy to +/-10 points. Re-running adds "
            "cases, so the picture sharpens by itself. **TOO_FEW** = fewer than "
-           f"{ST.MIN_JUDGED} graded calls. **WORSE_THAN_BASELINE** = even the high end is below it.", "",
+           f"{ST.MIN_JUDGED} graded real-move calls. **WORSE_THAN_BASELINE** = the model's high end is below even "
+           "the low end of the baseline (the baseline is uncertain too).", "",
            "## Headline", "",
            f"{len(scores)} models, {len(cases)} cases. " + ", ".join(f"{v}: {counts[v]}" for v in ST.VERDICT_RANK), ""]
     out += ([f"**{len(winners)} model(s) beat the baseline:** " + ", ".join(f"`{s.cand.provider}/{s.cand.model}`" for s in winners), ""]
             if winners else ["**No model has beaten the baseline yet.** That is expected while the sample is small: "
                              "it does not mean they are bad, only that this much evidence cannot tell. Re-run to add cases.", ""])
     out += ["## Ranked (best worst-case first)", ""]
-    out += [*_table(("#", "model", "verdict", "accuracy", "95% interval", "target-before-stop", "skill vs base rate",
-                   "neutral share", "reliability", "sec/case"),
+    out += [*_table(("#", "model", "verdict", "on real moves", "95% interval", "on calm days", "target-before-stop",
+                   "skill vs base rate", "neutral share", "reliability", "sec/case"),
                   [(i, f"{s.cand.provider}/{s.cand.model}", s.verdict,
-                    f"{pct(s.accuracy)} ({s.k_correct}/{s.n_judged})", f"{pct(s.low)} to {pct(s.high)}" if s.n_judged >= ST.MIN_JUDGED else "-",
+                    f"{pct(s.move_accuracy)} ({s.k_moves}/{s.n_moves})", f"{pct(s.low)} to {pct(s.high)}" if s.n_moves >= ST.MIN_JUDGED else "-",
+                    f"{pct(s.calm_accuracy)} ({s.k_calm}/{s.n_calm})",
                     pct(s.hit_rate_resolved), "-" if s.bss is None else f"{s.bss:+.2f}", pct(s.neutral_share),
                     f"{s.ok}/{s.attempted}", "-" if s.avg_seconds is None else f"{s.avg_seconds:.0f}")
                    for i, s in enumerate(scores, 1)]), ""]
@@ -75,7 +80,7 @@ def render(scores: list[ModelScore], baseline: float, n_outcomes: int, cases: li
             "reduce this, but it cannot be ruled out.",
             "- **Replay is not live.** Backtests have no analyst-estimates evidence and news is limited to what was "
             "indexed by the date, so live results can differ.",
-            "- **Neutral calls count.** A neutral call is right when the price barely moved, and the baseline "
-            "includes 'always neutral', so hiding behind neutral calls cannot beat it. Check the neutral share anyway.",
+            "- **Neutral calls.** On real moves a neutral call is wrong by definition, so hiding behind neutral cannot "
+            "win. It does cost nothing on calm days, which is why 'on calm days' and the neutral share are shown.",
             "- **Accuracy is not profit.** This scores direction and target/stop outcomes, not trading returns."]
     return "\n".join(out) + "\n"

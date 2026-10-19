@@ -56,6 +56,23 @@ def choose_days(today: date, lag_days: int, window_days: int) -> list[date]:
     return trading_days_in_range(end - timedelta(days=window_days), end)
 
 
+def live_moves(tickers: list[str], days: list[date], horizons: str) -> dict[tuple[str, date], float]:
+    """How far each ticker's price really moved after each day, from the app's own price chain and its own
+    horizon lengths and tolerances (one source of truth: the grader), so "a real move" means what grading means."""
+    from price_predictor.data.prices import fetch_ohlcv
+    from price_predictor.prediction.grading import horizon_window, neutral_tolerance
+    from price_predictor.prediction.schema import PredictionHorizon
+    hs = [PredictionHorizon(h.strip()) for h in horizons.split(",") if h.strip()]
+    windows = [(horizon_window(h), neutral_tolerance(h)) for h in hs]
+    reach = timedelta(days=int(max(w for w, _ in windows) * 1.7) + 7)       # calendar days that cover the longest horizon
+    out: dict[tuple[str, date], float] = {}
+    for ticker in tickers:
+        bars = fetch_ohlcv(ticker, days[0] - timedelta(days=7), days[-1] + reach)
+        closes = [(ts.date(), float(c)) for ts, c in bars["close"].items() if c == c]       # c == c drops NaN
+        out.update(SC.case_moves(ticker, closes, days, windows))
+    return out
+
+
 class Live:
     """The real app, behind the Plumbing interface. Every collaborator is injectable so tests need no network."""
 
@@ -96,19 +113,25 @@ class Live:
         return out
 
 
+def calls_per_model(args: argparse.Namespace) -> int:
+    """Default: exactly enough for one model to see the whole case grid in a single run."""
+    return args.calls_per_model or args.cases * CALLS_PER_CASE
+
+
 def plan(args: argparse.Namespace) -> str:
     return "\n".join([
         "SCORECARD PLAN",
         f"  models: up to {args.models} USEFUL models from the latest sweep ({args.from_sweep})",
         f"  cases: {args.cases} (tickers {args.tickers}), spread over the last {args.window_days} days ending "
-        f"{args.lag_days} days ago; the same cases every run, so results accumulate",
+        f"{args.lag_days} days ago; half are days the price really moved, half calm; the same cases every run, "
+        "so results accumulate",
         f"  horizons: {args.horizons}; about {CALLS_PER_CASE} LLM calls per model per case",
-        f"  budget: {args.calls_per_provider} calls per provider per run (~{args.calls_per_provider // CALLS_PER_CASE} cases); "
+        f"  budget: {calls_per_model(args)} calls per MODEL per run (~{calls_per_model(args) // CALLS_PER_CASE} cases); "
         "re-running continues automatically",
         "  inputs: technicals gathered once per case; news cached on first fetch and replayed for every later model"])
 
 
-async def amain(args: argparse.Namespace, live_factory=None) -> int:
+async def amain(args: argparse.Namespace, live_factory=None, moves_fn=None) -> int:
     print(plan(args))
     if args.dry_run:
         print("\n--dry-run: nothing started, no network calls.")
@@ -124,6 +147,11 @@ async def amain(args: argparse.Namespace, live_factory=None) -> int:
     models, left_out = load_shortlist(verdicts, keys, args.models)
     resume = [f] if args.resume and (f := latest_scorecard(REPORTS)) else []
     store = SC.CaseStore(REPORTS / f"model_scorecard_{stamp}.jsonl", tuple(resume))
+    if store.cases and store.picker != SC.PICKER:
+        print(f"\nThe earlier cases ({resume[0].name}) were not chosen around real price moves, so they cannot rank "
+              "models; starting a new case grid. The old file is left untouched.")
+        store.path.unlink()                 # the constructor already copied the old history into this file
+        store, resume = SC.CaseStore(store.path, ()), []
     started = time.monotonic()
     meta = {"started_utc": stamp, "git_head": subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO,
                                                               capture_output=True, text=True).stdout.strip(),
@@ -143,12 +171,19 @@ async def amain(args: argparse.Namespace, live_factory=None) -> int:
     try:
         if not store.cases:
             days = choose_days(date.today(), args.lag_days, args.window_days)
-            store.set_cases(SC.pick_cases([t for t in args.tickers.split(",") if t], days, args.cases))
+            tickers = [t for t in args.tickers.split(",") if t]
+            try:
+                moves = (moves_fn or live_moves)(tickers, days, args.horizons)
+            except Exception as e:
+                print(f"\nWARNING: could not look up how far prices moved ({type(e).__name__}: {e}). Cases are spread "
+                      "evenly instead, which mostly picks calm days and cannot rank models well; run again later.")
+                moves = None
+            store.set_cases(SC.pick_cases(tickers, days, args.cases, moves), SC.PICKER if moves else "spread")
         if models and store.cases:
             live = (live_factory or make_live)(args)
             plumb = SC.Plumbing(live.shared, live.predict, FM.pace_for, S.classify)
             deadline = started + args.max_minutes * 60 if args.max_minutes else float("inf")
-            budget = PR.Budget({}, args.calls_per_provider)
+            budget = PR.Budget({}, calls_per_model(args))
             await SC.run_scorecard(models, store.cases, store, budget, plumb, calls_per_case=CALLS_PER_CASE,
                                    deadline=deadline)
         outcome = "completed" if models else "nothing to score yet: the sweep found no USEFUL model the app can call"
@@ -176,12 +211,13 @@ def latest_scorecard(reports: Path) -> Path | None:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--models", type=int, default=12, help="score at most this many models (default 12)")
-    ap.add_argument("--cases", type=int, default=20, help="size of the fixed case grid (default 20)")
+    ap.add_argument("--cases", type=int, default=30, help="size of the fixed case grid (default 30)")
     ap.add_argument("--tickers", default=DEFAULT_TICKERS)
     ap.add_argument("--horizons", default="daily,weekly")
     ap.add_argument("--window-days", type=int, default=70, help="how far back the cases reach (news archives are ~3 months)")
     ap.add_argument("--lag-days", type=int, default=14, help="newest case is this old, so every horizon has resolved")
-    ap.add_argument("--calls-per-provider", type=int, default=120, help="LLM-call budget per provider per run")
+    ap.add_argument("--calls-per-model", type=int, default=0,
+                    help="LLM-call budget per MODEL per run (default 0 = enough for the whole case grid)")
     ap.add_argument("--from-sweep", default="free_model_sweep_latest_verdicts.jsonl")
     ap.add_argument("--resume", default="latest")
     ap.add_argument("--fresh", action="store_true", help="ignore earlier results and start over")
