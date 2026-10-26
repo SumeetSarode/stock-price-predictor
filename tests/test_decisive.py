@@ -25,7 +25,7 @@ def prior(name, provider="google", sec=20.0, completion=0.9, attempted=30, ok=27
 
 def args(**kw):
     base = dict(cases=150, mover_share=0.73, tickers="nifty50", horizons="daily,weekly", window_days=70, lag_days=14,
-                from_sweep="x.jsonl", include_skipped=False, probe=False, dry_run=False, probe_cases=DC.PROBE_CASES)
+                from_sweep="x.jsonl", include_skipped=False, probe=False, dry_run=False, probe_cases=DC.PROBE_CASES, fresh=False)
     return SimpleNamespace(**{**base, **kw})
 
 
@@ -121,10 +121,11 @@ class Harness:
     def __init__(self, tmp_path, monkeypatch, priors, results):
         monkeypatch.setattr(MS, "REPORTS", tmp_path)
         self.said, self.amain_calls, self.priors, self.results, self.stage = [], [], priors, results, -1
-        self.no_inputs, self.code, self.cumulative = [], 0, {}
+        self.no_inputs, self.code, self.cumulative, self.fresh_calls = [], 0, {}, []
 
     async def amain(self, a):
         self.amain_calls.append((a.only.split(",") if a.only else [], a.first_cases))
+        self.fresh_calls.append(a.fresh)
         if a.first_cases > DC.PROBE_CASES:
             self.stage += 1
         return self.code
@@ -347,3 +348,16 @@ def test_overloaded_and_timeouts_are_the_worlds_fault_not_the_models():
     snap = probe_snap(m=(4, 8, {"overloaded": 2, "timeout": 2}, 20.0))
     _ok, text = DC.probe_findings(snap, args(), {})
     assert "refused 0" in text and "world-failures 4" in text and "projects ~110 of 97" in text
+
+
+def test_fresh_starts_a_new_result_file_once_and_every_later_stage_resumes_it(tmp_path, monkeypatch):
+    """After the pipeline changed, old answers came from different code. But stage 2 must continue stage 1's file."""
+    h = Harness(tmp_path, monkeypatch, models("a", "b"), [{"a": (3, 5), "b": (3, 5)}] * 4)
+    h.run(fresh=True)
+    assert h.fresh_calls[0] is True and not any(h.fresh_calls[1:]) and len(h.fresh_calls) > 1
+
+
+def test_without_fresh_nothing_ever_starts_over(tmp_path, monkeypatch):
+    h = Harness(tmp_path, monkeypatch, models("a"), [{}])
+    h.run(probe=True)
+    assert h.fresh_calls == [False]

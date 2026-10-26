@@ -143,8 +143,8 @@ def partial_models(args: argparse.Namespace) -> list[str]:
             for r in rows if r["verdict"] == "PARTIAL"]
 
 
-def stage_args(args: argparse.Namespace, alive: list[str], first_cases: int) -> argparse.Namespace:
-    ns = MS.normalize(MS.build_parser().parse_args([]))
+def stage_args(args: argparse.Namespace, alive: list[str], first_cases: int, fresh: bool = False) -> argparse.Namespace:
+    ns = MS.normalize(MS.build_parser().parse_args(["--fresh"] if fresh else []))
     vars(ns).update(cases=args.cases, mover_share=args.mover_share, tickers=args.tickers, horizons=args.horizons,
                     window_days=args.window_days, lag_days=args.lag_days, from_sweep=args.from_sweep,
                     only=",".join(alive), first_cases=first_cases)
@@ -290,7 +290,7 @@ async def run(args: argparse.Namespace, *, amain=MS.amain, priors_fn=prior_evide
         alive = [m for m in alive if m not in gone]
     planned = list(alive)
 
-    code = await amain(stage_args(args, alive, args.probe_cases))
+    code = await amain(stage_args(args, alive, args.probe_cases, fresh=args.fresh))     # later calls always resume
     if code:
         return code
     ok, text = probe_findings(score_fn(args, planned), args, {r.model: r.sec_per_case for r in rows})
@@ -332,6 +332,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--lag-days", type=int, default=14)
     ap.add_argument("--from-sweep", default="free_model_sweep_latest_verdicts.jsonl")
     ap.add_argument("--include-skipped", action="store_true", help="also run models earlier evidence ruled out")
+    ap.add_argument("--fresh", action="store_true", help="start a new result file instead of resuming the latest "
+                                                         "(use after the pipeline changed: old answers came from different code)")
     ap.add_argument("--probe", action="store_true", help="connection checks + real cases per model, then stop")
     ap.add_argument("--probe-cases", type=int, default=PROBE_CASES, help="cases the probe runs (default 6)")
     ap.add_argument("--dry-run", action="store_true", help="show the plan and ETA, run nothing")
