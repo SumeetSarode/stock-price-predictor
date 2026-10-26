@@ -416,3 +416,41 @@ def test_a_candidate_survives_a_round_trip_through_its_row_with_the_key_re_suppl
     assert back.key == "FROM-ENV", "the key is re-read from .env, never taken from a saved file"
     assert D.Candidate.from_row(row).key is None
     assert D.Candidate.from_row(D.Candidate("anon", "ovh", "m", anonymous=True).row()).anonymous is True
+
+
+# ── providers whose URLs carry an account id (Cloudflare) ───────────────
+
+def test_an_account_key_fills_the_urls_and_only_the_token_is_sent():
+    import sweep_data as SD
+    spec, token = SD.split_account_key(SD.SPECS["cloudflare"], "acc123:tok456")
+    assert token == "tok456"
+    assert spec.base == "https://api.cloudflare.com/client/v4/accounts/acc123/ai/v1"
+    assert "/accounts/acc123/ai/models/search" in spec.models_url and "{account}" not in spec.models_url
+
+
+def test_a_plain_key_or_a_plain_provider_is_left_alone():
+    import sweep_data as SD
+    assert SD.split_account_key(SD.SPECS["groq"], "gsk_x") == (SD.SPECS["groq"], "gsk_x")
+    assert SD.split_account_key(SD.SPECS["cloudflare"], None) == (SD.SPECS["cloudflare"], None)
+
+
+def test_a_candidate_rebuilt_from_a_row_gets_the_token_not_the_account_pair():
+    import sweep_data as SD
+    row = {"route": "direct", "provider": "cloudflare", "model": "@cf/openai/gpt-oss-120b"}
+    assert SD.Candidate.from_row(row, {"cloudflare": "acc:tok"}).key == "tok"
+    assert SD.Candidate.from_row({**row, "provider": "groq"}, {"groq": "a:b"}).key == "a:b"
+
+
+def test_a_cloudflare_style_list_under_result_is_read():
+    import sweep_data as SD
+    import sweep_sources as SS
+
+    class R:
+        status = 200
+        def json(self):
+            return {"result": [{"id": "f9f2250b-1048", "name": "@cf/openai/gpt-oss-120b"},
+                               {"id": "e8e8abe4-a372", "name": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"}]}
+        def evidence(self):
+            return ""
+    rows, err = SS.list_models(lambda *a, **k: R(), None, SD.SPECS["cloudflare"], "tok")
+    assert [r["id"] for r in rows] == ["@cf/openai/gpt-oss-120b", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"] and err == ""

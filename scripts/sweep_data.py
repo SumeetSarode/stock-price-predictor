@@ -23,7 +23,7 @@ backtest, not a schema check.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 TESTABLE, NEEDS_SIGNUP, TERMS_BLOCKED, NOT_FREE, NOT_CHAT, EXHAUSTED, NO_ENDPOINT = (
     "TESTABLE", "NEEDS_SIGNUP", "TERMS_BLOCKED", "NOT_FREE", "NOT_CHAT", "EXHAUSTED", "NO_ENDPOINT")
@@ -83,6 +83,17 @@ SPECS: dict[str, Spec] = {
     "ovh": Spec("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
                 "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models", None, "all",
                 "OVH anonymous tier (about 2 requests/min/model)", 35, 20, (), None, True,
+    # base/models_url with "{account}": the key is stored as 'account_id:api_token' (see split_account_key)
+    "cloudflare": Spec("https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1",
+                       "https://api.cloudflare.com/client/v4/accounts/{account}/ai/models/search?task=Text%20Generation"
+                       "&per_page=200", "bearer", "all",
+                       "Cloudflare Workers AI free allocation (10,000 neurons/day; big models use it up fast)", 2, 60,
+                       ("CLOUDFLARE_API_KEY",)),
+    "ollama": Spec("https://ollama.com/v1", "https://ollama.com/v1/models", "bearer", "all",
+                   "Ollama Cloud free tier (hourly and weekly usage limits)", 3, 60, ("OLLAMA_API_KEY",)),
+    "siliconflow": Spec("https://api.siliconflow.com/v1", "https://api.siliconflow.com/v1/models?type=text&sub_type=chat",
+                        "bearer", "all", "SiliconFlow (free models plus sign-up credit; the rest draw on the balance)",
+                        2, 60, ("SILICONFLOW_API_KEY",)),
                 ("Qwen3.8-27B", "Qwen3.5-397B-A17B", "gpt-oss-120b")),
     "kilo": Spec("https://api.kilo.ai/api/gateway/v1", "https://api.kilo.ai/api/gateway/v1/models", None, "suffix",
                  "Kilo anonymous ':free' routes (200 req/hr/IP; prompts and outputs are logged for training)", 20, 30,
@@ -91,6 +102,15 @@ SPECS: dict[str, Spec] = {
 
 # models.dev provider id -> the name we use, so a provider we already test is never listed as "needs signup"
 LEDGER_ALIASES = {"ovhcloud": "ovh", "zhipuai": "zhipu"}
+
+def split_account_key(spec: Spec, key: str | None) -> tuple[Spec, str | None]:
+    """Providers whose URLs carry an account id keep their key as 'account:token': -> (spec with real URLs, token)."""
+    if not key or "{account}" not in spec.base:
+        return spec, key
+    account, _, token = key.partition(":")
+    return replace(spec, base=spec.base.format(account=account),
+                   models_url=spec.models_url.format(account=account)), token
+
 
 # freellmapi platforms whose keys may be handed to its container when you opt in (--with-keys).
 # Cohere is absent on purpose (terms), and so are the retired/locked ones (sambanova, opencode, reka).
@@ -145,8 +165,11 @@ class Candidate:
     def from_row(cls, row: dict, keys: dict[str, str] | None = None) -> Candidate:
         """Inverse of row(): the key comes from `keys` (read from .env), never from the file."""
         return cls(row["route"], row["provider"], row["model"], row.get("status", TESTABLE), row.get("base"),
-                   (keys or {}).get(row["provider"]), row.get("litellm_id"), bool(row.get("anonymous")),
+                   key, row.get("litellm_id"), bool(row.get("anonymous")),
                    row.get("note", ""), row.get("hint_structured"), tuple(row.get("sources", ())))
+        key = (keys or {}).get(row["provider"])
+        if row["provider"] in SPECS:
+            key = split_account_key(SPECS[row["provider"]], key)[1]
 
 
 def classify_candidate(provider: str, model: str) -> tuple[str, str]:

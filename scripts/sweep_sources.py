@@ -22,6 +22,7 @@ from sweep_data import (
     Candidate,
     Spec,
     classify_candidate,
+    split_account_key,
 )
 
 
@@ -51,12 +52,14 @@ def list_models(call, c, spec: Spec, key: str | None) -> tuple[list[dict] | None
         headers[spec.list_auth] = key
     r = call(c, "GET", spec.models_url, headers=headers)
     body = r.json() if r.status == 200 else None
-    raw = (body.get("data") or body.get("models") or []) if isinstance(body, dict) else []
+    raw = (body.get("data") or body.get("models") or body.get("result") or []) if isinstance(body, dict) else []
     rows = []
     for m in raw:
         if not isinstance(m, dict):
             continue
-        mid = str(m.get("id") or m.get("name") or "").removeprefix("models/")
+        name = str(m.get("name") or "")
+        # Cloudflare: 'id' is an internal UUID, the callable model is the '@cf/...' name
+        mid = (name if name.startswith("@cf/") else str(m.get("id") or name)).removeprefix("models/")
         methods = m.get("supportedGenerationMethods")
         if mid:
             rows.append({"id": mid, "chat": "generateContent" in methods if isinstance(methods, list) else True})
@@ -78,6 +81,7 @@ def direct_candidates(call, c, catalog: dict, keys: dict[str, str]) -> tuple[lis
         key = None if spec.anonymous else keys.get(provider)
         if not spec.anonymous and not key:
             continue
+        spec, key = split_account_key(spec, key)
         rows, err = list_models(call, c, spec, key)
         if rows is None:
             meta["list_errors"][provider] = err
