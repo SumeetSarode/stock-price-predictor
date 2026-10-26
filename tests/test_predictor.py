@@ -800,6 +800,12 @@ class TestGuardrailRetryRotatesModel:
     the chain never reaches the offline Ollama tail.
     """
 
+    @pytest.fixture(autouse=True)
+    def _levels_are_not_under_test(self):
+        """These tests drive the retry/rotation loop with a stand-in input; level derivation has its own tests."""
+        with patch("price_predictor.prediction.predictor.derive_levels", side_effect=lambda pred, si: pred):
+            yield
+
     @patch("price_predictor.prediction.predictor._penalize_agent_model")
     @patch("price_predictor.prediction.predictor.validate_all")
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",

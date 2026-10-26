@@ -222,6 +222,14 @@ will reject any deviation. Every field's value is derived as follows:
   not_advice             ← true (always)
   is_educational         ← true (always)
 
+PRICE LEVELS ARE SET BY THE APP. After you answer, the runtime
+recomputes entry_zone, target and stop_loss from close_price and ATR (entry
+zone hugging the close, stop and target at the middle of the per-horizon
+ATR bands) and overwrites yours. Do not agonize over those three numbers:
+give approximate values on the correct side of the close (bullish: target
+above, stop below; bearish: the reverse) and spend your effort on what only
+you decide: direction, confidence, rationale and the cited signals.
+
 ==============================================================
 PER-HORIZON RULES (the runtime ENFORCES these — read the
 `horizon` field in the input to know which row applies)

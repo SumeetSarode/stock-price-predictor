@@ -92,6 +92,7 @@ from price_predictor.prediction.inputs import (
     _resolve_ticker,
     compose_technical_view,
 )
+from price_predictor.prediction.levels import derive_levels
 from price_predictor.prediction.replay_context import replay_context
 from price_predictor.prediction.runner import USER_ID, get_runner, get_session_service
 from price_predictor.prediction.schema import (
@@ -517,7 +518,8 @@ async def synthesize_with_guardrails(si: SynthesisInput) -> Prediction:
         max_attempts = _guardrail_attempt_budget()
         for attempt in range(1, max_attempts + 1):
             try:
-                prediction = await run_synthesizer_agent(si, feedback=feedback)
+                # The model decides direction, confidence and the story; the app sets the price levels.
+                prediction = derive_levels(await run_synthesizer_agent(si, feedback=feedback), si)
                 validate_all(prediction, si)
                 if attempt > 1:
                     logger.info(

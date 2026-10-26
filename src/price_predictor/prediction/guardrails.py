@@ -130,7 +130,7 @@ class HallucinationError(ValueError):
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
-def _atr_from_input(si: SynthesisInput) -> float:
+def atr_from_input(si: SynthesisInput) -> float:
     """Pull the ATR value from the input. Levels cluster has it in
     `derived["atr"]`, volatility cluster has it in `indicators["atr"]`.
     Either is fine (same number); we prefer levels.derived first.
@@ -261,7 +261,7 @@ def validate_grounding(pred: Prediction, si: SynthesisInput) -> None:
         HallucinationError(tier='grounding'): on any anchor violation.
     """
     close = si.technical_view.close_price
-    atr = _atr_from_input(si)
+    atr = atr_from_input(si)
     horizon = pred.horizon
 
     # ── Entry zone: must hug close_price (per-horizon width) ──

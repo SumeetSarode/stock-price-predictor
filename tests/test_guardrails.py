@@ -33,9 +33,12 @@ from price_predictor.prediction import (
 from price_predictor.prediction.guardrails import _build_input_vocabulary, _tokenize
 from price_predictor.prediction.horizon_constants import (
     confidence_cap,
+    entry_zone_pct,
     stop_atr_range,
+    target_atr_range,
 )
 from price_predictor.prediction.inputs import ClusterView, TechnicalView
+from price_predictor.prediction.levels import derive_levels
 from price_predictor.prediction.schema import (
     AnalysisBasis,
     PredictionDirection,
@@ -429,18 +432,18 @@ class TestSynthesizeWithGuardrails:
     def test_first_attempt_passes_no_retry(self, mock_synth):
         mock_synth.return_value = _make_pred()
         result = asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert result is mock_synth.return_value
+        assert result == _derived(mock_synth.return_value)
         mock_synth.assert_awaited_once()  # no retry
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
            new_callable=AsyncMock)
-    def test_retry_succeeds_after_grounding_fix(self, mock_synth):
-        bad = _make_pred(target_value=1599.0)  # grounding fail (invented)
-        good = _make_pred()                     # grounding pass
+    def test_retry_succeeds_after_a_guardrail_fix(self, mock_synth):
+        bad = _make_pred(confidence=0.99)      # calibration fail (above the weekly cap)
+        good = _make_pred()                     # passes
         mock_synth.side_effect = [bad, good]
 
         result = asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert result is good
+        assert result == _derived(good)
         assert mock_synth.await_count == 2
         # Second call must include feedback
         assert mock_synth.call_args_list[1].kwargs.get("feedback") is not None
@@ -455,12 +458,12 @@ class TestSynthesizeWithGuardrails:
         attempt 2 passes. With only 2 attempts, the diagnostic showed
         we were unlucky enough to hit two failures back-to-back.
         """
-        bad = _make_pred(target_value=1599.0)
+        bad = _make_pred(confidence=0.99)
         good = _make_pred()
         mock_synth.side_effect = [bad, bad, good]
 
         result = asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert result is good
+        assert result == _derived(good)
         assert mock_synth.await_count == 3
         # Last call must include feedback from the prior failure
         assert mock_synth.call_args_list[2].kwargs.get("feedback") is not None
@@ -475,7 +478,7 @@ class TestSynthesizeWithGuardrails:
             _guardrail_attempt_budget,
         )
         budget = _guardrail_attempt_budget()
-        bad = _make_pred(target_value=1599.0)
+        bad = _make_pred(confidence=0.99)
         mock_synth.side_effect = [bad] * budget
 
         with pytest.raises(PredictionError, match="Synthesizer failed"):
@@ -516,23 +519,23 @@ class TestSynthesizeWithGuardrails:
     def test_feedback_is_cumulative_across_attempts(self, mock_synth):
         """The retry loop must REMEMBER earlier failures (anti whack-a-mole).
 
-        Attempt 1 fails grounding, attempt 2 fails a DIFFERENT tier
+        Attempt 1 fails calibration, attempt 2 fails a DIFFERENT tier
         (citation). The feedback handed to attempt 3 must still mention
-        the grounding problem from attempt 1 -- otherwise the LLM would
+        the calibration problem from attempt 1 -- otherwise the LLM would
         happily re-break what it already fixed.
         """
-        bad_grounding = _make_pred(target_value=1599.0)          # grounding
+        bad_calibration = _make_pred(confidence=0.99)           # calibration
         bad_citation = _make_pred(contributing=("gamma squeeze",))  # citation
         good = _make_pred()
-        mock_synth.side_effect = [bad_grounding, bad_citation, good]
+        mock_synth.side_effect = [bad_calibration, bad_citation, good]
 
         result = asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert result is good
+        assert result == _derived(good)
         assert mock_synth.await_count == 3
         # Attempt 3's feedback remembers BOTH prior problems.
         feedback3 = mock_synth.call_args_list[2].kwargs.get("feedback")
         assert feedback3 is not None
-        assert "grounding" in feedback3   # from attempt 1, NOT forgotten
+        assert "calibration" in feedback3  # from attempt 1, NOT forgotten
         assert "citation" in feedback3    # from attempt 2
 
     # ─────────────────────────────────────────────────────────────
@@ -554,7 +557,7 @@ class TestSynthesizeWithGuardrails:
         mock_synth.side_effect = [parse_err, good]
 
         result = asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert result is good
+        assert result == _derived(good)
         assert mock_synth.await_count == 2
         # Retry MUST surface the parse error in the feedback so the LLM
         # knows to emit clean JSON next time.
@@ -567,12 +570,12 @@ class TestSynthesizeWithGuardrails:
     def test_retry_succeeds_after_mixed_parse_then_guardrail_failure(self, mock_synth):
         """Realistic cascade: parse-fail → guardrail-fail → clean."""
         parse_err = SynthesisParseError("unparseable")
-        bad = _make_pred(target_value=1599.0)  # grounding fail
+        bad = _make_pred(confidence=0.99)  # calibration fail
         good = _make_pred()
         mock_synth.side_effect = [parse_err, bad, good]
 
         result = asyncio.run(synthesize_with_guardrails(_make_si()))
-        assert result is good
+        assert result == _derived(good)
         assert mock_synth.await_count == 3
 
     @patch("price_predictor.prediction.predictor.run_synthesizer_agent",
@@ -589,6 +592,95 @@ class TestSynthesizeWithGuardrails:
         with pytest.raises(PredictionError, match="Synthesizer failed"):
             asyncio.run(synthesize_with_guardrails(_make_si()))
         assert mock_synth.await_count == budget
+
+
+
+class TestTheAppSetsThePriceLevels:
+    """The model decides direction, confidence and the story; the app computes entry, stop and target."""
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent", new_callable=AsyncMock)
+    def test_a_correct_call_with_invented_levels_is_no_longer_refused(self, mock_synth):
+        """Regression: 77% of 170 refusals were level arithmetic (stop 0.28xATR, entry drifted, target off-anchor)."""
+        invented = _make_pred(target_value=1599.0, stop_value=CLOSE - 0.28 * ATR, entry=(CLOSE - 30.0, CLOSE + 30.0))
+        mock_synth.return_value = invented
+        si = _make_si()
+        with pytest.raises(HallucinationError, match="grounding"):
+            validate_grounding(invented, si)                       # the old rule WOULD have refused it ...
+        result = asyncio.run(synthesize_with_guardrails(si))       # ... now it ships, on the first attempt
+        mock_synth.assert_awaited_once()
+        validate_grounding(result, si)
+        assert (result.direction, result.confidence, result.rationale) == (invented.direction, invented.confidence, invented.rationale)
+        assert result.contributing_signals == invented.contributing_signals
+
+    @patch("price_predictor.prediction.predictor.run_synthesizer_agent", new_callable=AsyncMock)
+    def test_a_refusal_that_is_about_the_call_itself_still_retries(self, mock_synth):
+        mock_synth.side_effect = [_make_pred(confidence=0.99), _make_pred()]
+        asyncio.run(synthesize_with_guardrails(_make_si()))
+        assert mock_synth.await_count == 2
+
+
+class TestDeriveLevels:
+    @pytest.mark.parametrize("horizon", list(PredictionHorizon))
+    @pytest.mark.parametrize("direction", list(PredictionDirection))
+    def test_derived_levels_always_pass_every_rule_for_every_horizon_and_direction(self, horizon, direction):
+        si = _make_si(horizon=horizon.value)
+        pred = _make_pred(direction=direction, horizon=horizon, target_value=CLOSE + 40, stop_value=CLOSE - 1, entry=(CLOSE, CLOSE + 1)) \
+            if direction is PredictionDirection.BULLISH else \
+            _make_pred(direction=direction, horizon=horizon, target_value=CLOSE - 40, stop_value=CLOSE + 40, entry=(CLOSE - 1, CLOSE + 1))
+        out = derive_levels(pred, si)
+        validate_grounding(out, si)
+        assert out.direction is direction and out.horizon is horizon
+
+    def test_levels_sit_at_the_middle_of_each_horizons_bands(self):
+        out = derive_levels(_make_pred(), _make_si(horizon="weekly"))
+        stop_k, target_k = sum(stop_atr_range(PredictionHorizon.WEEKLY)) / 2, sum(target_atr_range(PredictionHorizon.WEEKLY)) / 2
+        assert out.stop_loss.value == pytest.approx(CLOSE - stop_k * ATR, abs=0.01)
+        assert out.target.value == pytest.approx(CLOSE + target_k * ATR, abs=0.01)
+        half = CLOSE * entry_zone_pct(PredictionHorizon.WEEKLY)
+        assert out.entry_zone == pytest.approx((CLOSE - half, CLOSE + half), abs=0.01)
+
+    def test_bearish_mirrors_bullish_and_neutral_targets_the_close(self):
+        si = _make_si(trend="bearish", momentum="bearish", levels="bearish", news_sentiment="bearish")
+        bear = derive_levels(_make_pred(direction=PredictionDirection.BEARISH, target_value=CLOSE - 40, stop_value=CLOSE + 40,
+                                        entry=(CLOSE - 1, CLOSE + 1)), si)
+        assert bear.target.value < bear.entry_zone[0] and bear.stop_loss.value > bear.entry_zone[0]
+        neutral = derive_levels(_make_pred(direction=PredictionDirection.NEUTRAL), _make_si())
+        assert neutral.target.value == pytest.approx(CLOSE, abs=0.01) and neutral.stop_loss.value < CLOSE
+
+    def test_everything_the_model_decided_is_kept(self):
+        pred = _make_pred(confidence=0.61, contributing=("trend bullish across smas", "momentum rsi 65 healthy"))
+        out = derive_levels(pred, _make_si())
+        for field in ("ticker", "as_of", "horizon", "model_chain", "direction", "confidence", "rationale",
+                      "contributing_signals", "conflicting_signals", "analysis_basis"):
+            assert getattr(out, field) == getattr(pred, field), field
+
+    def test_the_levels_say_where_they_came_from(self):
+        out = derive_levels(_make_pred(), _make_si())
+        assert "x ATR" in out.stop_loss.rationale and "x ATR" in out.target.rationale
+
+    def test_the_entry_zone_narrows_rather_than_swallow_a_near_target(self):
+        """A tiny ATR makes the target closer than the entry half-width; the zone must still sit below the target."""
+        si = _make_si()
+        si.technical_view.levels.derived["atr"] = 0.6                 # target ~0.675 away, entry half-width would be 7.5
+        out = derive_levels(_make_pred(), si)
+        assert out.entry_zone[1] < out.target.value
+
+    def test_levels_that_cannot_form_a_valid_setup_are_a_guardrail_error_not_a_crash(self):
+        si = _make_si()
+        si.technical_view.levels.derived["atr"] = 0.001               # everything rounds onto the close
+        with pytest.raises(HallucinationError, match="not a valid bullish setup"):
+            derive_levels(_make_pred(), si)
+
+    def test_no_atr_is_a_guardrail_error(self):
+        si = _make_si()
+        si.technical_view.levels.derived.pop("atr")
+        si.technical_view.volatility.indicators.pop("atr")
+        with pytest.raises(HallucinationError, match="no usable ATR"):
+            derive_levels(_make_pred(), si)
+
+
+def _derived(pred):
+    return derive_levels(pred, _make_si())
 
 
 # ────────────────────────────────────────────
