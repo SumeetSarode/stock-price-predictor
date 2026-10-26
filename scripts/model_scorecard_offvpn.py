@@ -200,8 +200,20 @@ def plan(args: argparse.Namespace) -> str:
         "  inputs: technicals gathered once per case; news cached on first fetch and replayed for every later model"])
 
 
+def chain_candidates(chain: str) -> list[D.Candidate]:
+    """The production chain's entries ('gemini/x,groq/y,...') as candidates called through the app's own make_model()."""
+    ids = [m.strip() for m in chain.split(",") if m.strip()]
+    return [D.Candidate("chain", mid.partition("/")[0], mid.partition("/")[2], litellm_id=mid) for mid in ids]
+
+
 def shortlist_for(args: argparse.Namespace) -> tuple[list[D.Candidate], list[str]]:
-    """The models this run covers: the sweep's USEFUL ones, narrowed by --only. FileNotFoundError if no sweep ran."""
+    """The models this run covers: the sweep's USEFUL ones (or, with --chain, the .env CHAIN_AGENTIC entries),
+    narrowed by --only. FileNotFoundError if no sweep ran."""
+    if getattr(args, "chain", False):
+        from dotenv import dotenv_values
+        models = chain_candidates(dotenv_values(REPO / ".env").get("CHAIN_AGENTIC") or "")
+        wanted = {n.strip() for n in args.only.split(",") if n.strip()}
+        return [m for m in models if not wanted or m.model in wanted or m.test_id in wanted], []
     verdicts = Path(args.from_sweep) if Path(args.from_sweep).is_absolute() else REPORTS / args.from_sweep
     if not verdicts.exists():
         raise FileNotFoundError(f"No sweep results at {verdicts}. Run the sweep first (run_offvpn.py does it for you).")
@@ -298,6 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--cases", type=int, default=30, help="size of the fixed case grid (default 30)")
     ap.add_argument("--tickers", default=DEFAULT_TICKERS, help="comma list, or 'nifty50' for all 50 the app knows")
     ap.add_argument("--mover-share", type=float, default=0.5, help="share of cases that are real moves (default 0.5)")
+    ap.add_argument("--chain", action="store_true", help="score the .env CHAIN_AGENTIC entries instead of the sweep's")
     ap.add_argument("--only", default="", help="comma list of model names to run (default: every shortlisted model)")
     ap.add_argument("--first-cases", type=int, default=0,
                     help="run only the first N cases of the grid (it is ordered so any prefix is representative)")
