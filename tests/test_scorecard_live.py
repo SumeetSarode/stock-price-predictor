@@ -17,6 +17,7 @@ import model_scorecard_offvpn as MS
 import model_survey_offvpn as S
 import scorecard_core as SC
 import sweep_data as D
+import sweep_probe as PR
 from price_predictor.prediction.schema import (
     PredictionHorizon,
 )
@@ -246,11 +247,11 @@ def test_a_case_grid_chosen_without_regard_to_moves_is_not_resumed(flow, capsys)
     before = len(world.predict_calls)
     time.sleep(1.1)
     run(args(), factory)
-    assert "were not chosen around real price moves" in capsys.readouterr().out
+    assert "chosen by an older method" in capsys.readouterr().out
     assert len(world.predict_calls) == 2 * before, "a whole new grid was run, not a top-up of the old one"
     assert old.read_text().count('"type": "cases"') == 1, "the old file was left untouched"
     newest = sorted(reports.glob("model_scorecard_2*.jsonl"))[-1]
-    assert newest != old and '"picker": "movers-v1"' in newest.read_text()
+    assert newest != old and f'"picker": "{SC.PICKER}"' in newest.read_text()
     assert newest.read_text().count('"type": "cases"') == 1, "the new file holds ONLY the new grid, none of the old history"
 
 
@@ -425,3 +426,113 @@ def test_the_lookup_works_through_the_apps_real_price_code(real_chain):
     assert out[("RELIANCE.NS", date(2026, 7, 10))] > 1, "and so is five trading days before"
     assert out[("RELIANCE.NS", date(2026, 7, 1))] == 0, "far from the jump it is calm"
     assert len(out) == len(days), "every requested day with a resolved horizon got a strength"
+
+
+# ── every model gets the very same news ─────────────────────────────────
+
+def news_inputs(*errors):
+    return SimpleNamespace(errors=list(errors))
+
+
+def news_world(monkeypatch, replies):
+    """A predictor whose news step calls the app's gatherer the way production does (looked up at call time)."""
+    P = fake_predictor([])
+    fetches, seen, sleeps = [], [], []
+
+    async def gather(ticker, **kw):
+        fetches.append(ticker)
+        return replies[min(len(fetches), len(replies)) - 1]
+
+    async def news(canonical):
+        seen.append(await P.gather_news_impact_inputs(canonical))
+        return "impact"
+
+    async def compose(ticker, as_of):
+        return "tv"
+
+    async def sleep(seconds):
+        sleeps.append(seconds)
+    P.gather_news_impact_inputs, P.run_news_impact_agent = gather, news
+    monkeypatch.setattr(S, "build_model", lambda group, model_id: object())
+    lv = MS.Live(P, [PredictionHorizon.DAILY], 5, compose=compose, make_input=lambda **kw: SimpleNamespace(**kw),
+                 gather=gather, sleep=sleep)
+    return lv, P, gather, fetches, seen, sleeps
+
+
+CASE = SC.Case("tcs.ns", date(2026, 7, 20))
+
+
+def test_the_news_is_fetched_once_and_every_model_is_handed_the_very_same_inputs(monkeypatch):
+    first = news_inputs()
+    lv, P, gather, fetches, seen, _ = news_world(monkeypatch, [first, news_inputs()])
+    asyncio.run(lv.shared(CASE))
+    asyncio.run(lv.predict(cand("a"), CASE, "tv"))
+    asyncio.run(lv.predict(cand("b"), CASE, "tv"))
+    assert fetches == ["TCS.NS"], "one fetch for the case, none per model"
+    assert len(seen) == 2 and seen[0] is first and seen[1] is first
+    assert P.gather_news_impact_inputs is gather, "the app's own gatherer is put back"
+
+
+def test_a_throttled_news_source_is_retried_and_the_models_see_the_good_fetch(monkeypatch):
+    bad, good = news_inputs("company news unavailable: NewsFetchError: 429"), news_inputs()
+    lv, _P, _g, fetches, seen, sleeps = news_world(monkeypatch, [bad, good])
+    asyncio.run(lv.shared(CASE))
+    asyncio.run(lv.predict(cand("a"), CASE, "tv"))
+    assert len(fetches) == 2 and sleeps == [MS.NEWS_RETRY_S] and seen == [good]
+
+
+def test_news_that_keeps_failing_skips_the_case_and_no_model_is_asked(monkeypatch, tmp_path):
+    bad = news_inputs("sector news unavailable: NewsFetchError: 429")
+    lv, _P, _g, fetches, seen, sleeps = news_world(monkeypatch, [bad])
+    store = SC.CaseStore(tmp_path / "s.jsonl")
+    store.set_cases([CASE])
+    plumb = SC.Plumbing(lv.shared, lv.predict, lambda p: 0, S.classify, say=lambda *_: None)
+    asyncio.run(SC.run_scorecard([cand("a"), cand("b")], [CASE], store, PR.Budget({}, 99), plumb, calls_per_case=6))
+    row = store.get("*", CASE.key)
+    assert row.status == "FAIL" and row.klass == "inputs" and "news failed" in row.detail
+    assert len(fetches) == MS.NEWS_ATTEMPTS and len(sleeps) == MS.NEWS_ATTEMPTS - 1
+    assert seen == [] and store.get(cand("a").uid, CASE.key) is None, "nobody was judged on news-less inputs"
+    assert store.needs(cand("a").uid, CASE.key), "and the case is retried next run"
+
+
+def test_a_stock_with_genuinely_no_news_is_fine_and_is_not_retried(monkeypatch):
+    lv, _P, _g, fetches, _seen, sleeps = news_world(monkeypatch, [news_inputs()])
+    asyncio.run(lv.shared(CASE))
+    assert len(fetches) == 1 and sleeps == []
+
+
+def test_a_filings_hiccup_is_not_a_reason_to_retry_the_news(monkeypatch):
+    lv, _P, _g, fetches, _seen, sleeps = news_world(monkeypatch, [news_inputs("filings unavailable: NSE warmup failed")])
+    asyncio.run(lv.shared(CASE))
+    assert len(fetches) == 1 and sleeps == []
+
+
+def test_the_apps_gatherer_is_put_back_even_when_the_news_step_blows_up(monkeypatch):
+    lv, P, gather, _f, _seen, _s = news_world(monkeypatch, [news_inputs()])
+    asyncio.run(lv.shared(CASE))
+
+    async def boom(canonical):
+        raise RuntimeError("model fell over")
+    P.run_news_impact_agent = boom
+    with pytest.raises(RuntimeError):
+        asyncio.run(lv.predict(cand("a"), CASE, "tv"))
+    assert P.gather_news_impact_inputs is gather
+
+
+# ── why a case failed: refused by the app's own rules is final, the world's failures are retried ──
+
+def test_a_prediction_the_apps_rules_refused_is_the_models_own_final_failure():
+    grounding = "PredictionError: Synthesizer failed 3x. Last error: [grounding] stop_loss=1021.85 is 0.28xATR from close"
+    consistency = "PredictionError: Synthesizer failed 3x. Last error: [consistency] BULLISH call but only 0/4 clusters bullish"
+    assert MS.classify_case(grounding) == MS.classify_case(consistency) == "rejected"
+    assert MS.classify_case("ServiceUnavailableError: 503 This model is currently experiencing high demand") == "overloaded"
+    assert MS.classify_case("RateLimitError: 429") == "rate_limited"
+    assert MS.classify_case("ValueError: something odd") == "other"
+
+
+def test_a_refused_case_is_not_retried_but_an_overloaded_one_is(tmp_path):
+    store = SC.CaseStore(tmp_path / "s.jsonl")
+    store.add(SC.CaseResult("m1", "A@2026-07-20", "FAIL", "rejected", "refused 3 times"))
+    store.add(SC.CaseResult("m1", "B@2026-07-20", "FAIL", "overloaded", "503"))
+    assert not store.needs("m1", "A@2026-07-20"), "being refused again would only cost time"
+    assert store.needs("m1", "B@2026-07-20")

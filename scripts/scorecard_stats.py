@@ -14,10 +14,12 @@ import math
 from collections.abc import Iterable
 
 Z95 = 1.96
+Z99 = 2.576                  # interim looks: stricter, because stopping the moment a model looks good crowns lucky ones
 MIN_JUDGED = 10              # below this many graded directional calls we do not even draw an interval
 TARGET_HALF_WIDTH = 0.10     # "tell me within +/-10 percentage points"
 
 BEATS, WORSE, CANT_TELL, TOO_FEW = "BEATS_BASELINE", "WORSE_THAN_BASELINE", "CANT_TELL_YET", "TOO_FEW"
+NO_EDGE, KEEP = "NO_EDGE", "KEEP_TESTING"          # the staged test's extra outcomes (see `stage_verdict`)
 VERDICT_RANK = {BEATS: 0, CANT_TELL: 1, TOO_FEW: 2, WORSE: 3}
 
 
@@ -76,3 +78,26 @@ def judge(k: int, n: int, baseline: float, baseline_n: int = 0) -> tuple[str, fl
     if high < baseline_low:
         return WORSE, low, high
     return CANT_TELL, low, high
+
+
+def stage_verdict(k: int, n: int, baseline: float, baseline_n: int = 0, *, final: bool) -> str:
+    """What to do with a model after a stage of the staged test: BEATS (proven: stop), WORSE (hopeless: stop spending
+    on it), or keep going; and at the final stage, a definite answer instead of "keep going".
+
+    Interim looks use the 99% interval (see Z99), the final look the usual 95%. The baseline is itself measured, so
+    WORSE needs the model's high end below the baseline's LOW end, exactly as in `judge`. At the final stage a model
+    that does not beat the baseline is NO_EDGE (nothing shows it is better than a free constant strategy) only if
+    there is enough data to say so; with less it is CANT_TELL, never a guess.
+    """
+    z = Z95 if final else Z99
+    if n < MIN_JUDGED:
+        return TOO_FEW if final else KEEP
+    low, high = wilson(k, n, z)
+    if low > baseline:
+        return BEATS
+    baseline_low = wilson(round(baseline * baseline_n), baseline_n, z)[0] if baseline_n else baseline
+    if high < baseline_low:
+        return WORSE
+    if not final:
+        return KEEP
+    return NO_EDGE if n >= judged_needed() else CANT_TELL

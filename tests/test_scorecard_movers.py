@@ -18,6 +18,8 @@ import sweep_probe as PR
 from price_predictor.prediction.grading import grade_many
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import itertools
+
 from scorecard_fakes import (
     BULL,
     NEUTRAL,
@@ -68,28 +70,67 @@ def strength(ds, tickers, real):
     return {(t, d): (2.0 if (t, d) in real else 0.3) for d in ds for t in tickers}
 
 
-def test_half_the_cases_are_real_moves_and_half_calm_in_date_order():
-    ds, tickers = days(40), ["A", "B"]
+def test_half_the_cases_are_real_moves_and_half_calm():
+    ds, tickers = days(80), ["A", "B"]
     real = {(t, d) for t in tickers for i, d in enumerate(ds) if i % 3 == 0}
     cases = SC.pick_cases(tickers, ds, 10, strength(ds, tickers, real))
     assert len(cases) == 10 and len({c.key for c in cases}) == 10, "no case twice"
     assert sum((c.ticker, c.as_of) in real for c in cases) == 5
-    assert [c.as_of for c in cases] == sorted(c.as_of for c in cases)
     assert cases == SC.pick_cases(tickers, ds, 10, strength(ds, tickers, real)), "deterministic: same cases every run"
 
 
+def test_the_share_of_real_moves_is_adjustable():
+    ds, tickers = days(120), ["A", "B", "C"]
+    real = {(t, d) for t in tickers for i, d in enumerate(ds) if i % 2 == 0}
+    cases = SC.pick_cases(tickers, ds, 20, strength(ds, tickers, real), mover_share=0.75)
+    assert sum((c.ticker, c.as_of) in real for c in cases) == 15
+
+
 def test_when_real_moves_are_rare_calm_days_fill_the_grid_instead_of_leaving_it_short():
-    ds, tickers = days(30), ["A"]
-    real = {("A", ds[5]), ("A", ds[20])}
-    cases = SC.pick_cases(tickers, ds, 10, strength(ds, tickers, real))
-    assert len(cases) == 10 and sum((c.ticker, c.as_of) in real for c in cases) == 2, "both movers used, rest calm"
+    ds, tickers = days(60), ["A"]
+    real = {("A", ds[5]), ("A", ds[40])}
+    cases = SC.pick_cases(tickers, ds, 6, strength(ds, tickers, real), gap_days=1)
+    assert len(cases) == 6 and sum((c.ticker, c.as_of) in real for c in cases) == 2, "both movers used, rest calm"
 
 
-def test_when_most_days_are_real_moves_they_fill_the_grid_but_calm_days_still_get_their_half():
+def test_when_calm_days_are_rare_real_moves_fill_the_grid():
     ds, tickers = days(30), ["A"]
     real = {("A", d) for d in ds[:27]}
-    cases = SC.pick_cases(tickers, ds, 10, strength(ds, tickers, real))
+    cases = SC.pick_cases(tickers, ds, 10, strength(ds, tickers, real), gap_days=1)
     assert sum((c.ticker, c.as_of) in real for c in cases) == 7, "only 3 calm days exist; movers take the remaining slots"
+
+
+# ── one case per move ───────────────────────────────────────────────────
+
+def test_two_days_of_one_stock_close_together_are_never_both_cases_because_they_are_one_move():
+    ds, tickers = days(90), ["A", "B"]
+    real = {(t, d) for t in tickers for i, d in enumerate(ds) if i % 4 != 3}           # almost every day is "a move"
+    cases = SC.pick_cases(tickers, ds, 16, strength(ds, tickers, real))
+    for t in tickers:
+        mine = sorted(c.as_of for c in cases if c.ticker == t and (t, c.as_of) in real)
+        assert all((b - a).days >= SC.MIN_GAP_DAYS for a, b in itertools.pairwise(mine)), mine
+
+
+def test_the_gap_between_cases_of_one_stock_can_be_set():
+    ds, tickers = days(40), ["A"]
+    real = {("A", d) for d in ds}
+    near = SC.pick_cases(tickers, ds, 30, strength(ds, tickers, real), gap_days=1)
+    far = SC.pick_cases(tickers, ds, 30, strength(ds, tickers, real), gap_days=10)
+    assert len(near) == 30 and len(far) <= 4, "40 days leave room for only 4 cases 10 days apart"
+
+
+# ── the order: any first K cases are representative ─────────────────────
+
+def test_any_first_cases_have_the_right_mix_and_reach_across_the_whole_window():
+    ds, tickers = days(300), [f"T{i}" for i in range(8)]
+    real = {(t, d) for t in tickers for i, d in enumerate(ds) if (i + len(t) * ord(t[-1])) % 3 == 0}
+    cases = SC.pick_cases(tickers, ds, 40, strength(ds, tickers, real), mover_share=0.75)
+    for k in (8, 16, 24, 40):
+        movers = sum((c.ticker, c.as_of) in real for c in cases[:k])
+        assert abs(movers - 0.75 * k) <= 1.5, f"first {k} cases: {movers} real moves"
+    early = sorted(c.as_of for c in cases[:12])
+    span_all = max(d for d in (c.as_of for c in cases)) - min(c.as_of for c in cases)
+    assert (early[-1] - early[0]) >= 0.6 * span_all, "an early stage must not see only the earliest weeks"
 
 
 def test_with_no_price_information_it_falls_back_to_an_even_spread():

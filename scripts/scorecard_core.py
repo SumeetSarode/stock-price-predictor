@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import threading
 import time
 from collections import Counter, defaultdict
@@ -38,7 +39,8 @@ class Case:
         return cls(ticker, date.fromisoformat(day))
 
 
-PICKER = "movers-v1"      # how the saved case grid was chosen; a grid chosen any other way is not resumed
+PICKER = "movers-v2"      # how the saved case grid was chosen; a grid chosen any other way is not resumed
+MIN_GAP_DAYS = 7           # one case per move: two days of one ticker this close share price windows
 
 
 def case_moves(ticker: str, closes: list[tuple[date, float]], days: list[date],
@@ -66,12 +68,28 @@ def _spread(items: list, k: int) -> list:
     return [items[round(i * (len(items) - 1) / max(k - 1, 1))] for i in range(k)]
 
 
-def pick_cases(tickers: list[str], days: list[date], n: int,
-               moves: dict[tuple[str, date], float] | None = None) -> list[Case]:
-    """`n` cases spread across `days`, tickers rotated, so every period and every ticker is represented.
+def _independent(pool: list[tuple[str, date]], gap_days: int) -> list[tuple[str, date]]:
+    """Keep a (ticker, day) only if that ticker's previous kept day is `gap_days` or more earlier.
 
-    With `moves` (see `case_moves`), half the cases are days after which the price really moved and half are calm
-    days. Without that, most of a random sample is calm and "always neutral" wins it, so no model could stand out.
+    Neighbouring days of one stock share most of their price windows, so counting both would count one move twice
+    and make the confidence intervals look tighter than the evidence is.
+    """
+    kept, last = [], {}
+    for t, d in sorted(pool, key=lambda c: (c[1], c[0])):
+        if t not in last or (d - last[t]).days >= gap_days:
+            kept.append((t, d))
+            last[t] = d
+    return kept
+
+
+def pick_cases(tickers: list[str], days: list[date], n: int, moves: dict[tuple[str, date], float] | None = None,
+               mover_share: float = 0.5, gap_days: int = MIN_GAP_DAYS) -> list[Case]:
+    """`n` cases; with `moves` (see `case_moves`), `mover_share` of them are days after which the price really moved.
+
+    Without `moves` it is a plain even spread, which is mostly calm days: "always neutral" wins that, so no model
+    could stand out. With them, every case is an independent move (see `_independent`), and the ORDER is shuffled
+    (fixed seed) and interleaved in proportion, so the first K cases are as representative as the last K: a stage
+    that stops early still saw every period, every sector and the right mix of real moves and calm days.
     """
     if not tickers or not days or n <= 0:
         return []
@@ -80,13 +98,17 @@ def pick_cases(tickers: list[str], days: list[date], n: int,
         n = min(n, len(days))
         idx = [round(i * (len(days) - 1) / max(n - 1, 1)) for i in range(n)]
         return [Case(tickers[i % len(tickers)], days[j]) for i, j in enumerate(idx)]
-    movers = [c for c in known if moves[c] > 1.0]
-    calm = [c for c in known if moves[c] <= 1.0]
-    n_calm = min(len(calm), n // 2)
-    n_move = min(len(movers), n - n_calm)
-    n_calm = min(len(calm), n - n_move)               # too few movers: calm days fill the rest
-    chosen = sorted(_spread(movers, n_move) + _spread(calm, n_calm), key=lambda c: (c[1], c[0]))
-    return [Case(t, d) for t, d in chosen]
+    movers = _independent([c for c in known if moves[c] > 1.0], gap_days)
+    calm = _independent([c for c in known if moves[c] <= 1.0], gap_days)
+    n_move = min(len(movers), round(n * mover_share))
+    n_calm = min(len(calm), n - n_move)
+    n_move = min(len(movers), n - n_calm)             # too few calm days: real moves fill the rest
+    rng = random.Random(PICKER)
+    pick_m, pick_c = _spread(movers, n_move), _spread(calm, n_calm)
+    rng.shuffle(pick_m)
+    rng.shuffle(pick_c)
+    ranked = [(i / n_move, 0, c) for i, c in enumerate(pick_m)] + [((i + 0.5) / n_calm, 1, c) for i, c in enumerate(pick_c)]
+    return [Case(t, d) for _, _, (t, d) in sorted(ranked)]
 
 
 def interleave(models: list[Candidate]) -> list[Candidate]:
@@ -188,47 +210,62 @@ async def run_scorecard(models: list[Candidate], cases: list[Case], store: CaseS
     The budget is per MODEL, not per provider: models of one provider have their own quotas, and a shared pool let
     six Gemini models split one model's worth of cases, so none of them ever got enough to judge.
 
-    Sequential on purpose: the predictor's agents are module singletons, so two runs at once would trample each
-    other's model.
+    Sequential on purpose for the MODELS: the predictor's agents are module singletons, so two runs at once would
+    trample each other's model. The shared inputs of the NEXT case (news, technicals) touch no singleton, so they are
+    fetched while the current case's models run: the news download is the slowest step, and this hides it.
     """
     ordered, ready_at = interleave(models), {}
-    for case in cases:
-        if plumb.clock() >= deadline:
-            plumb.say("scorecard: time limit reached; the next run continues")
-            return
-        runnable = []
-        for m in (m for m in ordered if store.needs(m.uid, case.key)):
-            if budget.left(m.uid) < calls_per_case:
-                store.add(CaseResult(m.uid, case.key, "SKIP", "budget", f"{m.provider}/{m.model} call budget used up"))
-            else:
-                runnable.append(m)
-        if not runnable:
-            continue
-        try:
-            shared = await plumb.shared(case)
-        except Exception as e:
-            store.add(CaseResult("*", case.key, "FAIL", "inputs", f"{type(e).__name__}: {e}"[:300]))
-            plumb.say(f"  [skip] {case.key}: shared inputs failed ({type(e).__name__}); retried next run")
-            continue
-        for m in runnable:
-            if plumb.clock() >= deadline or not budget.take(m.uid, calls_per_case):
+    ahead: dict[str, asyncio.Future] = {}
+
+    def kick_off(nxt: Case | None) -> None:
+        if nxt and nxt.key not in ahead and any(store.needs(m.uid, nxt.key) for m in ordered):
+            ahead[nxt.key] = asyncio.ensure_future(plumb.shared(nxt))
+
+    try:
+        for i, case in enumerate(cases):
+            nxt = cases[i + 1] if i + 1 < len(cases) else None
+            if plumb.clock() >= deadline:
+                plumb.say("scorecard: time limit reached; the next run continues")
+                return
+            runnable = []
+            for m in (m for m in ordered if store.needs(m.uid, case.key)):
+                if budget.left(m.uid) < calls_per_case:
+                    store.add(CaseResult(m.uid, case.key, "SKIP", "budget", f"{m.provider}/{m.model} call budget used up"))
+                else:
+                    runnable.append(m)
+            if not runnable:
                 continue
-            wait = ready_at.get(m.provider, 0.0) - plumb.clock()
-            if wait > 0:
-                await plumb.sleep(wait)
-            t0 = plumb.clock()
             try:
-                preds = await plumb.predict(m, case, shared)
-                res = CaseResult(m.uid, case.key, "OK", seconds=round(plumb.clock() - t0, 1),
-                                 predictions=[p.model_dump_json() for p in preds])
-            except TimeoutError:
-                res = CaseResult(m.uid, case.key, "FAIL", "timeout", "step timed out", round(plumb.clock() - t0, 1))
+                shared = await (ahead.pop(case.key, None) or plumb.shared(case))
             except Exception as e:
-                msg = " ".join(f"{type(e).__name__}: {e}".split())
-                res = CaseResult(m.uid, case.key, "FAIL", plumb.classify(msg), msg[:400], round(plumb.clock() - t0, 1))
-            store.add(res)
-            ready_at[m.provider] = plumb.clock() + plumb.pace_for(m.provider)
-            plumb.say(f"  [{res.status:4s}] {m.provider:11s} {m.model[:40]:40s} {case.key:24s} {res.klass or ''}")
+                store.add(CaseResult("*", case.key, "FAIL", "inputs", f"{type(e).__name__}: {e}"[:300]))
+                plumb.say(f"  [skip] {case.key}: shared inputs failed ({type(e).__name__}); retried next run")
+                kick_off(nxt)
+                continue
+            kick_off(nxt)                      # the next case's news downloads while the models below answer this one
+            for m in runnable:
+                if plumb.clock() >= deadline or not budget.take(m.uid, calls_per_case):
+                    continue
+                wait = ready_at.get(m.provider, 0.0) - plumb.clock()
+                if wait > 0:
+                    await plumb.sleep(wait)
+                t0 = plumb.clock()
+                try:
+                    preds = await plumb.predict(m, case, shared)
+                    res = CaseResult(m.uid, case.key, "OK", seconds=round(plumb.clock() - t0, 1),
+                                     predictions=[p.model_dump_json() for p in preds])
+                except TimeoutError:
+                    res = CaseResult(m.uid, case.key, "FAIL", "timeout", "step timed out", round(plumb.clock() - t0, 1))
+                except Exception as e:
+                    msg = " ".join(f"{type(e).__name__}: {e}".split())
+                    res = CaseResult(m.uid, case.key, "FAIL", plumb.classify(msg), msg[:400], round(plumb.clock() - t0, 1))
+                store.add(res)
+                ready_at[m.provider] = plumb.clock() + plumb.pace_for(m.provider)
+                plumb.say(f"  [{res.status:4s}] {m.provider:11s} {m.model[:40]:40s} {case.key:24s} {res.klass or ''}")
+    finally:
+        for task in ahead.values():            # never leave a download running (or its error unread) behind us
+            task.cancel()
+        await asyncio.gather(*ahead.values(), return_exceptions=True)
 
 
 @dataclass(frozen=True)
