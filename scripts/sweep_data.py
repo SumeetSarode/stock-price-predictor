@@ -80,9 +80,6 @@ SPECS: dict[str, Spec] = {
     "nvidia": Spec("https://integrate.api.nvidia.com/v1", "https://integrate.api.nvidia.com/v1/models", "bearer",
                    "all", "NVIDIA NIM trial/developer tier (read its terms before production use)", 2, 60,
                    ("NVIDIA_NIM_API_KEY", "NVIDIA_API_KEY")),
-    "ovh": Spec("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
-                "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models", None, "all",
-                "OVH anonymous tier (about 2 requests/min/model)", 35, 20, (), None, True,
     # base/models_url with "{account}": the key is stored as 'account_id:api_token' (see split_account_key)
     "cloudflare": Spec("https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1",
                        "https://api.cloudflare.com/client/v4/accounts/{account}/ai/models/search?task=Text%20Generation"
@@ -94,14 +91,17 @@ SPECS: dict[str, Spec] = {
     "siliconflow": Spec("https://api.siliconflow.com/v1", "https://api.siliconflow.com/v1/models?type=text&sub_type=chat",
                         "bearer", "all", "SiliconFlow (free models plus sign-up credit; the rest draw on the balance)",
                         2, 60, ("SILICONFLOW_API_KEY",)),
+    "huggingface": Spec("https://router.huggingface.co/v1", "https://router.huggingface.co/v1/models", "bearer", "all",
+                        "Hugging Face Inference Providers: small monthly free credit (402 once it is used up)", 2, 60,
+                        ("HF_TOKEN", "HUGGINGFACE_API_KEY")),
+    "ovh": Spec("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+                "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models", None, "all",
+                "OVH anonymous tier (about 2 requests/min/model)", 35, 20, (), None, True,
                 ("Qwen3.8-27B", "Qwen3.5-397B-A17B", "gpt-oss-120b")),
     "kilo": Spec("https://api.kilo.ai/api/gateway/v1", "https://api.kilo.ai/api/gateway/v1/models", None, "suffix",
                  "Kilo anonymous ':free' routes (200 req/hr/IP; prompts and outputs are logged for training)", 20, 30,
                  (), None, True, ("nvidia/nemotron-3-super-120b-a12b:free", "nvidia/nemotron-3-ultra-550b-a55b:free")),
 }
-
-# models.dev provider id -> the name we use, so a provider we already test is never listed as "needs signup"
-LEDGER_ALIASES = {"ovhcloud": "ovh", "zhipuai": "zhipu"}
 
 def split_account_key(spec: Spec, key: str | None) -> tuple[Spec, str | None]:
     """Providers whose URLs carry an account id keep their key as 'account:token': -> (spec with real URLs, token)."""
@@ -111,6 +111,9 @@ def split_account_key(spec: Spec, key: str | None) -> tuple[Spec, str | None]:
     return replace(spec, base=spec.base.format(account=account),
                    models_url=spec.models_url.format(account=account)), token
 
+
+# models.dev provider id -> the name we use, so a provider we already test is never listed as "needs signup"
+LEDGER_ALIASES = {"ovhcloud": "ovh", "zhipuai": "zhipu"}
 
 # freellmapi platforms whose keys may be handed to its container when you opt in (--with-keys).
 # Cohere is absent on purpose (terms), and so are the retired/locked ones (sambanova, opencode, reka).
@@ -164,12 +167,12 @@ class Candidate:
     @classmethod
     def from_row(cls, row: dict, keys: dict[str, str] | None = None) -> Candidate:
         """Inverse of row(): the key comes from `keys` (read from .env), never from the file."""
-        return cls(row["route"], row["provider"], row["model"], row.get("status", TESTABLE), row.get("base"),
-                   key, row.get("litellm_id"), bool(row.get("anonymous")),
-                   row.get("note", ""), row.get("hint_structured"), tuple(row.get("sources", ())))
         key = (keys or {}).get(row["provider"])
         if row["provider"] in SPECS:
             key = split_account_key(SPECS[row["provider"]], key)[1]
+        return cls(row["route"], row["provider"], row["model"], row.get("status", TESTABLE), row.get("base"),
+                   key, row.get("litellm_id"), bool(row.get("anonymous")),
+                   row.get("note", ""), row.get("hint_structured"), tuple(row.get("sources", ())))
 
 
 def classify_candidate(provider: str, model: str) -> tuple[str, str]:

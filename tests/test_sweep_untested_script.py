@@ -13,16 +13,25 @@ def _line(uid: str, level: str, klass: str = "", verdict: str = "FAIL", run: int
     return json.dumps({"uid": uid, "level": level, "verdict": verdict, "klass": klass, "run": run})
 
 
-def test_forget_rows_drops_only_not_found_probe_answers():
+def test_forget_rows_drops_every_failed_probe_but_keeps_passes_and_pipeline_runs():
     lines = [_line("direct|nvidia|gone", "chat", "not_found"),
              _line("direct|nvidia|gone", "json", "not_found"),
              _line("direct|google|busy", "chat", "rate_limited"),
+             _line("direct|ollama|paid", "chat", "payment"),
              _line("direct|mistral|ok", "chat", verdict="PASS"),
              _line("direct|mistral|ok", "pipeline", "timeout", run=1),
              '{"uid": "cut off mid-wri']
     kept = [json.loads(x) for x in U.forget_rows(lines)]
-    assert [(r["uid"], r["level"]) for r in kept] == [
-        ("direct|google|busy", "chat"), ("direct|mistral|ok", "chat"), ("direct|mistral|ok", "pipeline")]
+    assert [(r["uid"], r["level"]) for r in kept] == [("direct|mistral|ok", "chat"), ("direct|mistral|ok", "pipeline")]
+
+
+def test_never_matches_lets_every_name_through():
+    assert not U.NEVER_MATCHES.search("nv-embedqa-e5-v5") and not U.NEVER_MATCHES.search("")
+
+
+def test_hugging_face_is_tested_directly_with_hf_token():
+    spec = U.D.SPECS["huggingface"]
+    assert spec.base == "https://router.huggingface.co/v1" and "HF_TOKEN" in spec.env and not spec.anonymous
 
 
 def test_resume_file_is_never_picked_up_as_the_latest_sweep(tmp_path):

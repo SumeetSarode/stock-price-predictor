@@ -3,11 +3,16 @@
     uv run python scripts/sweep_untested_offvpn.py
 
 What it does, on top of the normal sweep (scripts/free_model_sweep_offvpn.py), resuming from its latest results:
+  * calls EVERY model every provider lists: Google, Groq, OpenRouter, Mistral, Cerebras, NVIDIA, Cloudflare,
+    Ollama Cloud, SiliconFlow, Hugging Face, OVH, Kilo, plus the freellmapi / OmniRoute gateway catalogs
+  * no model is skipped by its name: embedding/speech/image-looking names get the chat call too, and fail it on
+    their own if they cannot chat
+  * forgets every earlier failed chat/json check (not found, paid, busy, rejected...), so each one is asked again;
+    finished pipeline tests are kept, they are the expensive part
   * stops any earlier sweep still running, because this run replaces it (two at once would share one free quota)
-  * forgets the "model not found" answers, so models a provider has switched back on get tested
-  * no call limit worth hitting (400 per provider) and no cap on how many models reach the pipeline test
+  * 400 calls per provider and no cap on how many models reach the pipeline test
   * retries temporary failures (rate limits, overloads, timeouts) once, after the first full pass
-  * never calls DeepSeek: its API is paid, and the company network blocks it on purpose
+  * never calls DeepSeek (a paid API, blocked by the company on purpose) or Cohere (terms, agreed earlier)
 
 Expect several hours. The laptop is kept awake, but keep it plugged in. Interrupted? Run it again: it resumes.
 
@@ -19,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,8 +34,8 @@ import sweep_data as D
 import sweep_env as SE
 import sweep_probe as PR
 
-FORGET = {"not_found"}      # chat answers worth asking again: a provider may have switched the model back on
 SKIP_PROVIDERS = ("deepseek",)
+NEVER_MATCHES = re.compile(r"(?!)")
 SWEEP_ARGS = ["--budget", "400", "--max-pipeline", "0", "--retry-passes", "1"]
 
 
@@ -41,15 +47,15 @@ def stop_earlier_sweeps(run=subprocess.run) -> str:
     return found
 
 
-def forget_rows(lines, forget: set[str] = FORGET) -> list[str]:
-    """Earlier result lines, minus the chat/json answers of models whose chat answer was in `forget`."""
+def forget_rows(lines) -> list[str]:
+    """Earlier result lines, minus the chat/json checks of every model whose chat check did not pass."""
     rows = []
     for line in lines:
         try:
             rows.append(json.loads(line))
         except ValueError:      # a line cut off when the earlier sweep was stopped
             continue
-    drop = {r["uid"] for r in rows if r.get("level") == "chat" and r.get("klass") in forget}
+    drop = {r["uid"] for r in rows if r.get("level") == "chat" and r.get("verdict") != "PASS"}
     return [json.dumps(r, ensure_ascii=False) + "\n" for r in rows
             if not (r.get("uid") in drop and r.get("level") in ("chat", "json"))]
 
@@ -73,6 +79,7 @@ def main() -> int:
     print(f"stopped earlier sweep(s):\n{stopped}" if stopped else "no earlier sweep was running")
     for p in SKIP_PROVIDERS:
         D.SPECS.pop(p, None)
+    D.NON_CHAT = NEVER_MATCHES      # classify_candidate reads it at call time: no model is skipped by its name
     resume = resume_file(FM.REPORTS, stamp)
     args = SWEEP_ARGS + (["--resume", str(resume.relative_to(FM.REPO))] if resume else ["--fresh"])
     print(f"resuming from: {resume or 'nothing (fresh start)'}\nlog: {log}\n")
