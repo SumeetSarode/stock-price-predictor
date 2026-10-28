@@ -4,7 +4,7 @@
 
 What it does, on top of the normal sweep (scripts/free_model_sweep_offvpn.py), resuming from its latest results:
   * calls EVERY model every provider lists: Google, Groq, OpenRouter, Mistral, Cerebras, NVIDIA, Cloudflare,
-    Ollama Cloud, SiliconFlow, Hugging Face, OVH, Kilo, plus the freellmapi / OmniRoute gateway catalogs
+    Ollama Cloud, Hugging Face, OVH, Kilo, plus the freellmapi / OmniRoute gateway catalogs
   * no model is skipped by its name: embedding/speech/image-looking names get the chat call too, and fail it on
     their own if they cannot chat
   * forgets every earlier failed chat/json check (not found, paid, busy, rejected...), so each one is asked again;
@@ -12,7 +12,8 @@ What it does, on top of the normal sweep (scripts/free_model_sweep_offvpn.py), r
   * stops any earlier sweep still running, because this run replaces it (two at once would share one free quota)
   * 400 calls per provider and no cap on how many models reach the pipeline test
   * retries temporary failures (rate limits, overloads, timeouts) once, after the first full pass
-  * never calls DeepSeek (a paid API, blocked by the company on purpose) or Cohere (terms, agreed earlier)
+  * never calls DeepSeek (a paid API, blocked by the company on purpose), Cohere (terms, agreed earlier) or
+    SiliconFlow (no free chat model on siliconflow.com; removed by you)
 
 Expect several hours. The laptop is kept awake, but keep it plugged in. Interrupted? Run it again: it resumes.
 

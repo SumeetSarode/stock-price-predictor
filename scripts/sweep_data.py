@@ -38,6 +38,8 @@ SUBSCRIPTION_PROVIDER = re.compile(r"(^|-)plan(-|$)", re.I)   # kimi-code-plan-c
 RETIRED_PROVIDERS = {
     "opencode": "free roster locked to the OpenCode client since 2026-09 (403 FreeTierError; freellmapi #1249/#1265, OmniRoute #15152)",
     "sambanova": "free tier permanently retired (402 once the one-time trial credit lapses)",
+    "siliconflow": "siliconflow.com lists no $0 chat model (only $1 sign-up credit); every call returned 402 balance "
+                   "insufficient. Removed by the user 2026-10-27",
     "reka": "no free tier for new accounts since 2026-09 (prepaid credits required)",
     "chutes": "every model demands a non-zero balance (402)",
 }
@@ -88,9 +90,6 @@ SPECS: dict[str, Spec] = {
                        ("CLOUDFLARE_API_KEY",)),
     "ollama": Spec("https://ollama.com/v1", "https://ollama.com/v1/models", "bearer", "all",
                    "Ollama Cloud free tier (hourly and weekly usage limits)", 3, 60, ("OLLAMA_API_KEY",)),
-    "siliconflow": Spec("https://api.siliconflow.com/v1", "https://api.siliconflow.com/v1/models?type=text&sub_type=chat",
-                        "bearer", "all", "SiliconFlow (free models plus sign-up credit; the rest draw on the balance)",
-                        2, 60, ("SILICONFLOW_API_KEY",)),
     "huggingface": Spec("https://router.huggingface.co/v1", "https://router.huggingface.co/v1/models", "bearer", "all",
                         "Hugging Face Inference Providers: small monthly free credit (402 once it is used up)", 2, 60,
                         ("HF_TOKEN", "HUGGINGFACE_API_KEY")),
@@ -122,7 +121,7 @@ LEDGER_ALIASES = {"ovhcloud": "ovh", "zhipuai": "zhipu"}
 FREELLMAPI_PLATFORMS = (
     "google", "groq", "cerebras", "electronhub", "experiential", "bai", "anyapi", "radeon", "nvidia", "mistral",
     "openrouter", "cloudflare", "zhipu", "ollama", "pollinations", "llm7", "huggingface", "agnes",
-    "siliconflow", "routeway", "bazaarlink", "ainative", "aion", "requesty", "navy", "nara", "sealion",
+    "routeway", "bazaarlink", "ainative", "aion", "requesty", "navy", "nara", "sealion",
     "orcarouter", "unorouter", "xkiro", "longcat", "aihorde")
 
 # freellmapi platform name -> extra .env names, beyond the generic {PLATFORM}_API_KEY
