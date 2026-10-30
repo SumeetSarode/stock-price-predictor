@@ -52,3 +52,23 @@ def test_stop_earlier_sweeps_only_kills_when_one_is_running():
     calls.clear()
     assert U.stop_earlier_sweeps(lambda cmd, **kw: calls.append(cmd[0]) or type("R", (), {"stdout": ""})()) == ""
     assert calls == ["pgrep"]
+
+
+def test_list_shaped_reply_content_is_read_as_text_not_a_crash():
+    """The 2026-10-30 run died on "'list' object has no attribute 'strip'": some models send content as parts."""
+    resp = type("R", (), {"json": lambda self: {"choices": [{"message": {"content": [
+        {"type": "thinking", "thinking": "hmm"}, {"type": "text", "text": "ok"}]}}]}})()
+    assert U.PR.reply_text(resp) == ("ok", True)
+    assert U.D.as_text(None) == "" and U.D.as_text("ok") == "ok"
+
+
+def test_a_probe_that_raises_is_recorded_and_the_run_goes_on(tmp_path):
+    cand = U.D.Candidate("direct", "x", "m", base="http://b", key="k")
+    store = U.PR.Store(tmp_path / "r.jsonl")
+
+    def boom(*a, **k):
+        raise RuntimeError("weird reply")
+    U.PR.probe_provider([cand], boom, None, store, U.PR.Budget({"x": 10}, 10), 0, sleep=lambda s: None,
+                        say=lambda s: None)
+    r = store.get(cand.uid, "chat")
+    assert r.verdict == "FAIL" and r.klass == "other" and "weird reply" in r.detail

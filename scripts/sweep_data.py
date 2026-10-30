@@ -174,6 +174,16 @@ class Candidate:
                    row.get("note", ""), row.get("hint_structured"), tuple(row.get("sources", ())))
 
 
+def as_text(content) -> str:
+    """OpenAI-style content is a string OR a list of parts ({'type': 'text', 'text': ...}, thinking blocks, ...)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(p if isinstance(p, str) else str(p.get("text") or "") if isinstance(p, dict) else ""
+                       for p in content)
+    return ""
+
+
 def classify_candidate(provider: str, model: str) -> tuple[str, str]:
     """Static triage by name/provider alone: -> (status, note). TESTABLE means 'worth probing'."""
     if provider in TERMS_BLOCKED_PROVIDERS:

@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sweep_data import TESTABLE, TRANSIENT, Candidate
+from sweep_data import TESTABLE, TRANSIENT, Candidate, as_text
 
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}
 RETRYABLE = TRANSIENT | {"budget", "other"}   # on --resume these are tried again; permanent failures are not
@@ -59,9 +59,11 @@ def reply_text(resp) -> tuple[str, bool]:
     """(content, whether the model also returned reasoning). A reasoning-only reply still proves it is alive."""
     try:
         msg = resp.json()["choices"][0]["message"]
-    except (TypeError, KeyError, IndexError):
+        content = msg.get("content")
+    except (TypeError, KeyError, IndexError, AttributeError):
         return "", False
-    return msg.get("content") or "", bool(msg.get("reasoning_content") or msg.get("reasoning"))
+    thinking = isinstance(content, list) and any(isinstance(p, dict) and p.get("type") == "thinking" for p in content)
+    return as_text(content), bool(msg.get("reasoning_content") or msg.get("reasoning") or thinking)
 
 
 def probe_chat(chat, c, cand: Candidate) -> Result:
@@ -210,7 +212,10 @@ def probe_provider(cands: list[Candidate], chat, c, store: Store, budget: Budget
             if not budget.take(cand.budget_key, keep=budget.reserve(cand.budget_key)):
                 store.add(Result(cand.uid, level, "SKIP", "budget", f"{cand.budget_key} cheap-probe budget used up"))
                 break
-            res = fn(chat, c, cand)
+            try:
+                res = fn(chat, c, cand)
+            except Exception as e:      # one odd reply must never end a run of many hours
+                res = Result(cand.uid, level, "FAIL", "other", f"probe crashed: {type(e).__name__}: {e}"[:300])
             store.add(res)
             say(f"  [{res.verdict:4s}] {cand.provider:11s} {cand.model[:48]:48s} {level:5s} {res.klass or res.detail[:30]}")
             sleep(pace_s)

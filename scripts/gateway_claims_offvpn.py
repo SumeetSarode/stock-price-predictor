@@ -50,6 +50,7 @@ from gateway_claims_data import (  # what we test and why: pure data, kept apart
     NOT_TESTED_REASONS,
 )
 from gateway_claims_strata import strata_checks
+from sweep_data import as_text
 from sweep_sources import read_env_keys
 
 REPO, REPORTS = S.REPO, S.REPORTS
@@ -153,8 +154,8 @@ def chat(c: httpx.Client, base: str, key: str | None, model: str,
     body = {"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 400, **extra}
     r = call(c, "POST", f"{base}/chat/completions", json=body, headers=headers)
     try:
-        content = r.json()["choices"][0]["message"]["content"] or ""
-    except (TypeError, KeyError, IndexError):
+        content = as_text(r.json()["choices"][0]["message"]["content"])
+    except (TypeError, KeyError, IndexError, AttributeError):
         content = ""
     return r, content
 
