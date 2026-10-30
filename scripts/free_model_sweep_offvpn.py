@@ -52,6 +52,7 @@ import sweep_data as D
 import sweep_env as SE
 import sweep_probe as PR
 import sweep_report as REP
+import sweep_resolve as RES
 import sweep_sources as SRC
 from gateway_claims_catalog import CATALOG_URL
 
@@ -242,6 +243,9 @@ async def amain(args: argparse.Namespace) -> int:
             prepared = await S.prepare()
         except Exception as e:
             meta["pipeline"] = f"unavailable: {type(e).__name__}: {e}"[:300]
+            if args.require_pipeline:
+                return finish(f"ABORTED: the pipeline test could not start ({meta['pipeline']}). Nothing was spent. "
+                              "Fix that (usually: be off the VPN so prices load) and re-run.", 3)
 
     budget = PR.Budget({p: (args.budget or s.budget) for p, s in D.SPECS.items()}, args.budget or GATEWAY_BUDGET)
 
@@ -258,6 +262,13 @@ async def amain(args: argparse.Namespace) -> int:
                 print(f"retry pass {attempt}: {len(todo)} model(s) hit a temporary failure; waiting {args.retry_wait * attempt:g}s")
                 await asyncio.sleep(args.retry_wait * attempt)
             await probe_route(todo, G.chat, c, store, budget, args.workers)
+            renamed = RES.replacements(found, store, catalog)   # "not found": test the id it is served under now
+            if renamed:
+                print(f"not found -> trying {len(renamed)} current id(s) of the same models")
+                found.extend(renamed)
+                cands.extend(renamed)
+                todo = todo + renamed
+                await probe_route(renamed, G.chat, c, store, budget, args.workers)
             if prepared:
                 await pipeline_pass(W, prepared, todo, store, budget, args.repeats, args.max_pipeline, deadline)
 
@@ -379,6 +390,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--strata-url", default="http://127.0.0.1:8080")
     ap.add_argument("--strata-key", default=None)
     ap.add_argument("--discover-only", action="store_true", help="list every candidate; make no LLM calls")
+    ap.add_argument("--require-pipeline", action="store_true",
+                    help="stop before any call if the pipeline test cannot start (no probe-only runs)")
     ap.add_argument("--keep", action="store_true", help="leave gateway containers running")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and exit; no network")
     return ap

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import subprocess
 from datetime import UTC, datetime
@@ -37,7 +38,7 @@ import sweep_probe as PR
 
 SKIP_PROVIDERS = ("deepseek",)
 NEVER_MATCHES = re.compile(r"(?!)")
-SWEEP_ARGS = ["--budget", "400", "--max-pipeline", "0", "--retry-passes", "1"]
+SWEEP_ARGS = ["--budget", "400", "--max-pipeline", "0", "--retry-passes", "1", "--require-pipeline"]
 
 
 def stop_earlier_sweeps(run=subprocess.run) -> str:
@@ -71,6 +72,7 @@ def resume_file(reports: Path, stamp: str) -> Path | None:
 
 
 def main() -> int:
+    os.chdir(FM.REPO)       # the app finds its data (./data) from the project folder, wherever this was started
     FM.REPORTS.mkdir(exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     log = FM.REPORTS / f"sweep_untested_{stamp}.log"
@@ -82,7 +84,7 @@ def main() -> int:
         D.SPECS.pop(p, None)
     D.NON_CHAT = NEVER_MATCHES      # classify_candidate reads it at call time: no model is skipped by its name
     resume = resume_file(FM.REPORTS, stamp)
-    args = SWEEP_ARGS + (["--resume", str(resume.relative_to(FM.REPO))] if resume else ["--fresh"])
+    args = SWEEP_ARGS + (["--resume", str(resume.resolve())] if resume else ["--fresh"])   # absolute: no cwd games
     print(f"resuming from: {resume or 'nothing (fresh start)'}\nlog: {log}\n")
     code = asyncio.run(FM.amain(FM.normalize(FM.build_parser().parse_args(args))))
     print(f"\nDONE (exit {code}). Point Code Puppy at:\n  {FM.REPORTS / FM.LATEST_MD}\n"
