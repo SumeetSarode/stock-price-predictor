@@ -11,6 +11,7 @@ Public surface:
 """
 import os
 from pathlib import Path
+from typing import ClassVar
 
 from loguru import logger
 from pydantic import Field, SecretStr, field_validator
@@ -54,8 +55,12 @@ class Settings(BaseSettings):
         return (init_settings, dotenv_settings, env_settings, file_secret_settings)
 
     # ── Secrets ────────────────────────────────────────────────
-    groq_api_key: SecretStr = Field(validation_alias="GROQ_API_KEY")
-    gemini_api_key: SecretStr = Field(validation_alias="GEMINI_API_KEY")
+    # EVERY LLM key is optional. A chain entry whose provider has no key is
+    # skipped (see effective_chain), so a laptop runs on whichever free tiers
+    # it has keys for, plus the keyless ones (OVH anonymous, local Ollama).
+    # The provider-prefix -> key mapping is LLM_KEY_ENV, below the fields.
+    groq_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="GROQ_API_KEY")
+    gemini_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="GEMINI_API_KEY")
 
     # Optional -- only required if 'alpha_vantage' appears in PRICE_CHAIN
     # or PRICE_PAID. We default to empty SecretStr so users who don't use AV
@@ -91,36 +96,48 @@ class Settings(BaseSettings):
         default=SecretStr(""), validation_alias="COHERE_API_KEY"
     )
 
+    # OPTIONAL: Mistral (free 'Experiment' tier) and NVIDIA NIM (free developer
+    # tier), for 'mistral/*' and 'nvidia_nim/*' entries in CHAIN_AGENTIC. Both
+    # passed the full two-step pipeline in the 2026-11-02 off-VPN model sweep.
+    mistral_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="MISTRAL_API_KEY"
+    )
+    nvidia_nim_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="NVIDIA_NIM_API_KEY"
+    )
+
     # ── Validators ────────────────────────────────────────────
-    @field_validator("groq_api_key", "gemini_api_key")
+    @field_validator(
+        "groq_api_key", "gemini_api_key", "mistral_api_key", "nvidia_nim_api_key",
+        "openrouter_api_key", "cohere_api_key",
+    )
     @classmethod
-    def reject_placeholder_keys(cls, value: SecretStr) -> SecretStr:
-        """Catch unset/placeholder keys at startup, not at first API call."""
-        raw = value.get_secret_value()
-        if not raw or raw.startswith("your_"):
-            raise ValueError("Placeholder API key detected — set a real key in .env")
+    def placeholder_llm_key_means_no_key(cls, value: SecretStr) -> SecretStr:
+        """A template placeholder ('your_..._here') is treated as NO key.
+
+        Older templates shipped GROQ_API_KEY=your_groq_key_here; a laptop that
+        never replaced it must still start, with that provider skipped, rather
+        than crash at import (the ship rule: missing key -> skip its models).
+        """
+        if value.get_secret_value().startswith("your_"):
+            return SecretStr("")
         return value
 
-    @field_validator(
-        "alpha_vantage_api_key", "stooq_api_key", "openrouter_api_key",
-        "cohere_api_key",
-    )
+    @field_validator("alpha_vantage_api_key", "stooq_api_key")
     @classmethod
     def reject_placeholder_provider_keys(cls, value: SecretStr) -> SecretStr:
         """Allow EMPTY (provider not used) but reject obvious placeholders.
 
         Why empty is OK: a user who never uses a given provider shouldn't
         have to set its key. Price providers raise a clear PriceFetchError
-        at fetch time if invoked without a key; optional LLM providers (e.g.
-        openrouter) are silently skipped in effective_chain() if listed
-        without a key -- see that method's optional-key logic.
+        at fetch time if invoked without a key.
         """
         raw = value.get_secret_value()
         if raw and raw.startswith("your_"):
             raise ValueError(
                 "Placeholder provider API key detected. Either set a real "
-                "key, remove the provider from its chain (PRICE_CHAIN / "
-                "PRICE_PAID / CHAIN_AGENTIC), or leave the var unset."
+                "key, remove the provider from PRICE_CHAIN / PRICE_PAID, "
+                "or leave the var unset."
             )
         return value
 
@@ -343,44 +360,52 @@ class Settings(BaseSettings):
         if self.use_paid:
             return [paid_model]
         chain = [m.strip() for m in chain_csv.split(",") if m.strip()]
-        return [m for m in chain if not self._optional_key_missing(m)]
-
-    # Providers with an OPTIONAL key -- unlike groq/gemini, which are
-    # REQUIRED and validated at startup (reject_placeholder_keys), so they
-    # can never silently reach here without a real key.
-    #
-    # WHY THIS EXISTS: llm.resilient.ResilientModel treats AuthenticationError
-    # as a STRUCTURAL error, which does NOT fall through to the next model
-    # in the chain -- it raises immediately (by design: an auth failure is a
-    # config bug, not something retrying elsewhere fixes). So if an optional
-    # provider is listed in CHAIN_AGENTIC without its key configured, EVERY
-    # prediction would hard-crash the instant the chain reached that tier.
-    # Skipping it here (once, at chain-resolution time) means an unconfigured
-    # optional provider just quietly isn't part of your chain -- exactly how
-    # PRICE_CHAIN's optional providers already behave.
-    def _optional_key_missing(self, model_name: str) -> bool:
-        """True if `model_name`'s provider needs a key we don't have."""
-        provider = model_name.split("/", 1)[0]
-        # Keyed by litellm's PROVIDER PREFIX, which is not always the brand
-        # name -- Cohere's chat route is 'cohere_chat' ('cohere' alone is
-        # litellm's embeddings provider and would never appear in this chain).
-        optional_keys: dict[str, tuple[SecretStr, str]] = {
-            "openrouter": (self.openrouter_api_key, "OPENROUTER_API_KEY"),
-            "cohere_chat": (self.cohere_api_key, "COHERE_API_KEY"),
-        }
-        entry = optional_keys.get(provider)
-        if entry is None:
-            return False  # not an optional-key provider (groq/gemini/ollama)
-        key, env_var = entry
-        missing = not key.get_secret_value()
-        if missing:
-            logger.warning(
-                "[settings] {!r} in chain has no configured key -- skipping "
-                "it (set {} in .env to enable it).",
-                model_name,
-                env_var,
+        usable = [m for m in chain if not self._key_missing(m)]
+        if not usable:
+            raise ValueError(
+                "No usable model in CHAIN_AGENTIC: every entry needs an API key "
+                "that is blank in .env. Paste at least one key (e.g. GEMINI_API_KEY "
+                "or MISTRAL_API_KEY) or keep a keyless entry (ollama_chat/...)."
             )
-        return missing
+        return usable
+
+    # provider prefix (as written in CHAIN_AGENTIC) -> (settings field, .env name).
+    # Keyed by litellm's PROVIDER PREFIX, which is not always the brand name --
+    # Cohere's chat route is 'cohere_chat' ('cohere' alone is litellm's
+    # embeddings provider). Providers NOT listed here need no key: 'ovhcloud'
+    # (anonymous hosted tier) and 'ollama'/'ollama_chat' (local).
+    LLM_KEY_ENV: ClassVar[dict[str, tuple[str, str]]] = {
+        "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
+        "groq": ("groq_api_key", "GROQ_API_KEY"),
+        "mistral": ("mistral_api_key", "MISTRAL_API_KEY"),
+        "nvidia_nim": ("nvidia_nim_api_key", "NVIDIA_NIM_API_KEY"),
+        "openrouter": ("openrouter_api_key", "OPENROUTER_API_KEY"),
+        "cohere_chat": ("cohere_api_key", "COHERE_API_KEY"),
+    }
+
+    def api_key_for(self, provider: str) -> str:
+        """The configured key for a provider prefix ('' if blank or keyless)."""
+        entry = self.LLM_KEY_ENV.get(provider)
+        return getattr(self, entry[0]).get_secret_value() if entry else ""
+
+    # WHY SKIP INSTEAD OF FAIL: llm.resilient.ResilientModel treats
+    # AuthenticationError as STRUCTURAL -- it does NOT fall through to the next
+    # model, it raises (an auth failure is a config bug). So a chain entry
+    # without its key would hard-crash every prediction the moment the chain
+    # reached it. Skipping it here, once, at chain-resolution time means a
+    # provider you have no key for just isn't part of your chain.
+    def _key_missing(self, model_name: str) -> bool:
+        """True if `model_name`'s provider needs a key that is blank."""
+        provider = model_name.split("/", 1)[0]
+        if provider not in self.LLM_KEY_ENV or self.api_key_for(provider):
+            return False
+        logger.warning(
+            "[settings] {!r} in chain has no configured key -- skipping "
+            "it (set {} in .env to enable it).",
+            model_name,
+            self.LLM_KEY_ENV[provider][1],
+        )
+        return True
 
     # ── Price-provider chain (parallels the LLM chain pattern above) ─────
     #

@@ -163,7 +163,7 @@ async def run_prediction(ticker: str, horizon: str) -> dict[str, Any]:
             f"An LLM provider rejected the request as unauthenticated{where}.",
             hint=(
                 "A hosted model's API key is missing, invalid, or expired. "
-                "Check GEMINI_API_KEY and GROQ_API_KEY in your .env, then "
+                "Check your LLM API keys in .env (GEMINI_API_KEY, MISTRAL_API_KEY, NVIDIA_NIM_API_KEY), then "
                 "restart. This is NOT a token/quota issue."
             ),
         ) from exc
@@ -219,7 +219,7 @@ def _hint_for_error(exc: PredictionError) -> str | None:
     """Map common PredictionError messages to actionable user hints."""
     msg = str(exc).lower()
     if "api key" in msg or "credentials" in msg or "unauthorized" in msg:
-        return "Make sure GEMINI_API_KEY and GROQ_API_KEY are set in your .env file."
+        return "Check your LLM API keys in .env (GEMINI_API_KEY, MISTRAL_API_KEY, NVIDIA_NIM_API_KEY). Blank keys are skipped; at least one model must be usable."
     if "ticker" in msg or "kb" in msg or "unknown" in msg:
         return "Double-check the ticker symbol. Try the full form like 'RELIANCE.NS'."
     if "rate" in msg or "quota" in msg:

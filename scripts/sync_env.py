@@ -39,7 +39,10 @@ from datetime import date
 from pathlib import Path
 
 # An "active" assignment: KEY=value at column 0 (not commented, not indented).
-_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=")
+# Spaces around '=' are allowed (python-dotenv accepts `KEY = value`): a key the
+# user wrote that way must still count as present, or we'd append a second,
+# BLANK `KEY=` below it -- and dotenv's last-one-wins would wipe their real key.
+_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)[ \t]*=")
 
 # Keys the APP owns: when present in BOTH files, the user's value is synced to
 # the template's. Keep this list TINY -- never add secrets or user/geo tweaks

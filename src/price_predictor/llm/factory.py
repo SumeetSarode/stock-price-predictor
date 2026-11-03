@@ -16,7 +16,8 @@ the project relies on for resilience and cost control.
 
 Adding a new provider:
     1. Add the API key field to config/settings.py + .env.example
-    2. Add a (provider_name, getter) entry to _API_KEY_GETTERS below
+    2. Add its (prefix -> field, ENV name) entry to Settings.LLM_KEY_ENV
+       (or, if it needs no key, to _KEYLESS_HOSTED_PROVIDERS below)
 
 Adding a new profile:
     1. Add CHAIN_<NAME> + PAID_<NAME> to .env / .env.example
@@ -24,26 +25,20 @@ Adding a new profile:
     3. Add an entry to settings._profile_map
     No changes needed in this file — make_resilient_model is profile-agnostic.
 """
-from collections.abc import Callable
-
 import openai
 from google.adk.models.lite_llm import LiteLlm
 
-from price_predictor.config.settings import settings
+from price_predictor.config.settings import Settings, settings
 from price_predictor.llm.resilient import ResilientModel
 
-# ─────────────────────────────────────────────────────────────
-# Provider → API key getter (lazy: only unmasks SecretStr when called)
-# ─────────────────────────────────────────────────────────────
-_API_KEY_GETTERS: dict[str, Callable[[], str]] = {
-    "openrouter": lambda: settings.openrouter_api_key.get_secret_value(),
-    "groq": lambda: settings.groq_api_key.get_secret_value(),
-    "gemini": lambda: settings.gemini_api_key.get_secret_value(),
-    # Cohere's CHAT route. The prefix is 'cohere_chat', NOT 'cohere' --
-    # litellm registers those as two different providers, and plain
-    # 'cohere/' is the embeddings one, which would 404 on a chat call.
-    "cohere_chat": lambda: settings.cohere_api_key.get_secret_value(),
-}
+# Keyed providers and the setting holding each key live in ONE place:
+# Settings.LLM_KEY_ENV (also used to skip chain entries whose key is blank).
+
+# HOSTED providers with an anonymous free tier: no key at all. OVH AI Endpoints
+# serves anonymous callers (about 2 requests/min per model) and REJECTS a fake
+# bearer key, so the request must carry no Authorization header -- litellm's
+# ovhcloud route only sends one when an api_key is given. Hosted timeouts apply.
+_KEYLESS_HOSTED_PROVIDERS: frozenset[str] = frozenset({"ovhcloud"})
 
 # Providers that run LOCALLY and need NO API key -- they need an `api_base`
 # (where the local server listens) instead. LiteLLM routes both
@@ -119,7 +114,7 @@ def make_model(model_name: str) -> LiteLlm:
         Configured LiteLlm instance ready to pass to LlmAgent(model=...).
 
     Raises:
-        ValueError: if the provider prefix is not registered in _API_KEY_GETTERS.
+        ValueError: if the provider prefix is neither in Settings.LLM_KEY_ENV nor keyless.
     """
     provider = model_name.split("/", 1)[0]
 
@@ -159,16 +154,27 @@ def make_model(model_name: str) -> LiteLlm:
             ),
         )
 
-    if provider not in _API_KEY_GETTERS:
-        supported = sorted(set(_API_KEY_GETTERS) | _KEYLESS_LOCAL_PROVIDERS)
+    if provider in _KEYLESS_HOSTED_PROVIDERS:
+        return LiteLlm(
+            model=model_name,
+            num_retries=_NO_INTERNAL_RETRY,
+            timeout=openai.Timeout(
+                _HOSTED_TIMEOUT_S, connect=_HOSTED_CONNECT_TIMEOUT_S
+            ),
+        )
+
+    if provider not in Settings.LLM_KEY_ENV:
+        supported = sorted(
+            set(Settings.LLM_KEY_ENV) | _KEYLESS_LOCAL_PROVIDERS | _KEYLESS_HOSTED_PROVIDERS
+        )
         raise ValueError(
             f"Unsupported provider: {provider!r}. "
             f"Supported: {supported}. "
-            f"Add an API key + getter to factory.py to enable."
+            f"Add its key to Settings.LLM_KEY_ENV to enable."
         )
     return LiteLlm(
         model=model_name,
-        api_key=_API_KEY_GETTERS[provider](),
+        api_key=settings.api_key_for(provider),
         num_retries=_NO_INTERNAL_RETRY,
         timeout=openai.Timeout(
             _HOSTED_TIMEOUT_S, connect=_HOSTED_CONNECT_TIMEOUT_S

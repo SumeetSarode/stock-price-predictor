@@ -58,7 +58,7 @@ double-click a desktop icon that pulls the latest `release` and opens the app).
 cd price_predictor
 uv venv
 uv sync
-cp .env.example .env  # then edit GROQ_API_KEY + GEMINI_API_KEY
+cp .env.example .env  # then paste any of GEMINI_API_KEY / MISTRAL_API_KEY / NVIDIA_NIM_API_KEY
 ```
 
 > **API keys:** a fresh clone has no `.env` (it's gitignored). You need

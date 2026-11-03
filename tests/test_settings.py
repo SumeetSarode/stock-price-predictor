@@ -208,9 +208,9 @@ class TestOptionalKeyProviders:
         s = _build_settings(monkeypatch, OPENROUTER_API_KEY="")
         assert s.openrouter_api_key.get_secret_value() == ""
 
-    def test_openrouter_placeholder_key_rejected(self, monkeypatch):
-        with pytest.raises(ValidationError, match="Placeholder"):
-            _build_settings(monkeypatch, OPENROUTER_API_KEY="your_openrouter_key_here")
+    def test_openrouter_placeholder_key_counts_as_no_key(self, monkeypatch):
+        s = _build_settings(monkeypatch, OPENROUTER_API_KEY="your_openrouter_key_here")
+        assert s.openrouter_api_key.get_secret_value() == ""
 
 
 # ──────────────────────────────────────────────
@@ -275,9 +275,10 @@ class TestFormatValidation:
         with pytest.raises(ValidationError, match="provider/model"):
             _build_settings(monkeypatch, PAID_AGENTIC="bad-no-slash")
 
-    def test_placeholder_api_key_rejected(self, monkeypatch):
-        with pytest.raises(ValidationError, match="Placeholder"):
-            _build_settings(monkeypatch, GROQ_API_KEY="your_groq_key_here")
+    def test_placeholder_api_key_counts_as_no_key(self, monkeypatch):
+        """A never-edited template line must not crash startup: it just means no Groq key."""
+        s = _build_settings(monkeypatch, GROQ_API_KEY="your_groq_key_here")
+        assert s.groq_api_key.get_secret_value() == ""
 
 
 # ──────────────────────────────────────────────────────────────
@@ -408,3 +409,49 @@ class TestAlphaVantageKey:
         red flag -- catch it at startup, not at first AlphaVantage call."""
         with pytest.raises(ValidationError, match="Placeholder"):
             _build_settings(monkeypatch, ALPHA_VANTAGE_API_KEY="your_alpha_vantage_key")
+
+
+class TestEveryLlmKeyIsOptional:
+    """Ship rule: a blank key never crashes the app -- that provider's models are skipped.
+
+    Every key in Settings.LLM_KEY_ENV is cleared first, so the developer's real
+    environment cannot leak in (litellm loads .env into os.environ on import).
+    """
+
+    CHAIN = ("gemini/gemini-2.5-flash,mistral/codestral-latest,groq/openai/gpt-oss-120b,"
+             "nvidia_nim/poolside/laguna-xs-2.1,ovhcloud/Meta-Llama-3_3-70B-Instruct,ollama_chat/qwen3:8b")
+
+    def _settings(self, monkeypatch, **keys):
+        for _, env in Settings.LLM_KEY_ENV.values():
+            monkeypatch.setenv(env, "")
+        env = {"CHAIN_AGENTIC": self.CHAIN, "PAID_AGENTIC": "groq/x", **keys}
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        return Settings(_env_file=None)  # type: ignore[call-arg]
+
+    def test_starts_with_no_keys_at_all_and_keeps_only_keyless_models(self, monkeypatch):
+        s = self._settings(monkeypatch)
+        assert s.effective_chain("agentic") == ["ovhcloud/Meta-Llama-3_3-70B-Instruct", "ollama_chat/qwen3:8b"]
+
+    def test_each_key_switches_on_only_its_own_provider(self, monkeypatch):
+        s = self._settings(monkeypatch, MISTRAL_API_KEY="m-real-looking")
+        assert s.effective_chain("agentic") == [
+            "mistral/codestral-latest", "ovhcloud/Meta-Llama-3_3-70B-Instruct", "ollama_chat/qwen3:8b"]
+
+    def test_all_keys_keep_the_whole_chain_in_order(self, monkeypatch):
+        s = self._settings(monkeypatch, GEMINI_API_KEY="g-real", MISTRAL_API_KEY="m-real",
+                           GROQ_API_KEY="q-real", NVIDIA_NIM_API_KEY="n-real")
+        assert s.effective_chain("agentic") == self.CHAIN.split(",")
+
+    def test_a_chain_with_nothing_usable_says_which_key_to_paste(self, monkeypatch):
+        s = self._settings(monkeypatch, CHAIN_AGENTIC="gemini/gemini-2.5-flash,mistral/codestral-latest")
+        with pytest.raises(ValueError, match="No usable model"):
+            s.effective_chain("agentic")
+
+    @pytest.mark.parametrize("env", ["GEMINI_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY", "NVIDIA_NIM_API_KEY"])
+    def test_a_template_placeholder_skips_that_provider_instead_of_crashing(self, monkeypatch, env):
+        s = self._settings(monkeypatch, **{env: "your_key_here"})
+        assert s.effective_chain("agentic") == ["ovhcloud/Meta-Llama-3_3-70B-Instruct", "ollama_chat/qwen3:8b"]
+
+    def test_every_keyed_prefix_maps_to_a_real_settings_field(self):
+        assert all(field in Settings.model_fields for field, _ in Settings.LLM_KEY_ENV.values())

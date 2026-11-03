@@ -84,8 +84,9 @@ if (Test-Path $envPath) {
     Ok ".env present."
 } else {
     Warn "No .env found in the repo root."
-    Write-Host "   Create it (copy .env.example -> .env) and paste your GROQ_API_KEY"
-    Write-Host "   and GEMINI_API_KEY. The app can't predict without it."
+    Write-Host "   Create it (copy .env.example -> .env) and paste the free API keys you"
+    Write-Host "   have (GEMINI_API_KEY, MISTRAL_API_KEY, NVIDIA_NIM_API_KEY). Blank keys"
+    Write-Host "   are skipped; more keys = more fallback models."
     Write-Host "   You can do this now, or before the first launch."
 }
 

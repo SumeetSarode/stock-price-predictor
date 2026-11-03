@@ -14,6 +14,11 @@ from price_predictor.llm.factory import make_model, make_resilient_model
 from price_predictor.llm.resilient import ResilientModel
 
 
+def _fake_keys(monkeypatch, key: str = "test-key") -> None:
+    """Every keyed provider gets `key`, whatever the developer's real .env holds."""
+    monkeypatch.setattr(type(settings), "api_key_for", lambda self, provider: key)
+
+
 class TestKeylessLocalProvider:
     """Ollama models build with an api_base and NO api key."""
 
@@ -172,19 +177,14 @@ class TestCohereProvider:
     """
 
     def test_cohere_chat_builds_with_key(self, monkeypatch):
-        # Patch the GETTER, not the settings field: pydantic blocks
-        # instance/class attr patching, and this keeps the test independent
-        # of whatever happens to be in the developer's real .env.
-        monkeypatch.setitem(
-            factory._API_KEY_GETTERS, "cohere_chat", lambda: "test-cohere-key",
-        )
+        # Patch the key LOOKUP, not the settings field: this keeps the test
+        # independent of whatever happens to be in the developer's real .env.
+        _fake_keys(monkeypatch)
         m = make_model("cohere_chat/command-r-08-2024")
         assert m.model == "cohere_chat/command-r-08-2024"
 
     def test_cohere_chat_uses_hosted_timeout_and_no_internal_retry(self, monkeypatch):
-        monkeypatch.setitem(
-            factory._API_KEY_GETTERS, "cohere_chat", lambda: "test-cohere-key",
-        )
+        _fake_keys(monkeypatch)
         m = make_model("cohere_chat/command-r-08-2024")
         t = m._additional_args["timeout"]
         assert t.connect == factory._HOSTED_CONNECT_TIMEOUT_S
@@ -255,7 +255,7 @@ class TestCohereSurvivesAdkResponseFormat:
 
     @pytest.mark.asyncio
     async def test_make_model_cohere_drops_response_format_and_answers(self, monkeypatch):
-        monkeypatch.setitem(factory._API_KEY_GETTERS, "cohere_chat", lambda: "k")
+        _fake_keys(monkeypatch)
         m = make_model("cohere_chat/command-r-08-2024")
         m.llm_client = self._client_with_mock_reply()
 
@@ -267,7 +267,7 @@ class TestCohereSurvivesAdkResponseFormat:
     def test_other_providers_still_get_response_format(self, monkeypatch):
         """drop_params is scoped to Cohere: providers that support
         response_format must keep receiving it."""
-        monkeypatch.setitem(factory._API_KEY_GETTERS, "groq", lambda: "k")
+        _fake_keys(monkeypatch)
         assert "drop_params" not in make_model("groq/openai/gpt-oss-120b")._additional_args
 
 
@@ -289,3 +289,31 @@ class TestResilientChainWithLocalTail:
         # every inner local model carries the api_base.
         for inner in model.inner_models:
             assert inner._additional_args["api_base"] == settings.ollama_api_base
+
+
+class TestSweepVerifiedProviders:
+    """Mistral, NVIDIA NIM and OVH: wired in after passing the 2026-11-02 off-VPN pipeline sweep."""
+
+    @pytest.mark.parametrize(("name", "env"), [
+        ("mistral/codestral-latest", "MISTRAL_API_KEY"),
+        ("nvidia_nim/poolside/laguna-xs-2.1", "NVIDIA_NIM_API_KEY"),
+    ])
+    def test_keyed_providers_read_their_own_key_with_hosted_timeouts(self, monkeypatch, name, env):
+        from price_predictor.config.settings import Settings
+        assert Settings.LLM_KEY_ENV[name.split("/", 1)[0]][1] == env
+        _fake_keys(monkeypatch, "k-" + env)
+        m = make_model(name)
+        assert m.model == name and m._additional_args["api_key"] == "k-" + env
+        assert m._additional_args["num_retries"] == 0
+        assert m._additional_args["timeout"].read == factory._HOSTED_TIMEOUT_S
+
+    def test_ovh_is_anonymous_no_key_no_local_api_base(self):
+        """OVH rejects a fake bearer key: no api_key may be set, and it is NOT routed to local Ollama."""
+        m = make_model("ovhcloud/Meta-Llama-3_3-70B-Instruct")
+        assert "api_key" not in m._additional_args and "api_base" not in m._additional_args
+        assert m._additional_args["timeout"].read == factory._HOSTED_TIMEOUT_S
+
+    def test_unsupported_provider_message_lists_the_new_ones(self):
+        with pytest.raises(ValueError) as exc:
+            make_model("openai/gpt-4o")
+        assert all(p in str(exc.value) for p in ("mistral", "nvidia_nim", "ovhcloud"))

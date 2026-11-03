@@ -21,11 +21,12 @@ non-technical person's Windows laptop, so that afterward they only ever
 |-------|-----|-------|
 | The laptop, ~40 min | You're setting it up in person | — |
 | Internet connection | Downloads git, uv, Python, dependencies | — |
-| A Groq API key (free) | Primary LLM for predictions | https://console.groq.com/keys |
-| A Gemini API key (free) | Fallback LLM | https://aistudio.google.com/app/apikey |
+| A Gemini API key (free, recommended) | LLM models in the fallback chain | https://aistudio.google.com/app/apikey |
+| A Mistral API key (free, recommended) | More LLM models in the chain | https://console.mistral.ai/api-keys |
+| An NVIDIA NIM key (free, optional) | More LLM models in the chain | https://build.nvidia.com/ |
 | The repo URL (public) | To clone the code | your GitHub repo |
 
-Grab the two API keys first (steps in **Phase 4** below) so you're not
+Grab your API keys first (every one is optional; blank ones are skipped) (steps in **Phase 4** below) so you're not
 juggling browser tabs mid-install.
 
 ---
@@ -97,21 +98,24 @@ That creates `release`, publishes it, and switches you back to `main`.
 The app needs LLM keys to make predictions. You add them here, by hand.
 They live only on this laptop and are **never** committed to git.
 
-### 4a. Get a free Groq key
-1. Go to **https://console.groq.com/keys** and sign in (Google login works).
-2. Click **Create API Key**, give it any name, and **copy the key**
-   (it starts with `gsk_...`). You won't be able to see it again, so copy it now.
+**Every key is optional.** Each one switches on that provider's models in
+the fallback chain; a blank key just means those models are skipped. Two
+providers need no key at all (OVH's free endpoint and the local Ollama
+model), so the app still runs with every key blank -- but more keys means
+more fallback models when one provider is busy. Gemini + Mistral is the
+recommended minimum.
 
-### 4b. Get a free Gemini key
+### 4a. Gemini (Google AI Studio) -- recommended
 1. Go to **https://aistudio.google.com/app/apikey** and sign in.
-2. Click **Create API key** and **copy it**.
+2. Click **Create API key** and **copy it** (it starts with `AIza...`).
 
-### 4c. (Optional, recommended) Get a free OpenRouter key
-This unlocks one extra free fallback model (Nemotron-3-Ultra) already in
-the default chain — skip this step and it's just silently left out, no
-harm done.
-1. Go to **https://openrouter.ai/settings/keys** and sign in.
-2. Click **Create Key** and **copy it** (it starts with `sk-or-...`).
+### 4b. Mistral -- recommended
+1. Go to **https://console.mistral.ai/api-keys** and sign in.
+2. Choose the free **Experiment** plan if asked, then **Create new key** and copy it.
+
+### 4c. NVIDIA NIM -- optional
+1. Go to **https://build.nvidia.com/**, sign in, click **Get API Key** and copy it
+   (it starts with `nvapi-...`).
 
 ### 4d. Create the `.env` file
 In PowerShell (still inside the `price_predictor` folder):
@@ -121,22 +125,16 @@ copy .env.example .env
 notepad .env
 ```
 
-Notepad opens. Find these lines and replace the placeholder text with
-your real keys (the OpenRouter line can stay blank if you skipped 4c):
+Notepad opens. Paste each key you have after its `=` sign; leave the rest blank:
 
 ```
-GROQ_API_KEY=your_groq_key_here
-GEMINI_API_KEY=your_gemini_key_here
-OPENROUTER_API_KEY=
-```
-
-becomes (example):
-
-```
-GROQ_API_KEY=gsk_abc123realkeyhere
 GEMINI_API_KEY=AIzaSyRealKeyHere
-OPENROUTER_API_KEY=sk-or-realkeyhere
+MISTRAL_API_KEY=realMistralKeyHere
+NVIDIA_NIM_API_KEY=
 ```
+
+(`GROQ_API_KEY`, `OPENROUTER_API_KEY` and `COHERE_API_KEY` are there too, for
+custom chains; the default chain does not use them.)
 
 **Save** (Ctrl+S) and **close** Notepad. Leave everything else in the file
 as-is.

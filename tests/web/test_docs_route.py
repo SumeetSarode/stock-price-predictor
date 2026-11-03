@@ -52,9 +52,11 @@ class TestDocsServed:
         resp = client.get("/docs/api_keys.html")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
-        # Both required keys must be named in the guide.
-        assert "GEMINI_API_KEY" in resp.text
-        assert "GROQ_API_KEY" in resp.text
+        # Every LLM key the app reads must be explained in the guide.
+        from price_predictor.config.settings import Settings
+        for _field, env in Settings.LLM_KEY_ENV.values():
+            if env != "COHERE_API_KEY":   # trial-only provider, documented in .env.example
+                assert env in resp.text, env
 
     def test_hub_links_to_api_keys_guide(self, client):
         hub = client.get("/docs/how_it_works.html").text

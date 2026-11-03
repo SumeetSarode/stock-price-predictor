@@ -27,7 +27,7 @@ desktop icon. You (the developer) do a one-time setup.
 1. Install **Git for Windows** (https://git-scm.com/download/win).
 2. `git clone <public-repo-url> price_predictor` into their Documents.
 3. Create the `release` branch: `git checkout -b release; git push -u origin release; git checkout main`.
-4. Add `.env` with your API keys (`copy .env.example .env`, then paste GROQ + GEMINI keys).
+4. Add `.env` with your API keys (`copy .env.example .env`, then paste whichever free keys you have: Gemini, Mistral, NVIDIA; blank ones are skipped).
 5. Run the installer: `powershell -ExecutionPolicy Bypass -File .\windows_setup\install.ps1`.
 6. Hand it back — they double-click the **"Stock Price Predictor"** desktop icon.
 

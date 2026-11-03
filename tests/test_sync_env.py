@@ -6,6 +6,7 @@ modified; only genuinely-new keys are appended.
 from __future__ import annotations
 
 import importlib.util
+import io
 from pathlib import Path
 
 # scripts/ isn't a package -> load the module by path.
@@ -162,3 +163,50 @@ class TestSyncEnvFileOps:
         result = sync_env(env, tmp_path / "does_not_exist.example")
         assert result == {"added": [], "updated": []}
         assert env.read_text() == "A=1\n"  # untouched
+
+
+class TestShipsToDeployedLaptops:
+    """What the Windows launcher does on every start: merge the REAL template into an old .env."""
+
+    REPO = Path(__file__).resolve().parents[1]
+    OLD_ENV = (  # a laptop set up from the previous release template, keys written with spaces
+        "GROQ_API_KEY = gsk_REAL_GROQ\n"
+        "GEMINI_API_KEY = AIza_REAL_GEMINI\n"
+        "OPENROUTER_API_KEY=sk-or-REAL\n"
+        "CHAIN_AGENTIC=gemini/gemini-flash-latest,groq/openai/gpt-oss-120b,ollama_chat/qwen3:8b\n"
+        "PAID_AGENTIC=groq/llama-3.3-70b-versatile\n"
+        "PRICE_CHAIN=yfinance\n"
+    )
+
+    def _merged(self) -> str:
+        example = (self.REPO / ".env.example").read_text(encoding="utf-8")
+        new_text, _added, _updated = merge(example, self.OLD_ENV)
+        return new_text
+
+    def test_every_llm_key_slot_reaches_the_laptop_and_real_keys_survive(self):
+        from dotenv import dotenv_values
+
+        from price_predictor.config.settings import Settings
+        values = dotenv_values(stream=io.StringIO(self._merged()))
+        for _field, env in Settings.LLM_KEY_ENV.values():
+            assert env in values, f"{env} must be offered in the laptop's .env"
+        assert values["GEMINI_API_KEY"] == "AIza_REAL_GEMINI"   # not wiped by a blank duplicate
+        assert values["GROQ_API_KEY"] == "gsk_REAL_GROQ"
+        assert values["MISTRAL_API_KEY"] == "" and values["NVIDIA_NIM_API_KEY"] == ""
+        assert values["PRICE_CHAIN"] == "yfinance"
+
+    def test_the_chain_is_updated_to_the_template_chain(self):
+        from dotenv import dotenv_values
+        example = (self.REPO / ".env.example").read_text(encoding="utf-8")
+        merged = dotenv_values(stream=io.StringIO(self._merged()))
+        assert merged["CHAIN_AGENTIC"] == dotenv_values(stream=io.StringIO(example))["CHAIN_AGENTIC"]
+
+    def test_merging_twice_changes_nothing(self):
+        example = (self.REPO / ".env.example").read_text(encoding="utf-8")
+        once = self._merged()
+        twice, added, updated = merge(example, once)
+        assert (twice, added, updated) == (once, [], [])
+
+    def test_a_key_written_with_spaces_counts_as_present(self):
+        _new, added, _upd = merge("GEMINI_API_KEY=\n", "GEMINI_API_KEY = real\n")
+        assert added == []
